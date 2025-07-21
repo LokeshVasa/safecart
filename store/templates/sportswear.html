@@ -1,0 +1,142 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sportswear - SafeCart</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    <!-- Navigation -->
+<header class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h1><a href="home">SafeCart</a></h1>
+            </div>
+            <nav class="nav-menu">
+                <a href="home" class="nav-link">Home</a>
+                <a href="cart" class="nav-link">Cart (<span id="cart-count">0</span>)</a>
+                <a href="wishlist" class="nav-link">Wishlist (<span id="wishlist-count">0</span>)</a>
+                <a href="yourorders" class="nav-link">Your Orders</a>
+                <div class="profile-menu" id="profile-menu">
+                    <button class="profile-avatar-btn" id="profile-btn" type="button">
+                        <img src="" alt="Profile" class="profile-avatar-img">
+                    </button>
+                    <div class="profile-dropdown" id="profile-dropdown" style="display:none;">
+                        <div id="profile-dropdown-content"></div>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </header>
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="container">
+            <h1>Sportswear</h1>
+            <p>Active wear for your fitness journey</p>
+        </div>
+    </section>
+
+    <!-- Products Section -->
+    <section class="products">
+        <div class="container">
+            <div class="products-grid">
+                <div class="product-card" data-id="s1">
+                    <div class="product-image">
+                        <img src="https://images.pexels.com/photos/1552252/pexels-photo-1552252.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Running Shoes">
+                    </div>
+                    <div class="product-info">
+                        <h3>Running Shoes</h3>
+                        <p class="price">$119.99</p>
+                        <div class="product-actions">
+                            <button class="btn btn-wishlist" onclick="addToWishlist('s1', 'Running Shoes', 119.99, 'https://images.pexels.com/photos/1552252/pexels-photo-1552252.jpeg?auto=compress&cs=tinysrgb&w=400')">♡ Wishlist</button>
+                            <button class="btn btn-cart" onclick="addToCart('s1', 'Running Shoes', 119.99, 'https://images.pexels.com/photos/1552252/pexels-photo-1552252.jpeg?auto=compress&cs=tinysrgb&w=400')">Add to Cart</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-id="s2">
+                    <div class="product-image">
+                        <img src="https://images.pexels.com/photos/1556103/pexels-photo-1556103.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Yoga Mat">
+                    </div>
+                    <div class="product-info">
+                        <h3>Yoga Mat</h3>
+                        <p class="price">$29.99</p>
+                        <div class="product-actions">
+                            <button class="btn btn-wishlist" onclick="addToWishlist('s2', 'Yoga Mat', 29.99, 'https://images.pexels.com/photos/1556103/pexels-photo-1556103.jpeg?auto=compress&cs=tinysrgb&w=400')">♡ Wishlist</button>
+                            <button class="btn btn-cart" onclick="addToCart('s2', 'Yoga Mat', 29.99, 'https://images.pexels.com/photos/1556103/pexels-photo-1556103.jpeg?auto=compress&cs=tinysrgb&w=400')">Add to Cart</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-id="s3">
+                    <div class="product-image">
+                        <img src="https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Gym Bag">
+                    </div>
+                    <div class="product-info">
+                        <h3>Gym Bag</h3>
+                        <p class="price">$49.99</p>
+                        <div class="product-actions">
+                            <button class="btn btn-wishlist" onclick="addToWishlist('s3', 'Gym Bag', 49.99, 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400')">♡ Wishlist</button>
+                            <button class="btn btn-cart" onclick="addToCart('s3', 'Gym Bag', 49.99, 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400')">Add to Cart</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-id="s4">
+                    <div class="product-image">
+                        <img src="https://images.pexels.com/photos/1640774/pexels-photo-1640774.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Water Bottle">
+                    </div>
+                    <div class="product-info">
+                        <h3>Water Bottle</h3>
+                        <p class="price">$19.99</p>
+                        <div class="product-actions">
+                            <button class="btn btn-wishlist" onclick="addToWishlist('s4', 'Water Bottle', 19.99, 'https://images.pexels.com/photos/1640774/pexels-photo-1640774.jpeg?auto=compress&cs=tinysrgb&w=400')">♡ Wishlist</button>
+                            <button class="btn btn-cart" onclick="addToCart('s4', 'Water Bottle', 19.99, 'https://images.pexels.com/photos/1640774/pexels-photo-1640774.jpeg?auto=compress&cs=tinysrgb&w=400')">Add to Cart</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-id="s5">
+                    <div class="product-image">
+                        <img src="https://images.pexels.com/photos/1640775/pexels-photo-1640775.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Fitness Tracker">
+                    </div>
+                    <div class="product-info">
+                        <h3>Fitness Tracker</h3>
+                        <p class="price">$89.99</p>
+                        <div class="product-actions">
+                            <button class="btn btn-wishlist" onclick="addToWishlist('s5', 'Fitness Tracker', 89.99, 'https://images.pexels.com/photos/1640775/pexels-photo-1640775.jpeg?auto=compress&cs=tinysrgb&w=400')">♡ Wishlist</button>
+                            <button class="btn btn-cart" onclick="addToCart('s5', 'Fitness Tracker', 89.99, 'https://images.pexels.com/photos/1640775/pexels-photo-1640775.jpeg?auto=compress&cs=tinysrgb&w=400')">Add to Cart</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-card" data-id="s6">
+                    <div class="product-image">
+                        <img src="https://images.pexels.com/photos/1640773/pexels-photo-1640773.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Dumbbells">
+                    </div>
+                    <div class="product-info">
+                        <h3>Dumbbells Set</h3>
+                        <p class="price">$69.99</p>
+                        <div class="product-actions">
+                            <button class="btn btn-wishlist" onclick="addToWishlist('s6', 'Dumbbells Set', 69.99, 'https://images.pexels.com/photos/1640773/pexels-photo-1640773.jpeg?auto=compress&cs=tinysrgb&w=400')">♡ Wishlist</button>
+                            <button class="btn btn-cart" onclick="addToCart('s6', 'Dumbbells Set', 69.99, 'https://images.pexels.com/photos/1640773/pexels-photo-1640773.jpeg?auto=compress&cs=tinysrgb&w=400')">Add to Cart</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 SafeCart. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="{% static 'js/app.js' %}"></script>
+    <script src="js/currency.js"></script>
+</body>
+</html>
