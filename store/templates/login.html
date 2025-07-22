@@ -1,0 +1,65 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - SafeCart</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h1><a href="home">SafeCart</a></h1>
+            </div>
+            <nav class="nav-menu">
+                <a href="home" class="nav-link">Home</a>
+                <a href="cart" class="nav-link">Cart</a>
+                <a href="wishlist" class="nav-link">Wishlist</a>
+                <a href="yourorders" class="nav-link">Your Orders</a>
+            </nav>
+        </div>
+    </header>
+    <section class="page-header">
+        <div class="container">
+            <h1>Login</h1>
+        </div>
+    </section>
+    <section class="auth-section">
+        <div class="container">
+            <div class="address-form-card" style="max-width:400px; margin:2rem auto;">
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" required placeholder="you@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required placeholder="Password">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Login</button>
+                </form>
+                <p style="text-align:center; margin-top:1rem;">Don't have an account? <a href="signup">Sign Up</a></p>
+            </div>
+        </div>
+    </section>
+    <script>
+    document.getElementById('login-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        // Check if user exists in localStorage 'users'
+        const users = JSON.parse(localStorage.getItem('users') || '[]');
+        const user = users.find(u => u.email === email);
+        if (!user) {
+            alert('No account found for this email. Please register first.');
+            return;
+        }
+        // For demo: skip password check
+        localStorage.setItem('user', JSON.stringify({ email: email }));
+        window.location.href = 'home';
+    });
+    </script>
+</body>
+</html> 

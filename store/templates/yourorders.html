@@ -1,0 +1,97 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Orders - SafeCart</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    <!-- Navigation -->
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h1><a href="home">SafeCart</a></h1>
+            </div>
+            <nav class="nav-menu">
+                <a href="home" class="nav-link">Home</a>
+                <a href="cart" class="nav-link">Cart (<span id="cart-count">0</span>)</a>
+                <a href="wishlist" class="nav-link">Wishlist (<span id="wishlist-count">0</span>)</a>
+                <a href="yourorders" class="nav-link active">Your Orders</a>
+                <a href="profile.html" class="profile-avatar-btn" id="profile-btn">
+                    <img src="" alt="Profile" class="profile-avatar-img">
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="container">
+            <h1>Your Orders</h1>
+            <p>View your recent purchases and order details</p>
+        </div>
+    </section>
+
+    <!-- Orders Section -->
+    <section class="orders">
+        <div class="container">
+            <div id="orders-list">
+                <!-- Orders will be populated by JavaScript -->
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 SafeCart. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="{% static 'js/app.js' %}"></script>
+    <script>
+    // Load orders from localStorage and display them
+    function getOrders() {
+        const orders = JSON.parse(localStorage.getItem('orders') || '[]');
+        return orders;
+    }
+    function formatDate(dateStr) {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+    function renderOrders() {
+        const orders = getOrders();
+        const ordersList = document.getElementById('orders-list');
+        if (!orders.length) {
+            ordersList.innerHTML = `<div class="empty-state"><h3>No orders yet</h3><p>Start shopping to place your first order!</p><a href="home">Shop Now</a></div>`;
+            return;
+        }
+        ordersList.innerHTML = orders.map(order => `
+            <div class="order-card-modern">
+                <div class="order-card-header">
+                    <div>
+                        <span class="order-date">${formatDate(order.date)}</span>
+                        <span class="order-id">#${order.id}</span>
+                    </div>
+                    <span class="order-status-badge">Confirmed</span>
+                </div>
+                <div class="order-items-list">
+                    ${order.items.map(item => `
+                        <div class="order-item-row">
+                            <img src="${item.image}" alt="${item.name}" class="order-item-img-modern">
+                            <div class="order-item-info">
+                                <div class="order-item-name">${item.name}</div>
+                                <div class="order-item-meta">Qty: ${item.quantity} &nbsp;|&nbsp; $${(item.price * item.quantity).toFixed(2)}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+    document.addEventListener('DOMContentLoaded', renderOrders);
+    </script>
+</body>
+</html> 
