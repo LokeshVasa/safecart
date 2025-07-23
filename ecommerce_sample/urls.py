@@ -16,23 +16,23 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path 
-from store.views import product,kids, home, men, women, cart, clear_data, electronics, furniture, login, profile, signup, sportswear, wishlist, yourorders
+from store.views import product, cart, clear_data,login, profile, signup, wishlist, home,yourorders
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("", home ),
     path("home", home ),
     path('cart', cart), 
-    path('men', men), 
-    path('women', women), 
-    path('kids', kids), 
+    #path('men', men), 
+    #path('women', women), 
+    #path('kids', kids), 
     path('clear_data', clear_data), 
-    path('electronics',electronics ), 
-    path('furniture', furniture), 
+    #path('electronics',electronics ), 
+    #path('furniture', furniture), 
     path('login', login), 
     path('profile', profile), 
     path('signup', signup), 
-    path('sportswear', sportswear), 
+    #path('sportswear', sportswear), 
     path('wishlist', wishlist), 
     path('yourorders', yourorders), 
     path('product',product),
