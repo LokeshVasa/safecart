@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sportswear - SafeCart</title>
+    <title>Men's Fashion - SafeCart</title>
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
 </head>
 <body>
     <!-- Navigation -->
-<header class="navbar">
+    <header class="navbar">
         <div class="nav-container">
             <div class="nav-logo">
                 <h1><a href="home">SafeCart</a></h1>
@@ -19,22 +19,18 @@
                 <a href="cart" class="nav-link">Cart (<span id="cart-count">0</span>)</a>
                 <a href="wishlist" class="nav-link">Wishlist (<span id="wishlist-count">0</span>)</a>
                 <a href="yourorders" class="nav-link">Your Orders</a>
-                <div class="profile-menu" id="profile-menu">
-                    <button class="profile-avatar-btn" id="profile-btn" type="button">
-                        <img src="" alt="Profile" class="profile-avatar-img">
-                    </button>
-                    <div class="profile-dropdown" id="profile-dropdown" style="display:none;">
-                        <div id="profile-dropdown-content"></div>
-                    </div>
-                </div>
+                <a href="profile.html" class="profile-avatar-btn" id="profile-btn">
+                    <img src="" alt="Profile" class="profile-avatar-img">
+                </a>
             </nav>
         </div>
     </header>
+
     <!-- Page Header -->
     <section class="page-header">
         <div class="container">
-            <h1>Sportswear</h1>
-            <p>Active wear for your fitness journey</p>
+            <h1>{{heading}}</h1>
+            <p>{{description}}</p>
         </div>
     </section>
 
