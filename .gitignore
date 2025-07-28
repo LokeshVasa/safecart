@@ -48,7 +48,6 @@ coverage.xml
 *.mo
 
 # Django migrations (optional, ignore if you don’t want to commit them) #
-**/migrations/**
 
 # IDEs and editors #
 .idea/

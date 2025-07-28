@@ -45,7 +45,26 @@
     </div>
 
     <!-- Categories Section -->
+
+
+
     <section class="categories">
+        <div class="container">
+            <h2 class="section-title">Shop by Category</h2>
+            <div class="category-grid">
+                {% for category in categories %}
+                <a href="product?category={{ category.category }}" class="category-card">
+                    <div class="category-image">
+                        <img src={{ category.image.url }} alt={{ category.category }}>
+                    </div>
+                    <h3>{{ category.category }}</h3>
+                </a>
+
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    <!-- <section class="categories">
         <div class="container">
             <h2 class="section-title">Shop by Category</h2>
             <div class="category-grid">
@@ -93,7 +112,10 @@
                 </a>
             </div>
         </div>
-    </section>
+    </section> -->
+
+
+
 
     <!-- Footer -->
     <footer class="footer">
