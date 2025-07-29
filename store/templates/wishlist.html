@@ -36,9 +36,24 @@
 
     <!-- Wishlist Section -->
     <section class="wishlist">
+            <section class="products">
         <div class="container">
-            <div class="wishlist-items" id="wishlist-items">
-                <!-- Wishlist items will be populated by JavaScript -->
+            <div class="products-grid">
+                {% for product in products %}
+                <div class="product-card" data-id="{{ product.id }}">
+                    <div class="product-image">
+                        <img src="{{ product.image.url }}" alt="{{ product.name }}">
+                    </div>
+                    <div class="product-info">
+                        <h3>{{ product.name }}</h3>
+                        <p class="price">₹{{ product.price }}</p>
+                        <div class="product-actions">
+                            <button class="btn btn-wishlist" onclick="addToWishlist('{{ product.id }}', '{{ product.name }}', {{ product.price }}, '{{ product.image.url }}')">♡ Wishlist</button>
+                            <button class="btn btn-cart" onclick="addToCart('{{ product.id }}', '{{ product.name }}', {{ product.price }}, '{{ product.image.url }}')">Add to Cart</button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
         </div>
     </section>
