@@ -19,8 +19,8 @@ env/
 
 # Static & media (generated files) #
 staticfiles/
-static/
-media/
+#static/
+#media/
 
 # PyInstaller #
 *.spec
