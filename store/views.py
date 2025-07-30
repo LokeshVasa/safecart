@@ -39,6 +39,4 @@ def clear_data(request):
     return render(request, 'clear_data.html')
 
 def cart(request):
-    category = request.GET.get('category', 'men')
-    products = Product.objects.filter(category=category)
     return render(request, 'cart.html')
