@@ -21,22 +21,24 @@ def home(request):
     return render(request, 'home.html', {"categories": categories})
 
 def login(request):
-    return render(request, 'login')
+    return render(request, 'login.html')
 
 def profile(request):
-    return render(request, 'profile')
+    return render(request, 'profile.html')
 
 def signup(request):
-    return render(request, 'signup')
+    return render(request, 'signup.html')
 
 def wishlist(request):
     return render(request, 'wishlist.html')
 
 def yourorders(request):
-    return render(request, 'yourorders')
+    return render(request, 'yourorders.html')
 
 def clear_data(request):
-    return render(request, 'clear_data')
+    return render(request, 'clear_data.html')
 
 def cart(request):
+    category = request.GET.get('category', 'men')
+    products = Product.objects.filter(category=category)
     return render(request, 'cart.html')
