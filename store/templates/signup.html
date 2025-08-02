@@ -6,6 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - SafeCart</title>
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <style>
+        .form-error {
+            color: red;
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+    </style>
 </head>
 <body>
     <header class="navbar">
@@ -21,46 +28,65 @@
             </nav>
         </div>
     </header>
+
     <section class="page-header">
         <div class="container">
             <h1>Sign Up</h1>
         </div>
     </section>
+
     <section class="auth-section">
         <div class="container">
             <div class="address-form-card" style="max-width:400px; margin:2rem auto;">
-                <form id="signup-form">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    {# Non-field (global) errors like "passwords do not match" #}
+                    {% if form.non_field_errors %}
+                        <div class="form-error">
+                            {% for error in form.non_field_errors %}
+                                <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input id="username" name="username" value="{{ form.username.value|default_if_none:'' }}" required placeholder="username..">
+                        {% if form.username.errors %}
+                            <div class="form-error">{{ form.username.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
                     <div class="form-group">
                         <label for="email">Email</label>
-                        <input type="email" id="email" name="email" required placeholder="you@example.com">
+                        <input type="email" id="email" name="email" value="{{ form.email.value|default_if_none:'' }}" required placeholder="you@example.com">
+                        {% if form.email.errors %}
+                            <div class="form-error">{{ form.email.errors.0 }}</div>
+                        {% endif %}
                     </div>
+
                     <div class="form-group">
-                        <label for="password">Password</label>
-                        <input type="password" id="password" name="password" required placeholder="Password">
+                        <label for="password1">Password</label>
+                        <input type="password" id="password1" name="password1" required placeholder="Password">
+                        {% if form.password1.errors %}
+                            <div class="form-error">{{ form.password1.errors.0 }}</div>
+                        {% endif %}
                     </div>
+
+                    <div class="form-group">
+                        <label for="password2">Confirm Password</label>
+                        <input type="password" id="password2" name="password2" required placeholder="Confirm Password">
+                        {% if form.password2.errors %}
+                            <div class="form-error">{{ form.password2.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
                     <button type="submit" class="btn btn-primary btn-block">Sign Up</button>
                 </form>
-                <p style="text-align:center; margin-top:1rem;">Already have an account? <a href="login">Login</a></p>
+                <p style="text-align:center; margin-top:1rem;">Already have an account? <a href="{% url 'login' %}">Login</a></p>
             </div>
         </div>
     </section>
-    <script>
-    document.getElementById('signup-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        // Save user to localStorage 'users' array
-        let users = JSON.parse(localStorage.getItem('users') || '[]');
-        if (users.find(u => u.email === email)) {
-            alert('This email is already registered. Please login.');
-            window.location.href = 'login';
-            return;
-        }
-        users.push({ email, password });
-        localStorage.setItem('users', JSON.stringify(users));
-        localStorage.setItem('user', JSON.stringify({ email: email }));
-        window.location.href = 'home';
-    });
-    </script>
 </body>
-</html> 
+</html>

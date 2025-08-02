@@ -41,3 +41,5 @@ class Category(models.Model):
     class Meta:
         db_table = 'categories'  #table name
         
+
+        
