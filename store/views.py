@@ -1,7 +1,9 @@
-from django.shortcuts import render
+from django.shortcuts import render,redirect
 from .models import Product, Category
 import logging
 from django.shortcuts import get_object_or_404
+from .forms import RegisterForm
+from django.contrib.auth import login, logout, authenticate
 
 
 logger = logging.getLogger(__name__)
@@ -20,14 +22,25 @@ def home(request):
     categories = Category.objects.all()
     return render(request, 'home.html', {"categories": categories})
 
-def login(request):
+def login_user(request):
     return render(request, 'login.html')
 
 def profile(request):
     return render(request, 'profile.html')
 
 def signup(request):
-    return render(request, 'signup.html')
+    if request.method == 'POST':
+        print("Form data received:", request.POST)
+        form=RegisterForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            return redirect('home')
+        else:
+            print("Form errors:", form.errors)
+            return render(request, 'signup.html', {'form': form})
+    else:
+        return render(request, 'signup.html')
 
 def wishlist(request):
     category = request.GET.get('category', 'men')
