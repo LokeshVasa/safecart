@@ -9,22 +9,7 @@
 </head>
 <body>
     <!-- Navigation -->
-    <header class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo">
-                <h1><a href="home">SafeCart</a></h1>
-            </div>
-            <nav class="nav-menu">
-                <a href="home" class="nav-link">Home</a>
-                <a href="cart" class="nav-link">Cart (<span id="cart-count">0</span>)</a>
-                <a href="wishlist" class="nav-link">Wishlist (<span id="wishlist-count">0</span>)</a>
-                <a href="yourorders" class="nav-link active">Your Orders</a>
-                <a href="profile" class="profile-avatar-btn" id="profile-btn">
-                    <img src="" alt="Profile" class="profile-avatar-img">
-                </a>
-            </nav>
-        </div>
-    </header>
+    {% include "navbar.html" %}
 
     <!-- Page Header -->
     <section class="page-header">

@@ -1043,3 +1043,8 @@ body.dark-theme {
     pointer-events: none;
     transition: color 0.2s;
 }
+
+.error-text {
+  color: red;
+  font-size: 0.9rem;
+}
