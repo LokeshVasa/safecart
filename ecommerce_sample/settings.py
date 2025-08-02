@@ -144,3 +144,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = '/home'
 LOGOUT_REDIRECT_URL = '/login'
 
+# Email backend for sending real emails
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+# Gmail SMTP settings
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+# Your email credentials
+EMAIL_HOST_USER = 'manoharsai1111@gmail.com'
+EMAIL_HOST_PASSWORD = 'wqlv kwhp gold nxrt'  # from step above
+
+# Optional
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+

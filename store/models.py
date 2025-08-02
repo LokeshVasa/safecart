@@ -41,5 +41,8 @@ class Category(models.Model):
     class Meta:
         db_table = 'categories'  #table name
         
+from django.contrib.auth.models import User
+User._meta.get_field('email')._unique = True
+        
 
         

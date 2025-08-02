@@ -8,22 +8,7 @@
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
 </head>
 <body>
-    <header class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo">
-                <h1><a href="home">SafeCart</a></h1>
-            </div>
-            <nav class="nav-menu">
-                <a href="home" class="nav-link">Home</a>
-                <a href="cart" class="nav-link">Cart (<span id="cart-count">0</span>)</a>
-                <a href="wishlist" class="nav-link">Wishlist (<span id="wishlist-count">0</span>)</a>
-                <a href="yourorders" class="nav-link">Your Orders</a>
-                <a href="profile" class="profile-avatar-btn active" id="profile-btn">
-                    <img src="" alt="Profile" class="profile-avatar-img">
-                </a>
-            </nav>
-        </div>
-    </header>
+    {% include "navbar.html" %}
     <section class="page-header">
         <div class="container">
             <h1>Profile</h1>
@@ -54,79 +39,6 @@
             </div>
         </div>
     </section>
-    <script src="{% static 'js/app.js' %}"></script>
-    <script>
-    // Redirect to login if not logged in
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
-    if (!user || !user.email) {
-        window.location.href = 'login';
-    }
-    // Profile photo logic
-    const profilePhoto = document.getElementById('profile-photo');
-    const savedPhoto = localStorage.getItem('profilePhoto');
-    if (savedPhoto) {
-        profilePhoto.src = savedPhoto;
-    } else {
-        // Show default avatar if no custom photo
-        profilePhoto.src = 'images/default-avatar.jpg';
-    }
-    // Update navbar profile photo
-    const navbarProfileImg = document.querySelector('.profile-avatar-img');
-    if (navbarProfileImg) {
-        if (savedPhoto) {
-            navbarProfileImg.src = savedPhoto;
-        } else {
-            navbarProfileImg.src = 'images/default-avatar.jpg';
-        }
-    }
-    document.getElementById('photo-upload-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const fileInput = document.getElementById('photo-input');
-        if (fileInput.files && fileInput.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                profilePhoto.src = evt.target.result;
-                localStorage.setItem('profilePhoto', evt.target.result);
-                // Update navbar profile photo
-                if (navbarProfileImg) {
-                    navbarProfileImg.src = evt.target.result;
-                }
-            };
-            reader.readAsDataURL(fileInput.files[0]);
-        }
-    });
-    // Change password logic
-    document.getElementById('change-password-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const oldPassword = document.getElementById('old-password').value;
-        const newPassword = document.getElementById('new-password').value;
-        
-        // Verify old password
-        if (oldPassword !== user.password) {
-            alert('Current password is incorrect. Please try again.');
-            document.getElementById('old-password').value = '';
-            return;
-        }
-        
-        // Update password
-        let users = JSON.parse(localStorage.getItem('users') || '[]');
-        users = users.map(u => u.email === user.email ? { ...u, password: newPassword } : u);
-        localStorage.setItem('users', JSON.stringify(users));
-        
-        // Update current user object
-        user.password = newPassword;
-        localStorage.setItem('user', JSON.stringify(user));
-        
-        alert('Password changed successfully!');
-        document.getElementById('old-password').value = '';
-        document.getElementById('new-password').value = '';
-    });
-    // Logout logic
-    document.getElementById('logout-btn').onclick = function() {
-        localStorage.removeItem('user');
-        localStorage.removeItem('profilePhoto'); // Remove custom photo on logout
-        window.location.href = 'login';
-    };
-    </script>
+    
 </body>
 </html> 

@@ -1,11 +1,18 @@
-<!-- {% load static %}
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - SafeCart</title>
+    <title>Sign Up - SafeCart</title>
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <style>
+        .form-error {
+            color: red;
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+    </style>
 </head>
 <body>
     <header class="navbar">
@@ -21,28 +28,35 @@
             </nav>
         </div>
     </header>
+
     <section class="page-header">
         <div class="container">
-            <h1>Login</h1>
+            <h1>Sign Up</h1>
         </div>
     </section>
+
     <section class="auth-section">
         <div class="container">
             <div class="address-form-card" style="max-width:400px; margin:2rem auto;">
-                <form id="login-form">
+                
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    {% for field in form %}
                     <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email" required placeholder="you@example.com">
+                        {{ field.label_tag }}
+                        {{ field }}
+                        {% for error in field.errors %}
+                        <div class="error-text">{{ error }}</div>
+                        {% endfor %}
                     </div>
-                    <div class="form-group">
-                        <label for="password">Password</label>
-                        <input type="password" id="password" name="password" required placeholder="Password">
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-block">Login</button>
-                </form>
-                <p style="text-align:center; margin-top:1rem;">Don't have an account? <a href="signup">Sign Up</a></p>
+                    {% endfor %}
+
+                    <button type="submit" class="btn btn-primary">Sign Up</button>
+                    </form>
+                <p style="text-align:center; margin-top:1rem;">Already have an account? <a href="{% url 'login' %}">Login</a></p>
             </div>
         </div>
     </section>
 </body>
-</html>  -->
+</html>
