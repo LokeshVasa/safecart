@@ -42,3 +42,16 @@ class RegisterForm(forms.ModelForm):
 
         if password and confirm and password != confirm:
             self.add_error("confirm_password", "Passwords do not match")
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.set_password(self.cleaned_data["password"])  # Hash the password
+        if commit:
+            user.save()
+        return user
+
+class ForgotPasswordForm(forms.Form):
+    email = forms.EmailField(required=True, label="Email", widget=forms.EmailInput(attrs={
+        'class': 'form-control',
+        'placeholder': 'Enter your email'
+    }))

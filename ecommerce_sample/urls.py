@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
-from store.views import product, cart, clear_data, login_user, profile, signup, wishlist, home, yourorders
+from store.views import product, cart, clear_data, profile, wishlist, home, yourorders
 from django.contrib import messages
 from store import views
 
@@ -12,8 +12,6 @@ urlpatterns = [
     path('forgot-password/', views.ForgotPassword, name='forgot-password'),
     path('password-reset-sent/<str:reset_id>/', views.PasswordResetSent, name='password-reset-sent'),
     path('reset-password/<str:reset_id>/', views.ResetPassword, name='reset-password'),
-    # path('', include('django.contrib.auth.urls')),  # includes login, logout, password reset, etc.
-    # Custom views
     path("", home),
     path("home", home, name='home'),
     path("cart", cart),
