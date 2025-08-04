@@ -2,11 +2,9 @@ from django.shortcuts import render,redirect
 from .models import Product, Category
 import logging
 from django.shortcuts import get_object_or_404
-from .forms import RegisterForm
+from .forms import RegisterForm, ForgotPasswordForm
 from django.contrib.auth import login, logout, authenticate
-from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.conf import settings
@@ -16,8 +14,10 @@ from django.urls import reverse
 from .models import *
 
 
+
 logger = logging.getLogger(__name__)
 
+@login_required
 def product(request):
     category = request.GET.get('category', 'men')
     category_object = get_object_or_404(Category, category=category)
@@ -28,64 +28,38 @@ def product(request):
 
     return render(request, "product.html", {"products": products,"heading": heading,"description": description})
 
+@login_required
 def home(request):
     categories = Category.objects.all()
     return render(request, 'home.html', {"categories": categories})
 
-def login_user(request):
-    if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
 
-        user = authenticate(request, username=username, password=password)
-
-        if user is not None:
-            login(request, user)
-
-            return redirect('home')
-        
-        else:
-            messages.error(request, "Invalid login credentials")
-            return redirect('login')
-    return render(request, 'registration/login.html')
-
+@login_required
 def profile(request):
     return render(request, 'profile.html')
 
-def signup(request):
-    if request.method == 'POST':
-        print("Form data received:", request.POST)
-        form=RegisterForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return redirect('home')
-        else:
-            print("Form errors:", form.errors)
-            return render(request, 'registration/signup.html', {'form': form})
-    else:
-        return render(request, 'registration/signup.html')
 
+@login_required
 def wishlist(request):
     category = request.GET.get('category', 'men')
     products = Product.objects.filter(category=category)
     return render(request, 'cart.html', {"products": products})
 
+@login_required
 def yourorders(request):
     return render(request, 'yourorders.html')
 
 def clear_data(request):
     return render(request, 'clear_data.html')
 
+@login_required
 def cart(request):
     category = request.GET.get('category', 'men')
     products = Product.objects.filter(category=category)
     return render(request, 'cart.html', {"products": products})
 
 
-
 # Auth Files
-
 
 def RegisterView(request):
     if request.method == "POST":
@@ -101,57 +75,25 @@ def RegisterView(request):
     return render(request, 'registration/signup.html', {'form': form})
 
 
-# def RegisterView(request):
-
-#     if request.method == "POST":
-#         first_name = request.POST.get('first_name')
-#         last_name = request.POST.get('last_name')
-#         username = request.POST.get('username')
-#         email = request.POST.get('email')
-#         password = request.POST.get('password')
-
-#         user_data_has_error = False
-
-#         if User.objects.filter(username=username).exists():
-#             user_data_has_error = True
-#             messages.error(request, "Username already exists")
-
-#         if User.objects.filter(email=email).exists():
-#             user_data_has_error = True
-#             messages.error(request, "Email already exists")
-
-#         if len(password) < 5:
-#             user_data_has_error = True
-#             messages.error(request, "Password must be at least 5 characters")
-
-#         if user_data_has_error:
-#             return redirect('register')
-#         else:
-#             new_user = User.objects.create_user(
-#                 first_name=first_name,
-#                 last_name=last_name,
-#                 email=email, 
-#                 username=username,
-#                 password=password
-#             )
-#             messages.success(request, "Account created. Login now")
-#             return redirect('login')
-
-#     return render(request, 'registration/signup.html')
-
 def LoginView(request):
-
     if request.method == "POST":
-        username = request.POST.get("username")
+        identifier = request.POST.get("username")  # Can be username or email
         password = request.POST.get("password")
 
-        user = authenticate(request, username=username, password=password)
+        user = None
+
+        if User.objects.filter(email=identifier).exists():
+            try:
+                user_obj = User.objects.get(email=identifier)
+                user = authenticate(request, username=user_obj.username, password=password)
+            except User.DoesNotExist:
+                pass
+        else:
+            user = authenticate(request, username=identifier, password=password)
 
         if user is not None:
             login(request, user)
-
             return redirect('home')
-        
         else:
             messages.error(request, "Invalid login credentials")
             return redirect('login')
@@ -159,10 +101,9 @@ def LoginView(request):
     return render(request, 'registration/login.html')
 
 def LogoutView(request):
-
     logout(request)
-
     return redirect('login')
+
 
 def ForgotPassword(request):
 
@@ -197,12 +138,15 @@ def ForgotPassword(request):
             messages.error(request, f"No user with email '{email}' found")
             return redirect('forgot-password')
 
-    return render(request, 'forgot_password.html')
+    form = ForgotPasswordForm()
+
+    return render(request, 'registration/forgot_password.html', {'form': form})
+
 
 def PasswordResetSent(request, reset_id):
 
     if PasswordReset.objects.filter(reset_id=reset_id).exists():
-        return render(request, 'password_reset_sent.html')
+        return render(request, 'registration/password_reset_sent.html')
     else:
         # redirect to forgot password page if code does not exist
         messages.error(request, 'Invalid reset id')
@@ -255,4 +199,4 @@ def ResetPassword(request, reset_id):
         messages.error(request, 'Invalid reset id')
         return redirect('forgot-password')
 
-    return render(request, 'reset_password.html')
+    return render(request, 'registration/reset_password.html')

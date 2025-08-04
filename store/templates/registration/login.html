@@ -1,12 +1,14 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - SafeCart</title>
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
 </head>
+
 <body>
     <header class="navbar">
         <div class="nav-container">
@@ -14,10 +16,10 @@
                 <h1><a href="home">SafeCart</a></h1>
             </div>
             <nav class="nav-menu">
-                <a href="home" class="nav-link">Home</a>
-                <a href="cart" class="nav-link">Cart</a>
-                <a href="wishlist" class="nav-link">Wishlist</a>
-                <a href="yourorders" class="nav-link">Your Orders</a>
+                <a href="/home" class="nav-link">Home</a>
+                <a href="/cart" class="nav-link">Cart</a>
+                <a href="/wishlist" class="nav-link">Wishlist</a>
+                <a href="/yourorders" class="nav-link">Your Orders</a>
             </nav>
         </div>
     </header>
@@ -28,27 +30,44 @@
         </div>
     </section>
 
+    {% if messages %}
+    {% for message in messages %}
+    {% if message.tags == 'error' %}
+    <center>
+        <h4 style="color: firebrick;">{{message}}</h4>
+    </center>
+    {% else %}
+    <center>
+        <h4 style="color: dodgerblue;">{{message}}</h4>
+    </center>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+
+
     <div class="container">
         <div class="address-form-card" style="max-width:400px; margin:2rem auto;">
             <form method="post">
                 {% csrf_token %}
                 <div class="form-group">
                     <label for="username">Username</label>
-                    <input id="username" name="username" required placeholder="you@example.com">
+                    <input id="username" name="username" required placeholder="Username or Email">
                 </div>
                 <div class="form-group">
                     <label for="password">Password</label>
                     <input type="password" id="password" name="password" required placeholder="Password">
                     <div style="margin-top: 0.25rem;">
-                        <a href="{% url 'forgot-password' %}" style="font-size: 0.9rem; color: #555;">Forgot your password?</a>
+                        <a href="{% url 'forgot-password' %}" style="font-size: 0.9rem; color: #555;">Forgot your
+                            password?</a>
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-block">Login</button>
             </form>
             <p style="text-align:center; margin-top:1rem;">
-                Don't have an account? <a href="/signup">Sign Up</a>
+                Don't have an account? <a href="/register">Sign Up</a>
             </p>
         </div>
     </div>
 </body>
+
 </html>

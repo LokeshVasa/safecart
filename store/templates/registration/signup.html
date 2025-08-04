@@ -1,6 +1,7 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,6 +15,7 @@
         }
     </style>
 </head>
+
 <body>
     <header class="navbar">
         <div class="nav-container">
@@ -21,10 +23,10 @@
                 <h1><a href="home">SafeCart</a></h1>
             </div>
             <nav class="nav-menu">
-                <a href="home" class="nav-link">Home</a>
-                <a href="cart" class="nav-link">Cart</a>
-                <a href="wishlist" class="nav-link">Wishlist</a>
-                <a href="yourorders" class="nav-link">Your Orders</a>
+                <a href="/home" class="nav-link">Home</a>
+                <a href="/cart" class="nav-link">Cart</a>
+                <a href="/wishlist" class="nav-link">Wishlist</a>
+                <a href="/yourorders" class="nav-link">Your Orders</a>
             </nav>
         </div>
     </header>
@@ -35,10 +37,24 @@
         </div>
     </section>
 
+    {% if messages %}
+    {% for message in messages %}
+    {% if message.tags == 'error' %}
+    <center>
+        <h4 style="color: firebrick;">{{message}}</h4>
+    </center>
+    {% else %}
+    <center>
+        <h4 style="color: dodgerblue;">{{message}}</h4>
+    </center>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+
     <section class="auth-section">
         <div class="container">
             <div class="address-form-card" style="max-width:400px; margin:2rem auto;">
-                
+
                 <form method="post">
                     {% csrf_token %}
                     {{ form.non_field_errors }}
@@ -52,11 +68,13 @@
                     </div>
                     {% endfor %}
 
-                    <button type="submit" class="btn btn-primary">Sign Up</button>
-                    </form>
-                <p style="text-align:center; margin-top:1rem;">Already have an account? <a href="{% url 'login' %}">Login</a></p>
+                    <button type="submit" class="btn btn-primary btn-block">Sign Up</button>
+                </form>
+                <p style="text-align:center; margin-top:1rem;">Already have an account? <a
+                        href="{% url 'login' %}">Login</a></p>
             </div>
         </div>
     </section>
 </body>
+
 </html>
