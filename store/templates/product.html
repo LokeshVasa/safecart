@@ -33,8 +33,9 @@
                         <h6>{{ product.description }}</h6>
                         <p class="price">₹{{ product.price }}</p>
                         <div class="product-actions">
-                            <button class="btn btn-wishlist" onclick="addToWishlist('w1', 'Elegant Summer Dress', 79.99, 'https://images.pexels.com/photos/7679720/pexels-photo-7679720.jpeg?auto=compress&cs=tinysrgb&w=400')">♡ Wishlist</button>
-                            <button class="btn btn-cart" onclick="addToCart('w1', 'Elegant Summer Dress', 79.99, 'https://images.pexels.com/photos/7679720/pexels-photo-7679720.jpeg?auto=compress&cs=tinysrgb&w=400')">Add to Cart</button>
+                            <button class="btn btn-wishlist" onclick="addToWishlist('{{ product.id }}', '{{ product.name }}', '{{ product.price }}', '{{ product.image.url }}')">♡ Wishlist</button>
+                            <button class="btn btn-cart" onclick="addToCart('{{ product.id }}', '{{ product.name }}', '{{ product.price }}', '{{ product.image.url }}')">Add to Cart</button>
+
                         </div>
                     </div>
                 </div>

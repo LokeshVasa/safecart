@@ -54,4 +54,15 @@ class PasswordReset(models.Model):
         return f"Password reset for {self.user.username} at {self.created_when}"
         
 
-        
+class Cart(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    product= models.ForeignKey(Product, on_delete=models.CASCADE)
+    created_when= models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} - {self.product}"
+
+    class Meta:
+        db_table = 'cart'
+
+       

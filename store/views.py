@@ -1,5 +1,5 @@
 from django.shortcuts import render,redirect
-from .models import Product, Category
+from .models import Product, Category, Cart
 import logging
 from django.shortcuts import get_object_or_404
 from .forms import RegisterForm, ForgotPasswordForm
