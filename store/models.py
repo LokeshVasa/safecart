@@ -65,4 +65,15 @@ class Cart(models.Model):
     class Meta:
         db_table = 'cart'
 
+class wishlist(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    product= models.ForeignKey(Product, on_delete=models.CASCADE)
+    created_when= models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} - {self.product}"
+
+    class Meta:
+        db_table = 'wishlist'
+
        
