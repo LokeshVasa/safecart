@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.urls import path
 from store.views import product, cart, clear_data, profile, home, yourorders
+from django.urls import path
+from store.views import product, cart, clear_data, profile, home, yourorders
 from store import views
 
 urlpatterns = [
@@ -17,7 +19,7 @@ urlpatterns = [
     path("cart", views.cart),
     path("clear_data", views.clear_data),
     path("profile", views.profile),
-    path("wishlist", views.wishlist_view, name='wishlist'),  
+    path("wishlist", views.wishlist_view, name='wishlist'),  # ✅ Correct view name
     path("yourorders", views.yourorders),
     path("product", views.product),
 ]

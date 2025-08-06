@@ -78,7 +78,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'safecart',
         'USER': 'postgres',
-        'PASSWORD': 'postgres',
+        'PASSWORD': 'azeeza',
         'HOST': 'localhost',
         'PORT': '5432',
     }
