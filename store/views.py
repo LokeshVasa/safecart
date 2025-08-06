@@ -40,10 +40,12 @@ def profile(request):
 
 
 @login_required
-def wishlist(request):
-    category = request.GET.get('category', 'men')
-    products = Product.objects.filter(category=category)
-    return render(request, 'wishlist.html', {"products": products})
+def wishlist_view(request):
+    user = request.user
+    wishlist_items = Wishlist.objects.filter(user=user).select_related('product')
+    return render(request, 'wishlist.html', {'wishlist_items': wishlist_items})
+
+
 
 @login_required
 def yourorders(request):
