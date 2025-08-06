@@ -43,7 +43,7 @@ def profile(request):
 def wishlist(request):
     category = request.GET.get('category', 'men')
     products = Product.objects.filter(category=category)
-    return render(request, 'cart.html', {"products": products})
+    return render(request, 'wishlist.html', {"products": products})
 
 @login_required
 def yourorders(request):
