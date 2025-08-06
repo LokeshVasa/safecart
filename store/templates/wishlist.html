@@ -36,26 +36,35 @@
 
     <!-- Wishlist Section -->
     <section class="wishlist">
-            <section class="products">
-        <div class="container">
-            <div class="products-grid">
-                {% for product in products %}
-                <div class="product-card" data-id="{{ product.id }}">
-                    <div class="product-image">
-                        <img src="{{ product.image.url }}" alt="{{ product.name }}">
-                    </div>
-                    <div class="product-info">
-                        <h3>{{ product.name }}</h3>
-                        <p class="price">₹{{ product.price }}</p>
-                        <div class="product-actions">
-                            
-                            <button class="btn btn-cart" onclick="addToCart('{{ product.id }}', '{{ product.name }}', {{ product.price }}, '{{ product.image.url }}')">Add to Cart</button>
-                        </div>
+        <section class="products">
+            <div class="container">
+                {% if wishlist_items %}
+    <div class="products-grid">
+        {% for item in wishlist_items %}
+            {% with product=item.product %}
+            <div class="product-card" data-id="{{ product.id }}">
+                <div class="product-image">
+                    <img src="{{ product.image.url }}" alt="{{ product.name }}">
+                </div>
+                <div class="product-info">
+                    <h3>{{ product.name }}</h3>
+                    <p class="price">₹{{ product.price }}</p>
+                    <div class="product-actions">
+                        <button class="btn btn-cart" onclick="addToCart('{{ product.id }}', '{{ product.name }}', {{ product.price }}, '{{ product.image.url }}')">Add to Cart</button>
                     </div>
                 </div>
-                {% endfor %}
             </div>
-        </div>
+            {% endwith %}
+        {% endfor %}
+    </div>
+{% else %}
+    <p style="text-align: center; font-size: 1.2rem; margin-top: 20px;">
+        🛒 Your wishlist is currently empty. Go explore and save something you love!
+    </p>
+{% endif %}
+
+            </div>
+        </section>
     </section>
 
     <!-- Footer -->
