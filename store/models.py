@@ -27,7 +27,7 @@ class Product(models.Model):
         return f"{self.name} ({self.category})"
 
     class Meta:
-        db_table = 'products'  #table name
+        db_table = 'products'  
 
 
 class Category(models.Model):
@@ -40,7 +40,7 @@ class Category(models.Model):
         return self.category
 
     class Meta:
-        db_table = 'categories'  #table name
+        db_table = 'categories' 
         
 from django.contrib.auth.models import User
 User._meta.get_field('email')._unique = True

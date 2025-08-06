@@ -19,7 +19,7 @@ urlpatterns = [
     path("cart", views.cart),
     path("clear_data", views.clear_data),
     path("profile", views.profile),
-    path("wishlist", views.wishlist_view, name='wishlist'),  # ✅ Correct view name
+    path("wishlist", views.wishlist_view, name='wishlist'),  
     path("yourorders", views.yourorders),
     path("product", views.product),
 ]
