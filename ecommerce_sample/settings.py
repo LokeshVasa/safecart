@@ -78,7 +78,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'safecart',
         'USER': 'postgres',
-        'PASSWORD': 'azeeza',
+        'PASSWORD': 'postgres',
         'HOST': 'localhost',
         'PORT': '5432',
     }
@@ -156,7 +156,7 @@ EMAIL_USE_TLS = True
 
 # Your email credentials
 EMAIL_HOST_USER = 'safecart8@gmail.com'
-EMAIL_HOST_PASSWORD = 'dito aesz hmir urbd'  # from step above
+EMAIL_HOST_PASSWORD = 'dito aesz hmir urbd'  
 
 # Optional
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
