@@ -1,5 +1,5 @@
 from django.shortcuts import render,redirect
-from .models import Product, Category, Cart
+from .models import Product, Category, Cart, Wishlist
 import logging
 from django.shortcuts import get_object_or_404
 from .forms import RegisterForm, ForgotPasswordForm
@@ -13,16 +13,6 @@ from django.utils import timezone
 from django.urls import reverse
 from .models import *
 from django.shortcuts import redirect
-from django.contrib import messages
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-import json
-from django.shortcuts import redirect, get_object_or_404
-from django.contrib import messages
-from .models import Product, Cart
-from .models import Wishlist 
-
-
 
 
 
@@ -213,37 +203,6 @@ def ResetPassword(request, reset_id):
         return redirect('forgot-password')
 
     return render(request, 'registration/reset_password.html')
-
-
-
-
-@csrf_exempt
-@login_required
-def add_to_cart(request):
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            product_id = data.get('product_id')
-            user = request.user
-
-            if not product_id:
-                return JsonResponse({'error': 'Missing product_id'}, status=400)
-
-            product = Product.objects.get(id=product_id)
-
-            # Check if already in cart
-            cart_item, created = Cart.objects.get_or_create(user=user, product=product)
-
-            if not created:
-                return JsonResponse({'message': 'Already in cart'}, status=200)
-
-            return JsonResponse({'message': 'Added to cart'}, status=201)
-
-        except Product.DoesNotExist:
-            return JsonResponse({'error': 'Product not found'}, status=404)
-    else:
-        return JsonResponse({'error': 'POST request required'}, status=405)
-
 
 
 @login_required
