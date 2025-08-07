@@ -1,57 +1,87 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Men's Fashion - SafeCart</title>
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-</head>
-<body>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}" />
+  </head>
+  <body>
     <!-- Navigation -->
     {% include "navbar.html" %}
 
+    <!-- Flash Messages -->
+    {% if messages %}
+    <ul class="messages">
+      {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
     <!-- Page Header -->
     <section class="page-header">
-        <div class="container">
-            <h1>{{heading}}</h1>
-            <p>{{description}}</p>
-        </div>
+      <div class="container">
+        <h1>{{heading}}</h1>
+        <p>{{description}}</p>
+      </div>
     </section>
 
     <!-- Products Section -->
     <section class="products">
-        <div class="container">
-            <div class="products-grid">
-                {% for product in products %}
-                <div class="product-card" data-id="w1">
-                    <div class="product-image">
-                        <img src={{product.image.url}} alt={{product.name}}>
-                    </div>
-                    <div class="product-info">
-                        <h3>{{ product.name }}</h3>
-                        <h6>{{ product.description }}</h6>
-                        <p class="price">₹{{ product.price }}</p>
-                        <div class="product-actions">
-                            <button class="btn btn-wishlist" onclick="addToWishlist('{{ product.id }}', '{{ product.name }}', '{{ product.price }}', '{{ product.image.url }}')">♡ Wishlist</button>
-                            <button class="btn btn-cart" onclick="addToCart('{{ product.id }}', '{{ product.name }}', '{{ product.price }}', '{{ product.image.url }}')">Add to Cart</button>
-
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
+      <div class="container">
+        <div class="products-grid">
+          {% for product in products %}
+          <div class="product-card" data-id="w1">
+            <div class="product-image">
+              <img src="{{product.image.url}}" alt="{{product.name}}" />
             </div>
+            <div class="product-info">
+              <h3>{{ product.name }}</h3>
+              <h6>{{ product.description }}</h6>
+              <p class="price">₹{{ product.price }}</p>
+              <div class="product-actions">
+                <form
+                  action="{% url 'add-to-wishlist' %}"
+                  method="POST"
+                  style="display: inline"
+                >
+                  {% csrf_token %}
+                  <input
+                    type="hidden"
+                    name="product_id"
+                    value="{{ product.id }}"
+                  />
+                  <button type="submit" class="btn btn-wishlist">
+                    ♡ Wishlist
+                  </button>
+                </form>
+
+                <form action="{% url 'add-to-cart' %}" method="POST">
+                  {% csrf_token %}
+                  <input
+                    type="hidden"
+                    name="product_id"
+                    value="{{ product.id }}"
+                  />
+                  <button type="submit" class="btn btn-cart">
+                    Add to Cart
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
         </div>
+      </div>
     </section>
 
     <!-- Footer -->
     <footer class="footer">
-        <div class="container">
-            <p>&copy; 2024 SafeCart. All rights reserved.</p>
-        </div>
+      <div class="container">
+        <p>&copy; 2024 SafeCart. All rights reserved.</p>
+      </div>
     </footer>
-
-    <script src="{% static 'js/app.js' %}"></script>
-    <script src="js/currency.js"></script>
-</body>
+  </body>
 </html>
