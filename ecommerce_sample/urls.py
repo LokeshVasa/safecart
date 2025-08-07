@@ -11,7 +11,6 @@ urlpatterns = [
     path('forgot-password/', views.ForgotPassword, name='forgot-password'),
     path('password-reset-sent/<str:reset_id>/', views.PasswordResetSent, name='password-reset-sent'),
     path('reset-password/<str:reset_id>/', views.ResetPassword, name='reset-password'),
-
     path("", views.home),
     path("home", views.home, name='home'),
     path("cart", views.cart),
@@ -20,6 +19,8 @@ urlpatterns = [
     path("wishlist", views.wishlist_view, name='wishlist'),  
     path("yourorders", views.yourorders),
     path("product", views.product),
+    path("add-to-cart/", views.add_to_cart, name='add-to-cart'),
+    path("add-to-wishlist/", views.add_to_wishlist, name='add-to-wishlist'),
 ]
 
 # Serve media in development
