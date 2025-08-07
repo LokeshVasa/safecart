@@ -12,9 +12,15 @@ from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
 from .models import *
-from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import redirect
+from django.contrib import messages
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 import json
+from django.shortcuts import redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from .models import Product, Cart
 
 
 
@@ -208,25 +214,53 @@ def ResetPassword(request, reset_id):
     return render(request, 'registration/reset_password.html')
 
 
-@login_required
+
+
 @csrf_exempt
+@login_required
 def add_to_cart(request):
-    if request.method == "POST":
+    if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            product_id = data.get("product_id")
-            product = get_object_or_404(Product, id=product_id)
+            product_id = data.get('product_id')
+            user = request.user
 
-            # Check if item already in cart
-            existing = Cart.objects.filter(user=request.user, product=product).first()
-            if existing:
-                return JsonResponse({'message': 'Item already in cart'}, status=200)
+            if not product_id:
+                return JsonResponse({'error': 'Missing product_id'}, status=400)
 
-            Cart.objects.create(user=request.user, product=product)
-            return JsonResponse({'message': 'Item added to cart successfully'})
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            product = Product.objects.get(id=product_id)
 
-    return JsonResponse({'error': 'Invalid method'}, status=405)
+            # Check if already in cart
+            cart_item, created = Cart.objects.get_or_create(user=user, product=product)
+
+            if not created:
+                return JsonResponse({'message': 'Already in cart'}, status=200)
+
+            return JsonResponse({'message': 'Added to cart'}, status=201)
+
+        except Product.DoesNotExist:
+            return JsonResponse({'error': 'Product not found'}, status=404)
+    else:
+        return JsonResponse({'error': 'POST request required'}, status=405)
 
 
+
+@login_required
+def add_to_cart(request):
+    if request.method == 'POST':
+        product_id = request.POST.get('product_id')
+        product = get_object_or_404(Product, id=product_id)
+        user = request.user
+
+        # Check if already in cart
+        cart_item, created = Cart.objects.get_or_create(user=user, product=product)
+
+        if created:
+            messages.success(request, f"{product.name} added to cart.")
+        else:
+            messages.info(request, f"{product.name} is already in your cart.")
+
+        # Redirect to the same page or cart page
+        return redirect(request.META.get('HTTP_REFERER', 'home'))
+    else:
+        return redirect('home')

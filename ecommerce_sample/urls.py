@@ -19,7 +19,7 @@ urlpatterns = [
     path("wishlist", views.wishlist_view, name='wishlist'),  
     path("yourorders", views.yourorders),
     path("product", views.product),
-    path("add-to-cart/", views.add_to_cart, name='add_to_cart'),
+    path("add-to-cart/", views.add_to_cart, name='add-to-cart'),
 ]
 
 # Serve media in development
