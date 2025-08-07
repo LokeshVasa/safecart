@@ -34,7 +34,11 @@
                         <p class="price">₹{{ product.price }}</p>
                         <div class="product-actions">
                             <button class="btn btn-wishlist" onclick="addToWishlist('{{ product.id }}', '{{ product.name }}', '{{ product.price }}', '{{ product.image.url }}')">♡ Wishlist</button>
-                            <button class="btn btn-cart" onclick="addToCart('{{ product.id }}', '{{ product.name }}', '{{ product.price }}', '{{ product.image.url }}')">Add to Cart</button>
+
+                            <!--<button class="btn btn-cart" onclick="addToCart('{{ product.id }}', '{{ product.name }}', '{{ product.price }}', '{{ product.image.url }}')">Add to Cart</button>-->
+
+                            <button class="btn btn-cart" onclick="addToCart('{{ product.id }}')">Add to Cart</button>
+
 
                         </div>
                     </div>
@@ -51,7 +55,44 @@
         </div>
     </footer>
 
-    <script src="{% static 'js/app.js' %}"></script>
-    <script src="js/currency.js"></script>
+    <script>
+        function addToCart(productId, productName, productPrice, productImageUrl) {
+    fetch('/add-to-cart/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: JSON.stringify({
+            product_id: productId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message); // optional success feedback
+    })
+    .catch(error => {
+        console.error('Error adding to cart:', error);
+        alert("Failed to add to cart.");
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            // Match cookie name
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+    </script>
 </body>
 </html>

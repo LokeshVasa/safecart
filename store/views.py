@@ -12,6 +12,10 @@ from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
 from .models import *
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+import json
+
 
 
 
@@ -202,3 +206,27 @@ def ResetPassword(request, reset_id):
         return redirect('forgot-password')
 
     return render(request, 'registration/reset_password.html')
+
+
+@login_required
+@csrf_exempt
+def add_to_cart(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            product_id = data.get("product_id")
+            product = get_object_or_404(Product, id=product_id)
+
+            # Check if item already in cart
+            existing = Cart.objects.filter(user=request.user, product=product).first()
+            if existing:
+                return JsonResponse({'message': 'Item already in cart'}, status=200)
+
+            Cart.objects.create(user=request.user, product=product)
+            return JsonResponse({'message': 'Item added to cart successfully'})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
+
+    return JsonResponse({'error': 'Invalid method'}, status=405)
+
+

@@ -749,3 +749,18 @@ function clearAllData() {
 
 // Make it available globally
 window.clearAllData = clearAllData;
+
+function addToCart(productId) {
+    fetch('/add-to-cart/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')  // required for security
+        },
+        body: JSON.stringify({ product_id: productId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message);  // shows response message
+    });
+}
