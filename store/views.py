@@ -12,6 +12,8 @@ from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
 from .models import *
+from django.db.models import Count
+
 
 
 
@@ -54,11 +56,28 @@ def yourorders(request):
 def clear_data(request):
     return render(request, 'clear_data.html')
 
+
 @login_required
 def cart(request):
-    category = request.GET.get('category', 'men')
-    products = Product.objects.filter(category=category)
-    return render(request, 'cart.html', {"products": products})
+    user = request.user
+    cart_items = (
+        Cart.objects.filter(user=user)
+        .values('product')  # group by product
+        .annotate(quantity=Count('product')) 
+        .order_by('product')
+    )
+
+    # Fetch full product info
+    products_with_quantity = []
+    for item in cart_items:
+        product = Product.objects.get(id=item['product'])
+        products_with_quantity.append({
+            'product': product,
+            'quantity': item['quantity']
+        })
+
+    return render(request, 'cart.html', {'cart_items': products_with_quantity})
+
 
 
 # Auth Files

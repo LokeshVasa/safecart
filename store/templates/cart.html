@@ -23,20 +23,35 @@
     <section class="products">
         <div class="container">
             <div class="products-grid">
-                {% for product in products %}
-                <div class="product-card" data-id="{{ product.id }}">
-                    <div class="product-image">
-                        <img src="{{ product.image.url }}" alt="{{ product.name }}">
-                    </div>
-                    <div class="product-info">
-                        <h3>{{ product.name }}</h3>
-                        <p class="price">₹{{ product.price }}</p>
-                        <div class="product-actions">
-                            <button class="btn btn-wishlist" onclick="addToWishlist('{{ product.id }}', '{{ product.name }}', '{{ product.price }}', '{{ product.image.url }}')">♡ Move to Wishlist</button>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
+{% if cart_items %}
+    {% for item in cart_items %}
+    <div class="product-card" data-id="{{ item.product.id }}">
+        <div class="product-image">
+            <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}">
+        </div>
+        <div class="product-info">
+            <h3>{{ item.product.name }}</h3>
+            <p class="price">₹{{ item.product.price }}</p>
+            <p>Quantity: {{ item.quantity }}</p>
+            <div class="product-actions">
+                <button class="btn btn-wishlist" onclick="addToWishlist('{{ item.product.id }}', '{{ item.product.name }}', '{{ item.product.price }}', '{{ item.product.image.url }}')">
+                    ♡ Move to Wishlist
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+<div class="empty-cart-container">
+    <div class="empty-cart">
+        <h2>Your cart is empty</h2>
+        <p>Looks like you haven’t added anything to your cart yet.</p>
+        <a href="home" class="continue-btn">Continue Shopping</a>
+    </div>
+</div>
+
+
+{% endif %}
             </div>
         </div>
     </section>
