@@ -18,9 +18,10 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 from django.shortcuts import redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from .models import Product, Cart
+from .models import Wishlist 
+
 
 
 
@@ -264,3 +265,22 @@ def add_to_cart(request):
         return redirect(request.META.get('HTTP_REFERER', 'home'))
     else:
         return redirect('home')
+
+
+
+@login_required
+def add_to_wishlist(request):
+    if request.method == 'POST':
+        product_id = request.POST.get('product_id')
+        product = get_object_or_404(Product, id=product_id)
+        user = request.user
+
+        item, created = Wishlist.objects.get_or_create(user=user, product=product)
+
+        if created:
+            messages.success(request, f"{product.name} added to your wishlist.")
+        else:
+            messages.info(request, f"{product.name} is already in your wishlist.")
+
+        return redirect(request.META.get('HTTP_REFERER', 'home'))
+    return redirect('home')
