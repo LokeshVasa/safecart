@@ -42,7 +42,6 @@
               <h6>{{ product.description }}</h6>
               <p class="price">₹{{ product.price }}</p>
               <div class="product-actions">
-                
                 <form
                   action="{% url 'add-to-wishlist' %}"
                   method="POST"
@@ -84,51 +83,5 @@
         <p>&copy; 2024 SafeCart. All rights reserved.</p>
       </div>
     </footer>
-
-    <script>
-      function addToCart(
-        productId,
-        productName,
-        productPrice,
-        productImageUrl
-      ) {
-        fetch("/add-to-cart/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": getCookie("csrftoken"),
-          },
-          body: JSON.stringify({
-            product_id: productId,
-          }),
-        })
-          .then((response) => response.json())
-          .then((data) => {
-            alert(data.message); // optional success feedback
-          })
-          .catch((error) => {
-            console.error("Error adding to cart:", error);
-            alert("Failed to add to cart.");
-          });
-      }
-
-      function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== "") {
-          const cookies = document.cookie.split(";");
-          for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            // Match cookie name
-            if (cookie.substring(0, name.length + 1) === name + "=") {
-              cookieValue = decodeURIComponent(
-                cookie.substring(name.length + 1)
-              );
-              break;
-            }
-          }
-        }
-        return cookieValue;
-      }
-    </script>
   </body>
 </html>
