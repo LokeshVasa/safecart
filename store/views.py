@@ -59,21 +59,11 @@ def clear_data(request):
 @login_required
 def cart(request):
     user = request.user
-    cart_items = (
-        Cart.objects.filter(user=user)
-        .values('product')  # group by product
-        .annotate(quantity=Count('product')) 
-        .order_by('product')
-    )
+    cart_items = Cart.objects.filter(user=user).select_related('product')
 
-    # Fetch full product info
-    products_with_quantity = []
-    for item in cart_items:
-        product = Product.objects.get(id=item['product'])
-        products_with_quantity.append({
-            'product': product,
-            'quantity': item['quantity']
-        })
+    products_with_quantity = [
+        {'product': item.product} for item in cart_items
+    ]
 
     return render(request, 'cart.html', {'cart_items': products_with_quantity})
 

@@ -25,22 +25,22 @@
             <div class="products-grid">
 {% if cart_items %}
     {% for item in cart_items %}
-    <div class="product-card" data-id="{{ item.product.id }}">
-        <div class="product-image">
-            <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}">
-        </div>
-        <div class="product-info">
-            <h3>{{ item.product.name }}</h3>
-            <p class="price">₹{{ item.product.price }}</p>
-            <p>Quantity: {{ item.quantity }}</p>
-            <div class="product-actions">
-                <button class="btn btn-wishlist" onclick="addToWishlist('{{ item.product.id }}', '{{ item.product.name }}', '{{ item.product.price }}', '{{ item.product.image.url }}')">
-                    ♡ Move to Wishlist
-                </button>
-            </div>
+<div class="product-card" data-id="{{ item.product.id }}">
+    <div class="product-image">
+        <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}">
+    </div>
+    <div class="product-info">
+        <h3>{{ item.product.name }}</h3>
+        <p class="price">₹{{ item.product.price }}</p>
+        <div class="product-actions">
+            <button class="btn btn-wishlist" onclick="addToWishlist('{{ item.product.id }}', '{{ item.product.name }}', '{{ item.product.price }}', '{{ item.product.image.url }}')">
+                ♡ Move to Wishlist
+            </button>
         </div>
     </div>
-    {% endfor %}
+</div>
+{% endfor %}
+
 {% else %}
 <div class="empty-cart-container">
     <div class="empty-cart">
