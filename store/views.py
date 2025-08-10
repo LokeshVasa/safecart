@@ -12,13 +12,13 @@ from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
 from .models import *
-
+from django.db.models import Count
 
 
 
 logger = logging.getLogger(__name__)
 
-@login_required
+
 def product(request):
     category = request.GET.get('category', 'men')
     category_object = get_object_or_404(Category, category=category)
@@ -29,7 +29,7 @@ def product(request):
 
     return render(request, "product.html", {"products": products,"heading": heading,"description": description})
 
-@login_required
+
 def home(request):
     categories = Category.objects.all()
     return render(request, 'home.html', {"categories": categories})
