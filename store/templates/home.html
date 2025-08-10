@@ -14,6 +14,13 @@
 <body>
     <!-- Navigation -->
      {% include "navbar.html" %}
+     {% if messages %}
+            {% for message in messages %}
+            <div>
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
 
     <!-- Hero Section -->
     <section class="hero"
@@ -54,60 +61,7 @@
             </div>
         </div>
     </section>
-    <!-- <section class="categories">
-        <div class="container">
-            <h2 class="section-title">Shop by Category</h2>
-            <div class="category-grid">
-                <a href="product?cat=women" class="category-card">
-                    <div class="category-image">
-                        <img src="https://images.pexels.com/photos/7679720/pexels-photo-7679720.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Women's Fashion">
-                    </div>
-                    <h3>Women</h3>
-                    <p>Latest fashion trends for women</p>
-                </a>
-                <a href="product?cat=men" class="category-card">
-                <a href="product?cat=men" class="category-card">
-                    <div class="category-image">
-                        <img src="https://images.pexels.com/photos/1043474/pexels-photo-1043474.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Men's Fashion">
-                    </div>
-                    <h3>Men</h3>
-                    <p>Stylish clothing for men</p>
-                </a>
-                <a href="product?cat=kids" class="category-card">
-                <a href="product?cat=kids" class="category-card">
-                    <div class="category-image">
-                        <img src="https://images.pexels.com/photos/1620760/pexels-photo-1620760.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Kids Fashion">
-                    </div>
-                    <h3>Kids</h3>
-                    <p>Fun and comfortable kids wear</p>
-                </a>
-                <a href="product?cat=furniture" class="category-card">
-                <a href="product?cat=furniture" class="category-card">
-                    <div class="category-image">
-                        <img src="https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Furniture">
-                    </div>
-                    <h3>Furniture</h3>
-                    <p>Beautiful furniture for your home</p>
-                </a>
-                <a href="product?cat=sportswear" class="category-card">
-                <a href="product?cat=sportswear" class="category-card">
-                    <div class="category-image">
-                        <img src="https://images.pexels.com/photos/1552252/pexels-photo-1552252.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Sportswear">
-                    </div>
-                    <h3>Sportswear</h3>
-                    <p>Active wear for your fitness journey</p>
-                </a>
-                <a href="product?cat=electronics" class="category-card">
-                <a href="product?cat=electronics" class="category-card">
-                    <div class="category-image">
-                        <img src="https://images.pexels.com/photos/356056/pexels-photo-356056.jpeg?auto=compress&cs=tinysrgb&w=400" alt="Electronics">
-                    </div>
-                    <h3>Electronics</h3>
-                    <p>Latest gadgets and technology</p>
-                </a>
-            </div>
-        </div>
-    </section> -->
+
 
 
 
