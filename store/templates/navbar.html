@@ -1,22 +1,24 @@
 <header class="navbar">
     <div class="nav-container">
         <div class="nav-logo">
-            <h1><a href="home">SafeCart</a></h1>
+            <h1><a href="home"><i class="bi bi-bag-check-fill"></i> SafeCart</a></h1>
         </div>
         <nav class="nav-menu">
-            <a href="home" class="nav-link">Home</a>
-            <a href="cart" class="nav-link">Cart (<span id="cart-count">{{ cart_count }}</span>)</a>
-            <a href="wishlist" class="nav-link">Wishlist (<span id="wishlist-count">{{ wishlist_count }}</span>)</a>
-            <a href="yourorders" class="nav-link">Your Orders</a>
+            <a href="home" class="nav-link"><i class="bi bi-house-door-fill"></i> Home</a>
+            <a href="cart" class="nav-link"><i class="bi bi-cart-fill"></i> Cart (<span id="cart-count">{{ cart_count }}</span>)</a>
+            <a href="wishlist" class="nav-link"><i class="bi bi-heart-fill"></i> Wishlist (<span id="wishlist-count">{{ wishlist_count }}</span>)</a>
+            <a href="yourorders" class="nav-link"><i class="bi bi-box-seam-fill"></i> Your Orders</a>
 
             {% if user.is_authenticated %}
-            <a href="#" class="nav-link" onclick="document.getElementById('logout-form').submit(); return false;">Logout</a>
+            <a href="#" class="nav-link" onclick="document.getElementById('logout-form').submit(); return false;">
+                <i class="bi bi-box-arrow-right"></i> Logout
+            </a>
             <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: none;">
                 {% csrf_token %}
             </form>
             {% else %}
-            <a href="login" class="nav-link">Login</a>
-            <a href="register" class="nav-link">Sign Up</a>
+            <a href="login" class="nav-link"><i class="bi bi-box-arrow-in-right"></i> Login</a>
+            <a href="register" class="nav-link"><i class="bi bi-person-plus-fill"></i> Sign Up</a>
             {% endif %}
 
             <a href="profile" class="profile-avatar-btn" id="profile-btn">
