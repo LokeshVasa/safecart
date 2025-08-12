@@ -77,6 +77,7 @@ class Wishlist(models.Model):
         db_table = 'wishlist'
 
 
+
 class Address(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     street = models.TextField()
@@ -139,3 +140,5 @@ class OrderUpdate(models.Model):
 
     class Meta:
         db_table = 'order_updates'
+
+

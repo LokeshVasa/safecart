@@ -36,9 +36,17 @@
             <p class="price">₹{{ item.product.price }}</p>
             <p>Quantity: {{ item.quantity }}</p>
             <div class="product-actions">
-                <button class="btn btn-wishlist" onclick="addToWishlist('{{ item.product.id }}', '{{ item.product.name }}', '{{ item.product.price }}', '{{ item.product.image.url }}')">
-                    ♡ Move to Wishlist
-                </button>
+
+                <form action="{% url 'remove_from_cart' item.product.id %}" method="post" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-wishlist">🗑 Remove</button>
+                </form>
+                
+            <form action="{% url 'move_to_wishlist' item.product.id %}" method="post" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-wishlist" style="background-color: rgb(38, 100, 235); color: #fefeff;">♡ Add to Wishlist</button>
+            </form>
+                
             </div>
         </div>
     </div>
