@@ -21,6 +21,10 @@ urlpatterns = [
     path("product", views.product),
     path("add-to-cart/", views.add_to_cart, name='add-to-cart'),
     path("add-to-wishlist/", views.add_to_wishlist, name='add-to-wishlist'),
+    path('cart/remove/<int:product_id>/', views.remove_from_cart, name='remove_from_cart'),
+    path('cart/move-to-wishlist/<int:product_id>/', views.move_to_wishlist, name='move_to_wishlist'),
+    path('wishlist/remove/<int:product_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),path('wishlist/move-to-cart/<int:product_id>/', views.move_to_cart, name='move_to_cart'),
+
 ]
 
 # Serve media in development

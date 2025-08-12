@@ -260,3 +260,37 @@ def add_to_wishlist(request):
 
         return redirect(request.META.get('HTTP_REFERER', 'home'))
     return redirect('home')
+
+@login_required
+def remove_from_cart(request, product_id):
+    Cart.objects.filter(user=request.user, product_id=product_id).delete()
+    return redirect(request.META.get('HTTP_REFERER', 'cart'))
+
+
+@login_required
+def move_to_wishlist(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+
+    # Add to wishlist if not already there
+    Wishlist.objects.get_or_create(user=request.user, product=product)
+
+    # Remove from cart (DB delete)
+    Cart.objects.filter(user=request.user, product=product).delete()
+
+    return redirect(request.META.get('HTTP_REFERER', 'cart'))
+
+@login_required
+def remove_from_wishlist(request, product_id):
+    if request.method == 'POST':
+        Wishlist.objects.filter(user=request.user, product_id=product_id).delete()
+    return redirect('wishlist')  
+
+@login_required
+def move_to_cart(request, product_id):
+    if request.method == 'POST':
+        product = get_object_or_404(Product, id=product_id)
+        # Add to cart
+        Cart.objects.create(user=request.user, product=product)
+        # Remove from wishlist
+        Wishlist.objects.filter(user=request.user, product=product).delete()
+    return redirect('wishlist')
