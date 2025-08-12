@@ -76,4 +76,66 @@ class Wishlist(models.Model):
     class Meta:
         db_table = 'wishlist'
 
-       
+
+class Address(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    street = models.TextField()
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    pincode = models.CharField(max_length=10)
+
+    def __str__(self):
+        return f"{self.street}, {self.city}, {self.state} - {self.pincode}"
+
+    class Meta:
+        db_table = 'addresses'
+
+
+class Order(models.Model):
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Packed', 'Packed'),
+        ('Shipped', 'Shipped'),
+        ('Delivered', 'Delivered'),
+        ('Cancelled', 'Cancelled'),
+    ]
+
+    order_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    address = models.ForeignKey(Address, on_delete=models.CASCADE)
+    payment_type = models.CharField(max_length=20, default='COD')
+    token_value = models.CharField(max_length=255, unique=True)
+    expires_at = models.DateTimeField()
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Order {self.order_id} - {self.status}"
+
+    class Meta:
+        db_table = 'orders'
+
+
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey('Product', on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.quantity} x {self.product.name} (Order {self.order.order_id})"
+
+    class Meta:
+        db_table = 'order_items'
+
+
+class OrderUpdate(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='updates')
+    status = models.CharField(max_length=50)
+    updated_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.order.order_id} - {self.status} @ {self.updated_at}"
+
+    class Meta:
+        db_table = 'order_updates'
