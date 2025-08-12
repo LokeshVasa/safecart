@@ -100,7 +100,6 @@ class Order(models.Model):
         ('Cancelled', 'Cancelled'),
     ]
 
-    order_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     address = models.ForeignKey(Address, on_delete=models.CASCADE)
     payment_type = models.CharField(max_length=20, default='COD')
