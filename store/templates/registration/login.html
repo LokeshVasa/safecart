@@ -6,69 +6,90 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - SafeCart</title>
-    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 </head>
 
-<body>
-    <header class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo">
-            <h1><a href="home"><i class="bi bi-bag-check-fill"></i> SafeCart</a></h1>
+<body class="bg-light">
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-3">
+        <div class="container">
+            <!-- Brand -->
+            <a class="navbar-brand fw-semibold fs-4 text-primary" href="/home">
+                <i class="bi bi-bag-check-fill me-1"></i> SafeCart
+            </a>
+
+            <!-- Mobile toggle -->
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <!-- Menu -->
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto fs-7 fw-semibold">
+                    <li class="nav-item">
+                        <a class="nav-link text-primary" href="/home"><i class="bi bi-house-door-fill me-1"></i> Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-primary" href="/cart"><i class="bi bi-cart-fill me-1"></i> Cart</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-primary" href="/wishlist"><i class="bi bi-heart-fill me-1"></i> Wishlist</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-primary" href="/yourorders"><i class="bi bi-box-seam-fill me-1"></i> Your Orders</a>
+                    </li>
+                </ul>
             </div>
-            <nav class="nav-menu">
-                <a href="/home" class="nav-link"><i class="bi bi-house-door-fill"></i> Home</a>
-                <a href="/cart" class="nav-link"><i class="bi bi-cart-fill"></i> Cart</a>
-                <a href="/wishlist" class="nav-link"> <i class="bi bi-heart-fill"></i> Wishlist</a>
-                <a href="/yourorders" class="nav-link"><i class="bi bi-box-seam-fill"></i> Your Orders</a>
-            </nav>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <header class="bg-primary text-white py-4 text-center">
+        <div class="container">
+            <h1 class="fw-bold">Login</h1>
         </div>
     </header>
 
-    <section class="page-header">
-        <div class="container">
-            <h1>Login</h1>
-        </div>
-    </section>
-
+    <!-- Messages -->
     {% if messages %}
-    {% for message in messages %}
-    {% if message.tags == 'error' %}
-    <center>
-        <h4 style="color: firebrick;">{{message}}</h4>
-    </center>
-    {% else %}
-    <center>
-        <h4 style="color: dodgerblue;">{{message}}</h4>
-    </center>
-    {% endif %}
-    {% endfor %}
+    <div class="container mt-3">
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}info{% endif %} text-center" role="alert">
+                {{ message }}
+            </div>
+        {% endfor %}
+    </div>
     {% endif %}
 
-
-    <div class="container">
-        <div class="address-form-card" style="max-width:400px; margin:2rem auto;">
-            <form method="post">
-                {% csrf_token %}
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <input id="username" name="username" required placeholder="Username or Email">
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required placeholder="Password">
-                    <div style="margin-top: 0.25rem;">
-                        <a href="{% url 'forgot-password' %}" style="font-size: 0.9rem; color: #555;">Forgot your
-                            password?</a>
+    <!-- Login Form -->
+    <div class="container my-5">
+        <div class="card shadow-sm mx-auto" style="max-width: 400px;">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input id="username" name="username" class="form-control" required placeholder="Username or Email">
                     </div>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block">Login</button>
-            </form>
-            <p style="text-align:center; margin-top:1rem;">
-                Don't have an account? <a href="/register">Sign Up</a>
-            </p>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" id="password" name="password" class="form-control" required placeholder="Password">
+                        <div class="mt-1">
+                            <a href="{% url 'forgot-password' %}" class="small text-decoration-none">Forgot your password?</a>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Login</button>
+                </form>
+                <p class="text-center mt-3 mb-0">
+                    Don't have an account? <a href="/register">Sign Up</a>
+                </p>
+            </div>
         </div>
     </div>
-</body>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
 </html>

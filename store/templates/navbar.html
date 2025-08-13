@@ -1,29 +1,52 @@
-<header class="navbar">
-    <div class="nav-container">
-        <div class="nav-logo">
-            <h1><a href="home"><i class="bi bi-bag-check-fill"></i> SafeCart</a></h1>
-        </div>
-        <nav class="nav-menu">
-            <a href="home" class="nav-link"><i class="bi bi-house-door-fill"></i> Home</a>
-            <a href="cart" class="nav-link"><i class="bi bi-cart-fill"></i> Cart (<span id="cart-count">{{ cart_count }}</span>)</a>
-            <a href="wishlist" class="nav-link"><i class="bi bi-heart-fill"></i> Wishlist (<span id="wishlist-count">{{ wishlist_count }}</span>)</a>
-            <a href="yourorders" class="nav-link"><i class="bi bi-box-seam-fill"></i> Your Orders</a>
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-2">
+  <div class="container">
+    <a class="navbar-brand fw-semibold fs-4 text-primary" href="home">
+      <i class="bi bi-bag-check-fill"></i> SafeCart
+    </a>
 
-            {% if user.is_authenticated %}
-            <a href="#" class="nav-link" onclick="document.getElementById('logout-form').submit(); return false;">
-                <i class="bi bi-box-arrow-right"></i> Logout
-            </a>
-            <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: none;">
-                {% csrf_token %}
-            </form>
-            {% else %}
-            <a href="login" class="nav-link"><i class="bi bi-box-arrow-in-right"></i> Login</a>
-            <a href="register" class="nav-link"><i class="bi bi-person-plus-fill"></i> Sign Up</a>
-            {% endif %}
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
 
-            <a href="profile" class="profile-avatar-btn" id="profile-btn">
-                <img src="" alt="Profile" class="profile-avatar-img">
-            </a>
-        </nav>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto fs-7 fw-semibold">
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="home"><i class="bi bi-house-door-fill"></i> Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="cart"><i class="bi bi-cart-fill"></i> Cart (<span id="cart-count">{{ cart_count }}</span>)</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="wishlist"><i class="bi bi-heart-fill"></i> Wishlist (<span id="wishlist-count">{{ wishlist_count }}</span>)</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="yourorders"><i class="bi bi-box-seam-fill"></i> Your Orders</a>
+        </li>
+
+        {% if user.is_authenticated %}
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="#" onclick="document.getElementById('logout-form').submit(); return false;">
+            <i class="bi bi-box-arrow-right"></i> Logout
+          </a>
+          <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: none;">
+            {% csrf_token %}
+          </form>
+        </li>
+        {% else %}
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="login"><i class="bi bi-box-arrow-in-right"></i> Login</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="register"><i class="bi bi-person-plus-fill"></i> Sign Up</a>
+        </li>
+        {% endif %}
+
+        <li class="nav-item">
+          <a href="profile" class="nav-link p-0">
+            <img src="" alt="Profile" class="rounded-circle" style="width:40px; height:40px;">
+          </a>
+        </li>
+      </ul>
     </div>
-</header>
+  </div>
+</nav>
