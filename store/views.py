@@ -11,6 +11,7 @@ from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
 from django.db.models import Count
+from django.http import JsonResponse
 
 logger = logging.getLogger(__name__)
 
@@ -242,3 +243,18 @@ def move_to_cart(request, product_id):
         Wishlist.objects.filter(user=request.user, product=product).delete()
         messages.success(request, f"{product.name} moved to cart.")
     return redirect('wishlist')
+
+@login_required
+def checkout(request):
+    return render(request, "checkout.html")
+
+
+def cart(request):
+    cart_items = Cart.objects.filter(user=request.user).select_related("product")
+    subtotal = sum(item.product.price for item in cart_items)
+    
+    return render(request, "cart.html", {
+        "cart_items": cart_items,
+        "subtotal": subtotal,
+    })
+
