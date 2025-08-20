@@ -11,6 +11,8 @@ from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
 from django.db.models import Count
+from django.http import JsonResponse
+from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,8 @@ def product(request):
     return render(request, "product.html", {
         "products": products,
         "heading": category_object.heading,
-        "description": category_object.description
+        "description": category_object.description,
+        "category": category
     })
 
 def home(request):
@@ -197,8 +200,22 @@ def add_to_cart(request):
             messages.success(request, f"{product.name} added to cart.")
         else:
             messages.info(request, f"{product.name} is already in your cart.")
-        return redirect(request.META.get('HTTP_REFERER', 'home'))
-    return redirect('home')
+        if request.headers.get("HX-Request"):
+            cart_count = Cart.objects.filter(user=request.user).count()
+            flash_html = render_to_string("flash_messages.html", {}, request=request)
+
+            return JsonResponse({
+                "cart_count": cart_count,
+                "flash_html": flash_html
+            })
+
+        category = request.POST.get("category", "men")
+
+        # this is just fallback. We are not using redirect in success case
+        return redirect(f"{reverse('product')}?category={category}")
+
+    # this is just fallback. We are not using redirect in success case
+    return redirect("home")
 
 @login_required
 def add_to_wishlist(request):
