@@ -222,40 +222,109 @@ def add_to_wishlist(request):
     if request.method == 'POST':
         product_id = request.POST.get('product_id')
         product = get_object_or_404(Product, id=product_id)
-        item, created = Wishlist.objects.get_or_create(user=request.user, product=product)
+
+        wishlist_item, created = Wishlist.objects.get_or_create(user=request.user, product=product)
         if created:
-            messages.success(request, f"{product.name} added to your wishlist.")
+            messages.success(request, f"{product.name} added to wishlist.")
         else:
             messages.info(request, f"{product.name} is already in your wishlist.")
-        return redirect(request.META.get('HTTP_REFERER', 'home'))
-    return redirect('home')
+
+        # If request is via HTMX → return JSON instead of redirect
+        if request.headers.get("HX-Request"):
+            wishlist_count = Wishlist.objects.filter(user=request.user).count()
+            flash_html = render_to_string("flash_messages.html", {}, request=request)
+
+            return JsonResponse({
+                "wishlist_count": wishlist_count,
+                "flash_html": flash_html
+            })
+
+        category = request.POST.get("category", "men")
+
+        # fallback redirect if not HTMX
+        return redirect(f"{reverse('product')}?category={category}")
+
+    return redirect("home")
 
 @login_required
 def remove_from_cart(request, product_id):
+    """Remove an item from cart (HTMX-aware)."""
     Cart.objects.filter(user=request.user, product_id=product_id).delete()
     messages.success(request, "Item removed from cart.")
+
+    if request.headers.get("HX-Request"):
+        cart_count = Cart.objects.filter(user=request.user).count()
+        flash_html = render_to_string("flash_messages.html", {}, request=request)
+
+        return JsonResponse({
+            "cart_count": cart_count,
+            "flash_html": flash_html,
+            "removed_product_id": product_id,   # 🔑 so JS can remove the card
+        })
+
     return redirect(request.META.get('HTTP_REFERER', 'cart'))
+
 
 @login_required
 def move_to_wishlist(request, product_id):
+    """Move a cart item into wishlist (HTMX-aware)."""
     product = get_object_or_404(Product, id=product_id)
     Wishlist.objects.get_or_create(user=request.user, product=product)
     Cart.objects.filter(user=request.user, product=product).delete()
     messages.success(request, f"{product.name} moved to wishlist.")
+
+    if request.headers.get("HX-Request"):
+        wishlist_count = Wishlist.objects.filter(user=request.user).count()
+        cart_count = Cart.objects.filter(user=request.user).count()
+        flash_html = render_to_string("flash_messages.html", {}, request=request)
+
+        return JsonResponse({
+            "wishlist_count": wishlist_count,
+            "cart_count": cart_count,
+            "flash_html": flash_html,
+            "moved_product_id": product_id,   # 🔑 so JS can remove card
+        })
+
     return redirect(request.META.get('HTTP_REFERER', 'cart'))
+
 
 @login_required
 def remove_from_wishlist(request, product_id):
-    if request.method == 'POST':
-        Wishlist.objects.filter(user=request.user, product_id=product_id).delete()
-        messages.success(request, "Item removed from wishlist.")
-    return redirect('wishlist')
+    """Remove a product from wishlist (HTMX-aware)."""
+    Wishlist.objects.filter(user=request.user, product_id=product_id).delete()
+    messages.success(request, "Item removed from wishlist.")
+
+    if request.headers.get("HX-Request"):
+        wishlist_count = Wishlist.objects.filter(user=request.user).count()
+        flash_html = render_to_string("flash_messages.html", {}, request=request)
+
+        return JsonResponse({
+            "wishlist_count": wishlist_count,
+            "flash_html": flash_html,
+            "removed_product_id": product_id,   # 🔑 used by JS to remove card
+        })
+
+    return redirect(request.META.get("HTTP_REFERER", "wishlist"))
+
 
 @login_required
 def move_to_cart(request, product_id):
-    if request.method == 'POST':
-        product = get_object_or_404(Product, id=product_id)
-        Cart.objects.create(user=request.user, product=product)
-        Wishlist.objects.filter(user=request.user, product=product).delete()
-        messages.success(request, f"{product.name} moved to cart.")
-    return redirect('wishlist')
+    """Move a wishlist item into cart (HTMX-aware)."""
+    product = get_object_or_404(Product, id=product_id)
+    Cart.objects.get_or_create(user=request.user, product=product)
+    Wishlist.objects.filter(user=request.user, product=product).delete()
+    messages.success(request, f"{product.name} moved to cart.")
+
+    if request.headers.get("HX-Request"):
+        cart_count = Cart.objects.filter(user=request.user).count()
+        wishlist_count = Wishlist.objects.filter(user=request.user).count()
+        flash_html = render_to_string("flash_messages.html", {}, request=request)
+
+        return JsonResponse({
+            "cart_count": cart_count,
+            "wishlist_count": wishlist_count,
+            "flash_html": flash_html,
+            "moved_product_id": product_id,   # 🔑 so JS removes card
+        })
+
+    return redirect(request.META.get("HTTP_REFERER", "wishlist"))

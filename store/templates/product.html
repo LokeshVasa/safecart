@@ -53,14 +53,16 @@
               <p class="fw-bold text-success mb-3">₹{{ product.price }}</p>
 
               <div class="mt-auto d-flex justify-content-between">
-                <!-- Wishlist -->
-                <form action="{% url 'add-to-wishlist' %}" method="POST" class="me-2">
-                  {% csrf_token %}
-                  <input type="hidden" name="product_id" value="{{ product.id }}">
-                  <button type="submit" class="btn btn-outline-danger btn-sm">
-                    <i class="bi bi-heart"></i> Wishlist
-                  </button>
-                </form>
+
+              <!-- Wishlist -->
+              <form hx-post="{% url 'add-to-wishlist' %}" hx-swap="none"   hx-on::after-request="updateWishlistState(event)" 
+                 method="POST" class="me-2">
+                 {% csrf_token %}
+                 <input type="hidden" name="product_id" value="{{ product.id }}">
+                 <button type="submit" class="btn btn-outline-danger btn-sm">
+                  <i class="bi bi-heart"></i> Wishlist
+                </button>
+              </form>
 
                 <!-- Add to Cart -->
                 <form hx-post="{% url 'add-to-cart' %}" hx-swap="none" hx-on::after-request="updateCartState(event)"
@@ -91,33 +93,74 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://unpkg.com/htmx.org@1.9.3"></script>
-  <script>
-    function updateCartState(event) {
-      const xhr = event.detail.xhr;
-      try {
-        const data = JSON.parse(xhr.responseText);
+<script>
+  // Auto dismiss flash messages after 3 seconds
+  function autoDismissFlash() {
+    setTimeout(() => {
+      document.querySelectorAll(".alert").forEach((alertElem) => {
+        let bsAlert = bootstrap.Alert.getOrCreateInstance(alertElem);
+        bsAlert.close();
+      });
+    }, 3000); // 3 seconds
+  }
 
-        // Update cart count
-        if (data.cart_count !== undefined) {
-          const cartCountElem = document.getElementById("cart-count");
-          if (cartCountElem) {
-            cartCountElem.innerText = data.cart_count;
-          }
+  // Run once on page load
+  document.addEventListener("DOMContentLoaded", autoDismissFlash);
+
+  // Reusable helper for when HTMX injects new flashes
+  function refreshFlashMessages() {
+    autoDismissFlash();
+  }
+
+  function updateCartState(event) {
+    const xhr = event.detail.xhr;
+    try {
+      const data = JSON.parse(xhr.responseText);
+
+      if (data.cart_count !== undefined) {
+        const cartCountElem = document.getElementById("cart-count");
+        if (cartCountElem) {
+          cartCountElem.innerText = data.cart_count;
         }
-
-        // Update flash messages
-        if (data.flash_html !== undefined) {
-          const flashContainer = document.getElementById("flash-messages");
-          if (flashContainer) {
-            flashContainer.innerHTML = data.flash_html;
-          }
-        }
-
-      } catch (e) {
-        console.error("[updateCartState] JSON parse error:", e);
       }
+
+      if (data.flash_html !== undefined) {
+        const flashContainer = document.getElementById("flash-messages");
+        if (flashContainer) {
+          flashContainer.innerHTML = data.flash_html;
+          refreshFlashMessages(); // 🔑 auto-dismiss new flash
+        }
+      }
+    } catch (e) {
+      console.error("[updateCartState] JSON parse error:", e);
     }
-  </script>
+  }
+
+  function updateWishlistState(event) {
+    const xhr = event.detail.xhr;
+    try {
+      const data = JSON.parse(xhr.responseText);
+
+      if (data.wishlist_count !== undefined) {
+        const wishlistCountElem = document.getElementById("wishlist-count");
+        if (wishlistCountElem) {
+          wishlistCountElem.innerText = data.wishlist_count;
+        }
+      }
+
+      if (data.flash_html !== undefined) {
+        const flashContainer = document.getElementById("flash-messages");
+        if (flashContainer) {
+          flashContainer.innerHTML = data.flash_html;
+          refreshFlashMessages(); // 🔑 auto-dismiss new flash
+        }
+      }
+    } catch (e) {
+      console.error("[updateWishlistState] JSON parse error:", e);
+    }
+  }
+</script>
+
 
 
 </body>
