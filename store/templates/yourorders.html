@@ -1,3 +1,4 @@
+{% extends "root.html" %}
 {% load static %}
 
 {% block title %}Your Orders - SafeCart{% endblock %}
@@ -5,56 +6,51 @@
 
 {% block content %}
 <!-- Page Header -->
-    <section class="py-3 bg-primary text-white text-center border-bottom mt-0">
-        <div class="container">
-            <h1 class="fw-bold">Your Orders</h1>
-            <p class="mb-0">View your recent purchases and order details</p>
-        </div>
-    </section>
+<section class="py-3 bg-primary text-white text-center border-bottom mt-0">
+    <div class="container">
+        <h1 class="fw-bold">Your Orders</h1>
+        <p class="mb-0">View your recent purchases and order details</p>
+    </div>
+</section>
 
-    <section class="py-2 flex-grow-1">
-        <div class="container">
-            {% if orders %}
-                <div class="row g-4">
-                    {% for order in orders %}
-                        <div class="col-md-6 col-lg-4">
-                            <div class="card shadow-sm border-0 h-100">
-                                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <small>{{ order.date|date:"M d, Y" }}</small><br>
-                                        <strong>#{{ order.id }}</strong>
-                                    </div>
-                                    <span class="badge bg-success">{{ order.status|default:"Confirmed" }}</span>
+<section class="py-2 flex-grow-1">
+    <div class="container">
+        {% if orders %}
+            <div class="row g-4">
+                {% for order in orders %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card shadow-sm border-0 h-100">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small>{{ order.date|date:"M d, Y" }}</small><br>
+                                    <strong>#{{ order.id }}</strong>
                                 </div>
-                                <div class="card-body">
-                                    {% for item in order.items %}
-                                        <div class="d-flex align-items-center mb-3">
-                                            <img src="{{ item.image.url }}" alt="{{ item.name }}" class="img-fluid rounded me-3" style="width:60px; height:60px; object-fit:cover;">
-                                            <div>
-                                                <h6 class="mb-1">{{ item.name }}</h6>
-                                                <small class="text-muted">Qty: {{ item.quantity }} | ${{ item.price|floatformat:2 }}</small>
-                                            </div>
+                                <span class="badge bg-success">{{ order.status|default:"Confirmed" }}</span>
+                            </div>
+                            <div class="card-body">
+                                {% for item in order.items %}
+                                    <div class="d-flex align-items-center mb-3">
+                                        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="img-fluid rounded me-3" style="width:60px; height:60px; object-fit:cover;">
+                                        <div>
+                                            <h6 class="mb-1">{{ item.name }}</h6>
+                                            <small class="text-muted">Qty: {{ item.quantity }} | ${{ item.price|floatformat:2 }}</small>
                                         </div>
-                                    {% endfor %}
-                                </div>
+                                    </div>
+                                {% endfor %}
                             </div>
                         </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="text-center py-5">
-                    <h3>No orders yet</h3>
-                    <p class="text-muted">Start shopping to place your first order!</p>
-                    <a href="{% url 'home' %}" class="btn btn-primary">Shop Now</a>
-                </div>
-            {% endif %}
-        </div>
-    </section>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <h3>No orders yet</h3>
+                <p class="text-muted">Start shopping to place your first order!</p>
+                <a href="{% url 'home' %}" class="btn btn-primary">Shop Now</a>
+            </div>
+        {% endif %}
+    </div>
+</section>
 
-    <footer class="bg-dark text-white py-3 mt-auto">
-        <div class="container text-center">
-            <p class="mb-0">&copy; 2025 SafeCart. All rights reserved.</p>
-        </div>
-    </footer>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}

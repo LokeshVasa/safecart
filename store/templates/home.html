@@ -1,88 +1,89 @@
+{% extends "root.html" %}
 {% load static %}
 
 {% block title %}SafeCart - Your Trusted Shopping Destination{% endblock %}
 {% block body_class %}bg-light{% endblock %}
 
 {% block content %}
-    <!-- Hero Section (Carousel) -->
-    <div id="heroCarousel" class="carousel slide carousel-fade" data-bs-ride="carousel" data-bs-interval="4000">
-        <!-- Indicators -->
-        <div class="carousel-indicators">
-            <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-            <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-            <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-        </div>
-
-        <!-- Slides -->
-        <div class="carousel-inner">
-            <div class="carousel-item active">
-                <img src="https://images.unsplash.com/photo-1542831371-d531d36971e6?auto=format&fit=crop&w=1400&q=80"
-                    class="d-block w-100" alt="Shopping 1" style="max-height:500px; object-fit:cover;">
-                <div class="carousel-caption d-none d-md-block">
-                    <h2 class="fw-bold">SafeCart Mega Sale</h2>
-                    <p>Up to 70% OFF on your favorite products!</p>
-                    <a href="#" class="btn btn-primary btn-lg">Shop Now</a>
-                </div>
-            </div>
-            <div class="carousel-item">
-                <img src="https://images.unsplash.com/photo-1589187155470-4c2d0d3c1d4f?auto=format&fit=crop&w=1400&q=80"
-                    class="d-block w-100" alt="Shopping 2" style="max-height:500px; object-fit:cover;">
-                <div class="carousel-caption d-none d-md-block">
-                    <h2 class="fw-bold">New Arrivals</h2>
-                    <p>Fresh styles & trends just for you.</p>
-                    <a href="#" class="btn btn-warning btn-lg">Explore</a>
-                </div>
-            </div>
-            <div class="carousel-item">
-                <img src="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1400&q=80"
-                    class="d-block w-100" alt="Shopping 3" style="max-height:500px; object-fit:cover;">
-                <div class="carousel-caption d-none d-md-block">
-                    <h2 class="fw-bold">Exclusive Discounts</h2>
-                    <p>Shop more, save more with SafeCart.</p>
-                    <a href="#" class="btn btn-success btn-lg">Grab Deals</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Controls -->
-        <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon"></span>
-            <span class="visually-hidden">Previous</span>
-        </button>
-        <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
-            <span class="carousel-control-next-icon"></span>
-            <span class="visually-hidden">Next</span>
-        </button>
+<!-- Hero Section (Carousel) -->
+<div id="heroCarousel" class="carousel slide carousel-fade" data-bs-ride="carousel" data-bs-interval="4000">
+    <!-- Indicators -->
+    <div class="carousel-indicators">
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
     </div>
 
-    <!-- Info Bar -->
-    <div class="d-flex justify-content-center gap-4 py-3 bg-light fs-5 text-center">
-        <span>🚚 7 Days Easy Return</span>
-        <span>💵 Cash on Delivery</span>
-        <span>🏷️ Lowest Prices</span>
+    <!-- Slides -->
+    <div class="carousel-inner">
+        <div class="carousel-item active">
+            <img src="https://images.unsplash.com/photo-1542831371-d531d36971e6?auto=format&fit=crop&w=1400&q=80"
+                 class="d-block w-100" alt="Shopping 1" style="max-height:500px; object-fit:cover;">
+            <div class="carousel-caption d-none d-md-block">
+                <h2 class="fw-bold">SafeCart Mega Sale</h2>
+                <p>Up to 70% OFF on your favorite products!</p>
+                <a href="#" class="btn btn-primary btn-lg">Shop Now</a>
+            </div>
+        </div>
+        <div class="carousel-item">
+            <img src="https://images.unsplash.com/photo-1589187155470-4c2d0d3c1d4f?auto=format&fit=crop&w=1400&q=80"
+                 class="d-block w-100" alt="Shopping 2" style="max-height:500px; object-fit:cover;">
+            <div class="carousel-caption d-none d-md-block">
+                <h2 class="fw-bold">New Arrivals</h2>
+                <p>Fresh styles & trends just for you.</p>
+                <a href="#" class="btn btn-warning btn-lg">Explore</a>
+            </div>
+        </div>
+        <div class="carousel-item">
+            <img src="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1400&q=80"
+                 class="d-block w-100" alt="Shopping 3" style="max-height:500px; object-fit:cover;">
+            <div class="carousel-caption d-none d-md-block">
+                <h2 class="fw-bold">Exclusive Discounts</h2>
+                <p>Shop more, save more with SafeCart.</p>
+                <a href="#" class="btn btn-success btn-lg">Grab Deals</a>
+            </div>
+        </div>
     </div>
 
-    <!-- Categories Section -->
-    <section class="py-5">
-        <div class="container">
-            <h2 class="text-center mb-5">Shop by Category</h2>
-            <div class="row g-4">
-                {% for category in categories %}
-                <div class="col-6 col-md-4 col-lg-3">
-                    <a href="product?category={{ category.category }}" class="text-decoration-none text-dark">
-                        <div class="card h-100 shadow-sm">
-                            <img src="{{ category.image.url }}" class="card-img-top" alt="{{ category.category }}">
-                            <div class="card-body text-center">
-                                <h5 class="card-title">{{ category.category }}</h5>
-                            </div>
+    <!-- Controls -->
+    <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon"></span>
+        <span class="visually-hidden">Previous</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon"></span>
+        <span class="visually-hidden">Next</span>
+    </button>
+</div>
+
+<!-- Info Bar -->
+<div class="d-flex justify-content-center gap-4 py-3 bg-light fs-5 text-center">
+    <span>🚚 7 Days Easy Return</span>
+    <span>💵 Cash on Delivery</span>
+    <span>🏷️ Lowest Prices</span>
+</div>
+
+<!-- Categories Section -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">Shop by Category</h2>
+        <div class="row g-4">
+            {% for category in categories %}
+            <div class="col-6 col-md-4 col-lg-3">
+                <a href="product?category={{ category.category }}" class="text-decoration-none text-dark">
+                    <div class="card h-100 shadow-sm">
+                        <img src="{{ category.image.url }}" class="card-img-top" alt="{{ category.category }}">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">{{ category.category }}</h5>
                         </div>
-                    </a>
-                </div>
-                {% endfor %}
+                    </div>
+                </a>
             </div>
+            {% endfor %}
         </div>
-    </section>
+    </div>
+</section>
 
 <!-- JS Scripts (for Carousel, not in root) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}
