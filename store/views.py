@@ -328,3 +328,65 @@ def move_to_cart(request, product_id):
         })
 
     return redirect(request.META.get("HTTP_REFERER", "wishlist"))
+
+from decimal import Decimal
+
+@login_required
+def cart_view(request):
+    cart_items = Cart.objects.filter(user=request.user)
+    subtotal = sum(item.product.price * item.quantity for item in cart_items)
+    shipping = Decimal('50.00')
+    tax = subtotal * Decimal('0.05')
+    total = subtotal + shipping + tax
+
+    return render(request, 'cart.html', {
+        'cart_items': cart_items,
+        'subtotal': subtotal,
+        'shipping': shipping,
+        'tax': tax,
+        'total': total
+    })
+
+
+
+    
+@login_required
+def update_cart(request, item_id):
+    item = get_object_or_404(Cart, id=item_id, user=request.user)
+    action = request.GET.get('action')
+
+    if action == 'increment':
+        item.quantity += 1
+    elif action == 'decrement' and item.quantity > 1:
+        item.quantity -= 1
+    item.save()
+
+    cart_items = Cart.objects.filter(user=request.user)
+    subtotal = sum(i.product.price * i.quantity for i in cart_items)
+    shipping = Decimal('50.00')
+    tax = subtotal * Decimal('0.05')
+    total = subtotal + shipping + tax
+
+    return render(request, 'partials/cart_items.html', {
+        'cart_items': cart_items,
+        'subtotal': subtotal,
+        'shipping': shipping,
+        'tax': tax,
+        'total': total
+    })
+    
+@login_required
+def cart(request):
+    cart_items = Cart.objects.filter(user=request.user)
+    subtotal = sum(item.product.price * item.quantity for item in cart_items)
+    shipping = Decimal('50.00')
+    tax = subtotal * Decimal('0.05')
+    total = subtotal + shipping + tax
+
+    return render(request, 'cart.html', {
+        'cart_items': cart_items,
+        'subtotal': subtotal,
+        'shipping': shipping,
+        'tax': tax,
+        'total': total
+    })

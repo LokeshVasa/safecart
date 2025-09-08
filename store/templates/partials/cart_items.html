@@ -1,0 +1,44 @@
+{% load custom_filters %}
+
+{% if cart_items %}
+  {% for item in cart_items %}
+    <div class="d-flex align-items-center border-bottom py-3" id="cart-item-{{ item.id }}">
+      
+      <!-- Product Image -->
+      <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}"
+           class="img-thumbnail me-3" style="width:80px; height:80px; object-fit:cover;">
+
+      <!-- Product Info -->
+      <div class="flex-grow-1">
+        <h6 class="mb-1">{{ item.product.name }}</h6>
+        <div class="d-flex align-items-center">
+          <span class="me-2">Quantity:</span>
+          <button hx-post="{% url 'update-cart' item.id %}?action=decrement"
+                  hx-target="#cart-items" hx-swap="innerHTML"
+                  class="btn btn-sm btn-outline-secondary">-</button>
+          <span class="mx-2">{{ item.quantity }}</span>
+          <button hx-post="{% url 'update-cart' item.id %}?action=increment"
+                  hx-target="#cart-items" hx-swap="innerHTML"
+                  class="btn btn-sm btn-outline-secondary">+</button>
+        </div>
+      </div>
+
+      <!-- Price + Remove + Wishlist -->
+      <div class="text-end">
+        <p class="mb-1">₹{{ item.product.price|mul:item.quantity }}</p>
+        <div class="d-flex flex-column">
+          <button hx-post="{% url 'remove_from_cart' item.product.id %}"
+                  hx-target="#cart-items" hx-swap="innerHTML"
+                  class="btn btn-sm btn-danger mb-1">Remove</button>
+        <button hx-post="{% url 'move_to_wishlist' item.product.id %}"
+                    hx-target="#cart-items" hx-swap="innerHTML"
+                     class="btn btn-sm btn-outline-warning">Wishlist</button>
+
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+{% else %}
+  <p class="text-center text-muted">Your cart is empty.</p>
+{% endif %}
+
