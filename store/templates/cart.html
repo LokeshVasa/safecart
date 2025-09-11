@@ -17,56 +17,119 @@
 <!-- Cart Section -->
 <section>
   <div class="container py-4">
-    <div class="row g-4" id="cart-items-container">
-      {% if cart_items %}
-        {% for item in cart_items %}
-        <div class="col-md-3 d-flex cart-item" id="cart-item-{{ item.product.id }}">
-          <div class="card shadow-sm w-100 h-100" style="min-height: 600px;">
-            <img src="{{ item.product.image.url }}" 
-                 class="card-img-top img-fluid" 
-                 style="height: 460px; object-fit: cover;" 
-                 alt="{{ item.product.name }}">
-            <div class="card-body d-flex flex-column">
-              <h6 class="card-title">{{ item.product.name }}</h6>
-              <p class="fw-bold text-primary mb-1">₹{{ item.product.price }}</p>
-              <p class="text-muted small mb-2">Quantity: {{ item.quantity }}</p>
-              <div class="mt-auto d-flex gap-2">
+    <div class="row g-4">
 
-                <!-- Remove with HTMX -->
-                <form hx-post="{% url 'remove_from_cart' item.product.id %}" 
-                      hx-swap="none" 
-                      hx-on::after-request="updateCartState(event)" 
-                      method="post" class="m-0">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-outline-danger btn-sm">
-                    <i class="bi bi-trash"></i> Remove
-                  </button>
-                </form>
+<!-- Left: Cart Items -->
+<div class="col-lg-8">
+  <div class="border rounded p-3" style="max-height: 600px; overflow-y: auto;">
+    {% if cart_items %}
+      {% for item in cart_items %}
+      <div class="d-flex align-items-center border-bottom py-3" id="cart-item-{{ item.product.id }}">
+        
+        <!-- Product Image -->
+        <div class="flex-shrink-0 me-3" style="width: 100px; height: 100px; overflow: hidden;">
+          <img src="{{ item.product.image.url }}" 
+               class="img-fluid h-100 w-100 object-fit-cover" 
+               alt="{{ item.product.name }}">
+        </div>
 
-                <!-- Move to Wishlist with HTMX -->
-                <form hx-post="{% url 'move_to_wishlist' item.product.id %}" 
-                      hx-swap="none" 
-                      hx-on::after-request="updateWishlistState(event)" 
-                      method="post" class="m-0">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-primary btn-sm">
-                    <i class="bi bi-heart"></i> Wishlist
-                  </button>
-                </form>
+        <!-- Product Details -->
+        <div class="flex-grow-1">
+          <h6 class="mb-1">{{ item.product.name }}</h6>
+          <p class="fw-bold text-primary mb-0">₹{{ item.product.price }}</p>
+        </div>
 
-              </div>
-            </div>
+        <!-- Actions aligned to right -->
+        <div class="ms-auto d-flex gap-2">
+          <!-- Remove -->
+          <form hx-post="{% url 'remove_from_cart' item.product.id %}" 
+                hx-swap="none" 
+                hx-on::after-request="updateCartState(event)" 
+                method="post" class="m-0">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+              Remove
+            </button>
+          </form>
+
+          <!-- Wishlist -->
+          <form hx-post="{% url 'move_to_wishlist' item.product.id %}" 
+                hx-swap="none" 
+                hx-on::after-request="updateWishlistState(event)" 
+                method="post" class="m-0">
+            {% csrf_token %}
+            <button 
+              hx-post="{% url 'move_to_wishlist' item.product.id %}" 
+              hx-trigger="click"
+              hx-on="htmx:afterOnLoad:updateCartState(event)"
+              class="btn btn-outline-secondary btn-sm">
+              Wishlist
+            </button>
+          </form>
+        </div>
+
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-center py-5">
+        <h2>Your cart is empty</h2>
+        <p class="text-muted">Looks like you haven’t added anything yet.</p>
+        <a href="{% url 'home' %}" class="btn btn-primary">Continue Shopping</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+
+
+<!-- Right: Summary + Address -->
+<div class="col-lg-4">
+
+  <!-- Order Summary -->
+  <div class="card shadow-sm mb-3" id="order-summary">
+    <div class="card-body">
+      <h5 class="fw-bold mb-3">Order Summary</h5>
+      <div class="d-flex justify-content-between">
+        <span>Subtotal</span><span>₹{{ subtotal }}</span>
+      </div>
+      <div class="d-flex justify-content-between">
+        <span>Shipping</span><span>₹{{ shipping }}</span>
+      </div>
+      <div class="d-flex justify-content-between">
+        <span>Tax</span><span>₹{{ tax }}</span>
+      </div>
+      <hr>
+      <div class="d-flex justify-content-between fw-bold">
+        <span>Total</span><span>₹{{ total }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shipping Address -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h5 class="fw-bold mb-3">Shipping Address</h5>
+      <form>
+        <div class="mb-2">
+          <input type="text" class="form-control" placeholder="Full Name">
+        </div>
+        <div class="mb-2">
+          <input type="text" class="form-control" placeholder="Address">
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-md-6">
+            <input type="text" class="form-control" placeholder="City">
+          </div>
+          <div class="col-md-6">
+            <input type="text" class="form-control" placeholder="Zipcode">
           </div>
         </div>
-        {% endfor %}
-      {% else %}
-        <div class="col-12 text-center py-5">
-          <h2>Your cart is empty</h2>
-          <p class="text-muted">Looks like you haven’t added anything to your cart yet.</p>
-          <a href="home" class="btn btn-primary">Continue Shopping</a>
-        </div>
-      {% endif %}
+        <button type="button" class="btn btn-primary w-100">Continue to Pay</button>
+      </form>
     </div>
+  </div>
+
+</div>
   </div>
 </section>
 
@@ -85,30 +148,52 @@
   }
   document.addEventListener("DOMContentLoaded", autoDismissFlash);
 
-  function refreshFlashMessages() { autoDismissFlash(); }
+  function refreshFlashMessages() {
+    autoDismissFlash();
+  }
 
+  // ✅ Handles cart updates
   function updateCartState(event) {
     const xhr = event.detail.xhr;
     try {
       const data = JSON.parse(xhr.responseText);
 
-      // update cart count in navbar
+      // Update cart count in navbar
       if (data.cart_count !== undefined) {
         const cartCountElem = document.getElementById("cart-count");
         if (cartCountElem) cartCountElem.innerText = data.cart_count;
       }
 
-      // replace flash messages
+      // Replace flash messages
       if (data.flash_html !== undefined) {
         const flashContainer = document.getElementById("flash-messages");
         flashContainer.innerHTML = data.flash_html;
         refreshFlashMessages();
       }
 
-      // if item removed, hide card
+      // Remove product card when deleted
       if (data.removed_product_id !== undefined) {
         const card = document.getElementById("cart-item-" + data.removed_product_id);
         if (card) card.remove();
+      }
+
+      // Update totals
+      if (data.totals !== undefined) {
+        updateOrderSummary(data.totals);
+      }
+
+      // ✅ Handle empty cart state
+      if (data.empty_html !== undefined) {
+        const cartContainer = document.querySelector(".col-lg-8 > .border");
+        if (cartContainer) cartContainer.innerHTML = data.empty_html;
+
+        // Reset order summary when cart is empty
+        updateOrderSummary({
+          subtotal: 0,
+          shipping: 0,
+          tax: 0,
+          total: 0
+        });
       }
 
     } catch (e) {
@@ -116,23 +201,26 @@
     }
   }
 
+  // ✅ Handles wishlist updates
   function updateWishlistState(event) {
     const xhr = event.detail.xhr;
     try {
       const data = JSON.parse(xhr.responseText);
 
+      // Update wishlist count in navbar
       if (data.wishlist_count !== undefined) {
         const wishlistCountElem = document.getElementById("wishlist-count");
         if (wishlistCountElem) wishlistCountElem.innerText = data.wishlist_count;
       }
 
+      // Replace flash messages
       if (data.flash_html !== undefined) {
         const flashContainer = document.getElementById("flash-messages");
         flashContainer.innerHTML = data.flash_html;
         refreshFlashMessages();
       }
 
-      // remove card when moved to wishlist
+      // Remove product card when moved to wishlist
       if (data.moved_product_id !== undefined) {
         const card = document.getElementById("cart-item-" + data.moved_product_id);
         if (card) card.remove();
@@ -142,5 +230,28 @@
       console.error("[updateWishlistState] JSON parse error:", e);
     }
   }
+
+  // ✅ Update order summary dynamically
+  function updateOrderSummary(totals) {
+    if (!totals) return;
+    document.querySelector("#order-summary").innerHTML = `
+      <div class="card-body">
+        <h5 class="fw-bold mb-3">Order Summary</h5>
+        <div class="d-flex justify-content-between">
+          <span>Subtotal</span><span>₹${totals.subtotal}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span>Shipping</span><span>₹${totals.shipping}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span>Tax</span><span>₹${totals.tax}</span>
+        </div>
+        <hr>
+        <div class="d-flex justify-content-between fw-bold">
+          <span>Total</span><span>₹${totals.total}</span>
+        </div>
+      </div>`;
+  }
 </script>
+
 {% endblock %}
