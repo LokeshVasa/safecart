@@ -14,6 +14,9 @@ from django.db.models import Count
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from decimal import Decimal
+from .forms import AddressForm
+from .models import Address
+
 
 
 logger = logging.getLogger(__name__)
@@ -331,53 +334,58 @@ def move_to_cart(request, product_id):
 
     return redirect(request.META.get("HTTP_REFERER", "wishlist"))
 
+
 @login_required
 def cart(request):
-    cart_items = (
-        Cart.objects.filter(user=request.user)
-        .values('product')
-        .annotate(quantity=Count('product'))
-        .order_by('product')
-    )
+    cart_items = Cart.objects.filter(user=request.user).select_related("product")
 
-    products_with_quantity = []
-    subtotal = Decimal("0.00")  # ✅ start as Decimal
+    products = []
+    subtotal = Decimal("0.00")
     for item in cart_items:
-        product = Product.objects.get(id=item['product'])
-        quantity = item['quantity']
-        subtotal += product.price * quantity  # product.price is Decimal
-        products_with_quantity.append({
-            'product': product,
-            'quantity': quantity
-        })
+        product = item.product
+        subtotal += product.price
+        products.append(product)
 
-    shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")  # ✅ Decimal
-    tax_rate = Decimal("0.10")                                        # ✅ Decimal
-    tax = (subtotal * tax_rate).quantize(Decimal("0.01"))             # ✅ rounded
+    shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
+    tax = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"))
     total = subtotal + shipping + tax
 
-    return render(request, 'cart.html', {
-        'cart_items': products_with_quantity,
-        'subtotal': subtotal,
-        'shipping': shipping,
-        'tax': tax,
-        'total': total
+    # Fetch existing address (or None)
+    try:
+        address_instance = Address.objects.get(user=request.user)
+    except Address.DoesNotExist:
+        address_instance = None
+
+    if request.method == "POST":
+        form = AddressForm(request.POST, instance=address_instance)
+        if form.is_valid():
+            address = form.save(commit=False)
+            address.user = request.user
+            address.save()
+            messages.success(request, "Address saved successfully.")
+            return redirect("payment")
+    else:
+        form = AddressForm(instance=address_instance)  # prefill if exists
+
+    return render(request, "cart.html", {
+        "cart_items": products,
+        "subtotal": subtotal,
+        "shipping": shipping,
+        "tax": tax,
+        "total": total,
+        "form": form,  # ✅ pass the address form to template
     })
 
 
 def get_cart_totals(user):
-    cart_items = (
-        Cart.objects.filter(user=user)
-        .values('product')
-        .annotate(quantity=Count('product'))
-    )
-    subtotal = Decimal('0.00')
-    for item in cart_items:
-        product = Product.objects.get(id=item['product'])
-        subtotal += product.price * item['quantity']
+    cart_items = Cart.objects.filter(user=user).select_related("product")
 
-    shipping = Decimal('50.00') if subtotal > 0 else Decimal('0.00')
-    tax = (subtotal * Decimal('0.10')).quantize(Decimal('0.01'))
+    subtotal = Decimal("0.00")
+    for item in cart_items:
+        subtotal += item.product.price
+
+    shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
+    tax = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"))
     total = subtotal + shipping + tax
     return subtotal, shipping, tax, total
 
@@ -400,7 +408,7 @@ def remove_from_cart(request, product_id):
                 "subtotal": subtotal,
                 "shipping": shipping,
                 "tax": tax,
-                "total": total
+                "total": total,
             }
         }
 
@@ -410,7 +418,7 @@ def remove_from_cart(request, product_id):
 
         return JsonResponse(response_data)
 
-    return redirect(request.META.get('HTTP_REFERER', 'cart'))
+    return redirect(request.META.get("HTTP_REFERER", "cart"))
 
 
 @login_required
@@ -426,18 +434,20 @@ def move_to_wishlist(request, product_id):
 
     if request.headers.get("HX-Request"):
         cart_count = Cart.objects.filter(user=request.user).count()
+        wishlist_count = Wishlist.objects.filter(user=request.user).count()
         subtotal, shipping, tax, total = get_cart_totals(request.user)
         flash_html = render_to_string("flash_messages.html", {}, request=request)
 
         response_data = {
             "cart_count": cart_count,
+            "wishlist_count": wishlist_count,
             "flash_html": flash_html,
-            "removed_product_id": product_id,
+            "moved_product_id": product_id,
             "totals": {
                 "subtotal": subtotal,
                 "shipping": shipping,
                 "tax": tax,
-                "total": total
+                "total": total,
             }
         }
 

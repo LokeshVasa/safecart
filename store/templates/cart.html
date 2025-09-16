@@ -23,53 +23,49 @@
 <div class="col-lg-8">
   <div class="border rounded p-3" style="max-height: 600px; overflow-y: auto;">
     {% if cart_items %}
-      {% for item in cart_items %}
-      <div class="d-flex align-items-center border-bottom py-3" id="cart-item-{{ item.product.id }}">
+      {% for product in cart_items %}
+        <div class="d-flex align-items-center border-bottom py-3" id="cart-item-{{ product.id }}">
         
-        <!-- Product Image -->
-        <div class="flex-shrink-0 me-3" style="width: 100px; height: 100px; overflow: hidden;">
-          <img src="{{ item.product.image.url }}" 
-               class="img-fluid h-100 w-100 object-fit-cover" 
-               alt="{{ item.product.name }}">
-        </div>
+    <!-- Product Image -->
+    <div class="flex-shrink-0 me-3" style="width: 100px; height: 100px; overflow: hidden;">
+      <img src="{{ product.image.url }}" 
+           class="img-fluid h-100 w-100 object-fit-cover" 
+           alt="{{ product.name }}">
+    </div>
 
-        <!-- Product Details -->
-        <div class="flex-grow-1">
-          <h6 class="mb-1">{{ item.product.name }}</h6>
-          <p class="fw-bold text-primary mb-0">₹{{ item.product.price }}</p>
-        </div>
+    <!-- Product Details -->
+    <div class="flex-grow-1">
+      <h6 class="mb-1">{{ product.name }}</h6>
+      <p class="fw-bold text-primary mb-0">₹{{ product.price }}</p>
+    </div>
 
-        <!-- Actions aligned to right -->
-        <div class="ms-auto d-flex gap-2">
-          <!-- Remove -->
-          <form hx-post="{% url 'remove_from_cart' item.product.id %}" 
-                hx-swap="none" 
-                hx-on::after-request="updateCartState(event)" 
-                method="post" class="m-0">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-outline-danger btn-sm">
-              Remove
-            </button>
-          </form>
+      <!-- Actions aligned to right -->
+      <div class="ms-auto d-flex gap-2">
+        <!-- Remove -->
+        <form hx-post="{% url 'remove_from_cart' product.id %}" 
+              hx-swap="none" 
+              hx-on::after-request="updateCartState(event)" 
+              method="post" class="m-0">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-danger btn-sm" aria-label="Remove {{ product.name }} from cart">
+            Remove
+          </button>
+        </form>
 
-          <!-- Wishlist -->
-          <form hx-post="{% url 'move_to_wishlist' item.product.id %}" 
-                hx-swap="none" 
-                hx-on::after-request="updateWishlistState(event)" 
-                method="post" class="m-0">
-            {% csrf_token %}
-            <button 
-              hx-post="{% url 'move_to_wishlist' item.product.id %}" 
-              hx-trigger="click"
-              hx-on="htmx:afterOnLoad:updateCartState(event)"
-              class="btn btn-outline-secondary btn-sm">
-              Wishlist
-            </button>
-          </form>
-        </div>
-
+        <!-- Wishlist -->
+        <form hx-post="{% url 'move_to_wishlist' product.id %}" 
+              hx-swap="none" 
+              hx-on::after-request="updateWishlistState(event)" 
+              method="post" class="m-0">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-secondary btn-sm" aria-label="Move {{ product.name }} to wishlist">
+            Wishlist
+          </button>
+        </form>
       </div>
-      {% endfor %}
+
+    </div>
+  {% endfor %}
     {% else %}
       <div class="text-center py-5">
         <h2>Your cart is empty</h2>
@@ -88,7 +84,7 @@
   <!-- Order Summary -->
   <div class="card shadow-sm mb-3" id="order-summary">
     <div class="card-body">
-      <h5 class="fw-bold mb-3">Order Summary</h5>
+      <h2 class="fw-bold mb-3">Order Summary</h2>
       <div class="d-flex justify-content-between">
         <span>Subtotal</span><span>₹{{ subtotal }}</span>
       </div>
@@ -105,29 +101,49 @@
     </div>
   </div>
 
-  <!-- Shipping Address -->
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <h5 class="fw-bold mb-3">Shipping Address</h5>
-      <form>
-        <div class="mb-2">
-          <input type="text" class="form-control" placeholder="Full Name">
-        </div>
-        <div class="mb-2">
-          <input type="text" class="form-control" placeholder="Address">
-        </div>
-        <div class="row g-2 mb-2">
-          <div class="col-md-6">
-            <input type="text" class="form-control" placeholder="City">
-          </div>
-          <div class="col-md-6">
-            <input type="text" class="form-control" placeholder="Zipcode">
-          </div>
-        </div>
-        <button type="button" class="btn btn-primary w-100">Continue to Pay</button>
-      </form>
-    </div>
+<!-- Shipping Address Form -->
+<div class="card shadow-sm mt-3">
+  <div class="card-body">
+    <h2 class="fw-bold mb-3">Shipping Address</h2>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-2">
+        {{ form.street.label_tag }}
+        {{ form.street }}
+        {% for error in form.street.errors %}
+          <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+      </div>
+
+      <div class="mb-2">
+        {{ form.city.label_tag }}
+        {{ form.city }}
+        {% for error in form.city.errors %}
+          <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+      </div>
+
+      <div class="mb-2">
+        {{ form.state.label_tag }}
+        {{ form.state }}
+        {% for error in form.state.errors %}
+          <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+      </div>
+
+      <div class="mb-2">
+        {{ form.pincode.label_tag }}
+        {{ form.pincode }}
+        {% for error in form.pincode.errors %}
+          <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100">Continue to Pay</button>
+    </form>
   </div>
+</div>
 
 </div>
   </div>
@@ -202,34 +218,47 @@
   }
 
   // ✅ Handles wishlist updates
-  function updateWishlistState(event) {
-    const xhr = event.detail.xhr;
-    try {
-      const data = JSON.parse(xhr.responseText);
+// ✅ Handles wishlist updates
+function updateWishlistState(event) {
+  const xhr = event.detail.xhr;
+  try {
+    const data = JSON.parse(xhr.responseText);
 
-      // Update wishlist count in navbar
-      if (data.wishlist_count !== undefined) {
-        const wishlistCountElem = document.getElementById("wishlist-count");
-        if (wishlistCountElem) wishlistCountElem.innerText = data.wishlist_count;
-      }
-
-      // Replace flash messages
-      if (data.flash_html !== undefined) {
-        const flashContainer = document.getElementById("flash-messages");
-        flashContainer.innerHTML = data.flash_html;
-        refreshFlashMessages();
-      }
-
-      // Remove product card when moved to wishlist
-      if (data.moved_product_id !== undefined) {
-        const card = document.getElementById("cart-item-" + data.moved_product_id);
-        if (card) card.remove();
-      }
-
-    } catch (e) {
-      console.error("[updateWishlistState] JSON parse error:", e);
+    // Update wishlist count in navbar
+    if (data.wishlist_count !== undefined) {
+      const wishlistCountElem = document.getElementById("wishlist-count");
+      if (wishlistCountElem) wishlistCountElem.innerText = data.wishlist_count;
     }
+
+    // Update cart count in navbar
+    if (data.cart_count !== undefined) {
+      const cartCountElem = document.getElementById("cart-count");
+      if (cartCountElem) cartCountElem.innerText = data.cart_count;
+    }
+
+    // Replace flash messages
+    if (data.flash_html !== undefined) {
+      const flashContainer = document.getElementById("flash-messages");
+      flashContainer.innerHTML = data.flash_html;
+      refreshFlashMessages();
+    }
+
+    // Remove product card when moved to wishlist
+    if (data.moved_product_id !== undefined) {
+      const card = document.getElementById("cart-item-" + data.moved_product_id);
+      if (card) card.remove();
+    }
+
+    // ✅ Update totals dynamically
+    if (data.totals !== undefined) {
+      updateOrderSummary(data.totals);
+    }
+
+  } catch (e) {
+    console.error("[updateWishlistState] JSON parse error:", e);
   }
+}
+
 
   // ✅ Update order summary dynamically
   function updateOrderSummary(totals) {
