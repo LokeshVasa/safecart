@@ -14,58 +14,128 @@
   </div>
 </section>
 
-<!-- Cart Section -->
+<!-- Cart + Summary Layout -->
 <section>
   <div class="container py-4">
-    <div class="row g-4" id="cart-items-container">
-      {% if cart_items %}
-        {% for item in cart_items %}
-        <div class="col-md-3 d-flex cart-item" id="cart-item-{{ item.product.id }}">
-          <div class="card shadow-sm w-100 h-100" style="min-height: 600px;">
-            <img src="{{ item.product.image.url }}" 
-                 class="card-img-top img-fluid" 
-                 style="height: 460px; object-fit: cover;" 
-                 alt="{{ item.product.name }}">
-            <div class="card-body d-flex flex-column">
-              <h6 class="card-title">{{ item.product.name }}</h6>
-              <p class="fw-bold text-primary mb-1">₹{{ item.product.price }}</p>
-              <p class="text-muted small mb-2">Quantity: {{ item.quantity }}</p>
-              <div class="mt-auto d-flex gap-2">
+    <div class="row g-4 align-items-stretch">
+      
+<!-- Left: Cart Items -->
+  <div class="col-md-8 d-flex">
+    <div class="border rounded p-3 bg-white w-100 d-flex flex-column"
+          style="max-height: 100vh; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none;"
+          id="cart-items-container">
+          <style>
+          /* Hide scrollbar but keep scrolling */
+          #cart-items-container::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Edge */
+          }
+        </style>
 
-                <!-- Remove with HTMX -->
-                <form hx-post="{% url 'remove_from_cart' item.product.id %}" 
-                      hx-swap="none" 
-                      hx-on::after-request="updateCartState(event)" 
-                      method="post" class="m-0">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-outline-danger btn-sm">
-                    <i class="bi bi-trash"></i> Remove
-                  </button>
-                </form>
+    {% if cart_items %}
+      {% for item in cart_items %}
+      <div class="d-flex align-items-center justify-content-between border-bottom py-3 cart-item"
+           id="cart-item-{{ item.product.id }}">
+        
+        <!-- Product Image -->
+        <div class="flex-shrink-0 me-3">
+          <img src="{{ item.product.image.url }}"
+               alt="{{ item.product.name }}"
+               style="width: 80px; height: 80px; object-fit: cover;"
+               class="rounded">
+        </div>
 
-                <!-- Move to Wishlist with HTMX -->
-                <form hx-post="{% url 'move_to_wishlist' item.product.id %}" 
-                      hx-swap="none" 
-                      hx-on::after-request="updateWishlistState(event)" 
-                      method="post" class="m-0">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-primary btn-sm">
-                    <i class="bi bi-heart"></i> Wishlist
-                  </button>
-                </form>
+        <!-- Product Info -->
+        <div class="flex-grow-1">
+          <h6 class="mb-1">{{ item.product.name }}</h6>
+          <p class="mb-0 text-primary fw-bold">₹{{ item.product.price }}</p>
+          <small class="text-muted">Quantity: {{ item.quantity }}</small>
+        </div>
 
-              </div>
+        <!-- Actions -->
+        <div class="d-flex flex-column gap-2 ms-3">
+          <!-- Remove -->
+          <form hx-post="{% url 'remove_from_cart' item.product.id %}"
+                hx-swap="none"
+                hx-on::after-request="updateCartState(event)"
+                method="post" class="m-0">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+              <i class="bi bi-trash"></i> Remove
+            </button>
+          </form>
+
+          <!-- Wishlist -->
+          <form hx-post="{% url 'move_to_wishlist' item.product.id %}"
+                hx-swap="none"
+                hx-on::after-request="updateWishlistState(event)"
+                method="post" class="m-0">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-heart"></i> Wishlist
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-center py-5">
+        <h2>Your cart is empty</h2>
+        <p class="text-muted">Looks like you haven’t added anything to your cart yet.</p>
+        <a href="home" class="btn btn-primary">Continue Shopping</a>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+
+
+      <!-- Right: Order Summary + Address -->
+      <div class="col-md-4 d-flex flex-column">
+        <div class="card shadow-sm flex-grow-1 d-flex flex-column mb-3">
+          <div class="card-body">
+            <h5 class="fw-bold mb-3">Order Summary</h5>
+            <div class="d-flex justify-content-between">
+              <span>Subtotal</span>
+              <span>₹{{ subtotal }}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span>Shipping</span>
+              <span>₹{{ shipping }}</span>
+            </div>
+            <hr>
+            <div class="d-flex justify-content-between fw-bold">
+              <span>Total</span>
+              <span>₹{{ total }}</span>
             </div>
           </div>
         </div>
-        {% endfor %}
-      {% else %}
-        <div class="col-12 text-center py-5">
-          <h2>Your cart is empty</h2>
-          <p class="text-muted">Looks like you haven’t added anything to your cart yet.</p>
-          <a href="home" class="btn btn-primary">Continue Shopping</a>
+
+        <div class="card shadow-sm mt-3 flex-grow-1 d-flex flex-column">
+          <div class="card-body">
+            <h5 class="fw-bold mb-3">Shipping Address</h5>
+            <form method="post">
+              {% csrf_token %}
+              <div class="mb-2">
+                <input type="text" class="form-control" placeholder="Full Name" name="name" required>
+              </div>
+              <div class="mb-2">
+                <input type="text" class="form-control" placeholder="Address" name="address" required>
+              </div>
+              <div class="mb-2">
+                <input type="text" class="form-control" placeholder="City" name="city" required>
+              </div>
+              <div class="mb-2">
+                <input type="text" class="form-control" placeholder="Pincode" name="pincode" required>
+              </div>
+              <div class="mb-2">
+                <input type="text" class="form-control" placeholder="Phone" name="phone" required>
+              </div>
+              <button type="submit" class="btn btn-success w-100">Proceed to Checkout</button>
+            </form>
+          </div>
         </div>
-      {% endif %}
+      </div>
+
     </div>
   </div>
 </section>
