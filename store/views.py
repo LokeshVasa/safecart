@@ -14,7 +14,8 @@ from django.db.models import Count
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from decimal import Decimal, ROUND_HALF_UP
-
+from .models import Address
+from .forms import AddressForm
 
 logger = logging.getLogger(__name__)
 
@@ -86,12 +87,31 @@ def cart(request):
     # Final total
     total = subtotal + tax + shipping
 
+        # fetch existing address (if any)
+    try:
+        address = Address.objects.get(user=request.user)
+    except Address.DoesNotExist:
+        address = None
+
+    # process form
+    if request.method == "POST":
+        form = AddressForm(request.POST, instance=address)  # prefill if exists
+        if form.is_valid():
+            addr = form.save(commit=False)
+            addr.user = request.user  # make sure user is set
+            addr.save()
+            messages.success(request, "Shipping address updated.")
+            return redirect("cart")
+    else:
+        form = AddressForm(instance=address)
+
     return render(request, 'cart.html', {
         'cart_items': products_with_quantity,
         'subtotal': subtotal,
         'tax': tax,
         'shipping': shipping,
         'total': total,
+        'form' : form,
     })
 # -------------------- AUTH --------------------
 
@@ -383,3 +403,27 @@ def move_to_cart(request, product_id):
         })
 
     return redirect(request.META.get("HTTP_REFERER", "wishlist"))
+
+
+@login_required
+def save_address(request):
+    if request.method == "POST":
+        street = request.POST.get("street")
+        city = request.POST.get("city")
+        state = request.POST.get("state")
+        pincode = request.POST.get("pincode")
+
+        # delete old addresses for this user
+        Address.objects.filter(user=request.user).delete()
+
+        # create new one
+        Address.objects.create(
+            user=request.user,
+            street=street,
+            city=city,
+            state=state,
+            pincode=pincode,
+        )
+
+        messages.success(request, "Shipping address updated.")
+        return redirect("cart")
