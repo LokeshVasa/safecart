@@ -13,6 +13,8 @@ from django.urls import reverse
 from django.db.models import Count
 from django.http import JsonResponse
 from django.template.loader import render_to_string
+from decimal import Decimal, ROUND_HALF_UP
+
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,7 @@ def yourorders(request):
 def clear_data(request):
     return render(request, 'clear_data.html')
 
+
 @login_required
 def cart(request):
     cart_items = (
@@ -61,15 +64,35 @@ def cart(request):
     )
 
     products_with_quantity = []
+    subtotal = Decimal("0.00")
+
     for item in cart_items:
         product = Product.objects.get(id=item['product'])
+        quantity = item['quantity']
         products_with_quantity.append({
             'product': product,
-            'quantity': item['quantity']
+            'quantity': quantity
         })
 
-    return render(request, 'cart.html', {'cart_items': products_with_quantity})
+        # ✅ Use Decimal for price × quantity
+        subtotal += product.price * quantity
 
+    # Tax = 10% of subtotal (Decimal)
+    tax = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    # Example shipping (also Decimal)
+    shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
+
+    # Final total
+    total = subtotal + tax + shipping
+
+    return render(request, 'cart.html', {
+        'cart_items': products_with_quantity,
+        'subtotal': subtotal,
+        'tax': tax,
+        'shipping': shipping,
+        'total': total,
+    })
 # -------------------- AUTH --------------------
 
 def RegisterView(request):
@@ -254,15 +277,22 @@ def remove_from_cart(request, product_id):
 
     if request.headers.get("HX-Request"):
         cart_count = Cart.objects.filter(user=request.user).count()
+        subtotal, tax, shipping, total = calculate_cart_totals(request.user)
         flash_html = render_to_string("flash_messages.html", {}, request=request)
 
         return JsonResponse({
             "cart_count": cart_count,
             "flash_html": flash_html,
-            "removed_product_id": product_id,   # 🔑 so JS can remove the card
+            "removed_product_id": product_id,
+            "subtotal": str(subtotal),
+            "tax": str(tax),
+            "shipping": str(shipping),
+            "total": str(total),
+            "cart_empty": cart_count == 0,
         })
 
     return redirect(request.META.get('HTTP_REFERER', 'cart'))
+
 
 
 @login_required
@@ -276,16 +306,41 @@ def move_to_wishlist(request, product_id):
     if request.headers.get("HX-Request"):
         wishlist_count = Wishlist.objects.filter(user=request.user).count()
         cart_count = Cart.objects.filter(user=request.user).count()
+        subtotal, tax, shipping, total = calculate_cart_totals(request.user)
         flash_html = render_to_string("flash_messages.html", {}, request=request)
 
         return JsonResponse({
             "wishlist_count": wishlist_count,
             "cart_count": cart_count,
             "flash_html": flash_html,
-            "moved_product_id": product_id,   # 🔑 so JS can remove card
+            "moved_product_id": product_id,
+            "subtotal": str(subtotal),
+            "tax": str(tax),
+            "shipping": str(shipping),
+            "total": str(total),
+            "cart_empty": cart_count == 0,
         })
 
     return redirect(request.META.get('HTTP_REFERER', 'cart'))
+
+
+def calculate_cart_totals(user):
+    cart_items = (
+        Cart.objects.filter(user=user)
+        .values('product')
+        .annotate(quantity=Count('product'))
+    )
+
+    subtotal = Decimal("0.00")
+    for item in cart_items:
+        product = Product.objects.get(id=item['product'])
+        subtotal += product.price * item['quantity']
+
+    tax = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"))
+    shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
+    total = subtotal + tax + shipping
+
+    return subtotal, tax, shipping, total
 
 
 @login_required
