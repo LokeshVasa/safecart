@@ -114,30 +114,18 @@
           </div>
         </div>
 
-        <div class="card shadow-sm mt-3 flex-grow-1 d-flex flex-column">
-          <div class="card-body">
-            <h5 class="fw-bold mb-3">Shipping Address</h5>
-            <form method="post">
-              {% csrf_token %}
-              <div class="mb-2">
-                <input type="text" class="form-control" placeholder="Full Name" name="name" required>
-              </div>
-              <div class="mb-2">
-                <input type="text" class="form-control" placeholder="Address" name="address" required>
-              </div>
-              <div class="mb-2">
-                <input type="text" class="form-control" placeholder="City" name="city" required>
-              </div>
-              <div class="mb-2">
-                <input type="text" class="form-control" placeholder="Pincode" name="pincode" required>
-              </div>
-              <div class="mb-2">
-                <input type="text" class="form-control" placeholder="Phone" name="phone" required>
-              </div>
-              <button type="submit" class="btn btn-success w-100">Proceed to Checkout</button>
-            </form>
-          </div>
-        </div>
+<div class="card shadow-sm mt-3 flex-grow-1 d-flex flex-column">
+  <div class="card-body d-flex flex-column">
+    <h5 class="fw-bold mb-3">Shipping Address</h5>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="btn btn-success w-100">Proceed to Checkout</button>
+    </form>
+  </div>
+</div>
+
+
       </div>
 
     </div>
