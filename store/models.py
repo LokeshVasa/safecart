@@ -140,4 +140,6 @@ class OrderUpdate(models.Model):
     class Meta:
         db_table = 'order_updates'
 
+if not hasattr(User, 'profile_image'):
+    User.add_to_class('profile_image', models.BinaryField(null=True, blank=True))
 
