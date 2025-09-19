@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 import uuid
 
 class Product(models.Model):
@@ -140,4 +141,6 @@ class OrderUpdate(models.Model):
     class Meta:
         db_table = 'order_updates'
 
+if not hasattr(User, 'profile_image'):
+    User.add_to_class('profile_image', models.BinaryField(null=True, blank=True))
 
