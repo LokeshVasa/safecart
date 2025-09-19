@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from .models import Address
 
 class RegisterForm(forms.ModelForm):
     first_name = forms.CharField(required=True, label="First Name")
@@ -55,3 +56,15 @@ class ForgotPasswordForm(forms.Form):
         'class': 'form-control',
         'placeholder': 'Enter your email'
     }))
+
+class AddressForm(forms.ModelForm):
+    class Meta:
+        model = Address
+        fields = ["street", "city", "state", "pincode"]
+
+        widgets = {
+            "street": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "city": forms.TextInput(attrs={"class": "form-control"}),
+            "state": forms.TextInput(attrs={"class": "form-control"}),
+            "pincode": forms.TextInput(attrs={"class": "form-control"}),
+        }
