@@ -127,6 +127,7 @@ def RegisterView(request):
         form = RegisterForm()
     return render(request, 'registration/signup.html', {'form': form})
 
+
 def LoginView(request):
     if request.method == "POST":
         identifier = request.POST.get("username")

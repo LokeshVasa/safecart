@@ -141,5 +141,4 @@ class OrderUpdate(models.Model):
         db_table = 'order_updates'
 
 if not hasattr(User, 'profile_image'):
-    User.add_to_class('profile_image', models.BinaryField(null=True, blank=True))
-
+    User.add_to_class('profile_image',models.CharField(max_length=100, null=True, blank=True))
