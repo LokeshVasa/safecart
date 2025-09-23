@@ -87,23 +87,34 @@ def cart(request):
     # Final total
     total = subtotal + tax + shipping
 
-        # fetch existing address (if any)
-    try:
-        address = Address.objects.get(user=request.user)
-    except Address.DoesNotExist:
-        address = None
+    # fetch all saved addresses to display in template
+    addresses = Address.objects.filter(user=request.user)
 
-    # process form
+    # handle address form submission
     if request.method == "POST":
-        form = AddressForm(request.POST, instance=address)  # prefill if exists
+        form = AddressForm(request.POST)
         if form.is_valid():
-            addr = form.save(commit=False)
-            addr.user = request.user  # make sure user is set
-            addr.save()
-            messages.success(request, "Shipping address updated.")
+            # Check if the exact same address exists for the user
+            addr_data = form.cleaned_data
+            exists = Address.objects.filter(
+                user=request.user,
+                street=addr_data['street'],
+                city=addr_data['city'],
+                state=addr_data['state'],
+                pincode=addr_data['pincode']
+            ).exists()
+
+            if not exists:
+                addr = form.save(commit=False)
+                addr.user = request.user
+                addr.save()
+                messages.success(request, "New shipping address added.")
+            else:
+                messages.info(request, "This address is already saved.")
+
             return redirect("cart")
     else:
-        form = AddressForm(instance=address)
+        form = AddressForm()  # always empty, new addresses only
 
     return render(request, 'cart.html', {
         'cart_items': products_with_quantity,
