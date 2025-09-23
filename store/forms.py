@@ -19,10 +19,11 @@ class RegisterForm(forms.ModelForm):
         label="Confirm Password",
         required=True
     )
+    profile_image = forms.ImageField(required=False, label="Profile Image" )
 
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'username', 'email', 'password']
+        fields = ['first_name', 'last_name', 'username', 'email', 'password', 'profile_image']
 
     def clean_username(self):
         username = self.cleaned_data.get('username')
@@ -46,6 +47,8 @@ class RegisterForm(forms.ModelForm):
     def save(self, commit=True):
         user = super().save(commit=False)
         user.set_password(self.cleaned_data["password"])  # Hash the password
+        if self.cleaned_data.get('profile_image'):
+            user.profile_image = self.cleaned_data['profile_image']
         if commit:
             user.save()
         return user

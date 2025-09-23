@@ -28,7 +28,7 @@
     <div class="container">
         <div class="card shadow-sm mx-auto" style="max-width: 400px;">
             <div class="card-body">
-                <form method="post">
+                <form method="post" enctype="multipart/form-data"> 
                     {% csrf_token %}
                     {{ form.non_field_errors }}
                     {% for field in form %}
