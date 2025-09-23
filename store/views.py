@@ -87,23 +87,10 @@ def cart(request):
     # Final total
     total = subtotal + tax + shipping
 
-        # fetch existing address (if any)
-    try:
-        address = Address.objects.get(user=request.user)
-    except Address.DoesNotExist:
-        address = None
-
-    # process form
-    if request.method == "POST":
-        form = AddressForm(request.POST, instance=address)  # prefill if exists
-        if form.is_valid():
-            addr = form.save(commit=False)
-            addr.user = request.user  # make sure user is set
-            addr.save()
-            messages.success(request, "Shipping address updated.")
-            return redirect("cart")
-    else:
-        form = AddressForm(instance=address)
+    # ---- Addresses ----
+    addresses = Address.objects.filter(user=request.user)
+    last_address = addresses.last()  # prefill with last used
+    form = AddressForm(instance=last_address)
 
     return render(request, 'cart.html', {
         'cart_items': products_with_quantity,
@@ -404,26 +391,29 @@ def move_to_cart(request, product_id):
 
     return redirect(request.META.get("HTTP_REFERER", "wishlist"))
 
-
 @login_required
 def save_address(request):
+    """Handles new address submissions separately."""
     if request.method == "POST":
-        street = request.POST.get("street")
-        city = request.POST.get("city")
-        state = request.POST.get("state")
-        pincode = request.POST.get("pincode")
+        form = AddressForm(request.POST)
+        if form.is_valid():
+            addr_data = form.cleaned_data
 
-        # delete old addresses for this user
-        Address.objects.filter(user=request.user).delete()
+            # Prevent duplicates
+            exists = Address.objects.filter(
+                user=request.user,
+                street=addr_data['street'],
+                city=addr_data['city'],
+                state=addr_data['state'],
+                pincode=addr_data['pincode']
+            ).exists()
 
-        # create new one
-        Address.objects.create(
-            user=request.user,
-            street=street,
-            city=city,
-            state=state,
-            pincode=pincode,
-        )
+            if not exists:
+                addr = form.save(commit=False)
+                addr.user = request.user
+                addr.save()
+                messages.success(request, "New shipping address added.")
+            else:
+                messages.info(request, "This address is already saved.")
 
-        messages.success(request, "Shipping address updated.")
-        return redirect("cart")
+    return redirect("cart")

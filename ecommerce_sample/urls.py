@@ -25,7 +25,7 @@ urlpatterns = [
     path('cart/move-to-wishlist/<int:product_id>/', views.move_to_wishlist, name='move_to_wishlist'),
     path('wishlist/remove/<int:product_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),
     path('wishlist/move-to-cart/<int:product_id>/', views.move_to_cart, name='move_to_cart'),
-
+    path("save-address/", views.save_address, name="save_address"),
 ]
 
 # Serve media in development
