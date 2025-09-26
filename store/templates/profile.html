@@ -6,51 +6,142 @@
 
 {% block content %}
 
-    <!-- Page Header -->
-    <section class="bg-primary text-white py-4 border-bottom">
-        <div class="container text-center">
-            <h1 class="fw-bold mb-0">Settings</h1>
-        </div>
-    </section>
+<!-- Page Header -->
+<section class="bg-primary text-white py-4 border-bottom">
+    <div class="container text-center">
+        <h1 class="fw-bold mb-0">Settings</h1>
+    </div>
+</section>
 
-    <!-- Profile Section -->
-    <section class="py-5 flex-grow-1">
-        <div class="container">
-            <div class="card shadow-sm mx-auto p-4" style="max-width: 400px;">
+<!-- Tabs Container -->
+<section class="py-4 flex-grow-1">
+    <div class="container">
+        <div class="card shadow-sm mx-auto rounded-4" style="max-width: 1200px; padding: 1.5rem;">
+            
+            <!-- Tabs -->
+            <ul class="nav nav-tabs justify-content-center border-0 mb-3" id="settingsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active fw-semibold" id="profile-tab" data-bs-toggle="tab" 
+                            data-bs-target="#profile" type="button" role="tab" aria-controls="profile" 
+                            aria-selected="true">
+                        Profile
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-semibold" id="password-tab" data-bs-toggle="tab" 
+                            data-bs-target="#password" type="button" role="tab" aria-controls="password" 
+                            aria-selected="false">
+                        Change Password
+                    </button>
+                </li>
+            </ul>
 
-                <!-- Profile Photo -->
-                <div class="text-center mb-4">
-                    <img id="profile-photo" src="" alt="Profile Photo" class="rounded-circle border" width="80" height="80">
-                    <form id="photo-upload-form" class="mt-3">
-                        <input type="file" id="photo-input" accept="image/*" class="form-control mb-2">
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="bi bi-upload"></i> Change Photo
+            <!-- Tab Content -->
+            <div class="tab-content">
+                
+                <!-- Profile Tab -->
+                <div class="tab-pane fade show active" id="profile" role="tabpanel" aria-labelledby="profile-tab">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="row g-4 align-items-start">
+                            
+                            <!-- Left Column (Form Fields) -->
+                            <div class="col-md-8">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">First Name</label>
+                                        <input type="text" name="first_name" class="form-control form-control-sm" placeholder="Enter first name">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Last Name</label>
+                                        <input type="text" name="last_name" class="form-control form-control-sm" placeholder="Enter last name">
+                                    </div>
+                                </div>
+                                <div class="row g-3 mt-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Mobile Number</label>
+                                        <input type="text" name="mobile" class="form-control form-control-sm" placeholder="Enter mobile number">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Country</label>
+                                        <input type="text" name="country" class="form-control form-control-sm" placeholder="Enter country">
+                                    </div>
+                                </div>
+                                <div class="row g-3 mt-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label">State</label>
+                                        <input type="text" name="state" class="form-control form-control-sm" placeholder="Enter state">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">City</label>
+                                        <input type="text" name="city" class="form-control form-control-sm" placeholder="Enter city">
+                                    </div>
+                                </div>
+                                <div class="row g-3 mt-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Pincode</label>
+                                        <input type="text" name="pincode" class="form-control form-control-sm" placeholder="Enter pincode">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">House / Building</label>
+                                        <input type="text" name="house" class="form-control form-control-sm" placeholder="Enter house/building details">
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-success w-100 mt-3">
+                                    <i class="bi bi-save"></i> Save Changes
+                                </button>
+                            </div>
+
+                            <!-- Right Column (Profile + Summary) -->
+                            <div class="col-md-4 text-center">
+                                <!-- Profile Image -->
+                                <img src="{% static 'images/default-profile.png' %}" alt="Profile Photo" 
+                                     class="rounded-circle border mb-2" width="140" height="140">
+                                <input type="file" class="form-control form-control-sm mb-2" accept="image/*">
+
+                                <!-- Email Display (read-only) -->
+                                <p class="fw-bold small mb-2">{{ user.email }}</p>
+
+                                <!-- Summary Details -->
+                                <div class="text-start bg-light rounded-3 p-2 border small">
+                                    <p><strong>First Name:</strong> {{ user.first_name }}</p>
+                                    <p><strong>Last Name:</strong> {{ user.last_name }}</p>
+                                    <p><strong>Mobile:</strong> {{ user.profile.mobile }}</p>
+                                    <p><strong>Country:</strong> {{ user.profile.country }}</p>
+                                    <p><strong>State:</strong> {{ user.profile.state }}</p>
+                                    <p><strong>City:</strong> {{ user.profile.city }}</p>
+                                    <p><strong>Pincode:</strong> {{ user.profile.pincode }}</p>
+                                    <p><strong>House/Building:</strong> {{ user.profile.house }}</p>
+                                </div>
+                            </div>
+
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Change Password Tab -->
+                <div class="tab-pane fade" id="password" role="tabpanel" aria-labelledby="password-tab">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-2">
+                            <label for="currentPassword" class="form-label">Current Password</label>
+                            <input type="password" id="currentPassword" name="current_password" class="form-control form-control-sm" placeholder="Enter current password">
+                        </div>
+                        <div class="mb-2">
+                            <label for="newPassword" class="form-label">New Password</label>
+                            <input type="password" id="newPassword" name="new_password" class="form-control form-control-sm" placeholder="Enter new password">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 mt-2">
+                            <i class="bi bi-lock-fill"></i> Change Password
                         </button>
                     </form>
                 </div>
 
-                <!-- Change Password Form -->
-                <form id="change-password-form" class="mb-3">
-                    <div class="mb-3">
-                        <label for="old-password" class="form-label">Current Password</label>
-                        <input type="password" id="old-password" name="old-password" required class="form-control" placeholder="Enter current password">
-                    </div>
-                    <div class="mb-3">
-                        <label for="new-password" class="form-label">New Password</label>
-                        <input type="password" id="new-password" name="new-password" required class="form-control" placeholder="Enter new password">
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-lock-fill"></i> Change Password
-                    </button>
-                </form>
-
-                <!-- Logout Button -->
-                <button id="logout-btn" class="btn btn-danger w-100">
-                    <i class="bi bi-box-arrow-right"></i> Logout
-                </button>
-
             </div>
         </div>
-    </section>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    {% endblock %}
+    </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}
