@@ -16,6 +16,9 @@ from django.template.loader import render_to_string
 from decimal import Decimal, ROUND_HALF_UP
 from .models import Address
 from .forms import AddressForm
+from .models import Order, OrderItem
+import uuid
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -417,3 +420,78 @@ def save_address(request):
                 messages.info(request, "This address is already saved.")
 
     return redirect("cart")
+
+@login_required
+def proceed_to_checkout(request):
+    cart_items = (
+        Cart.objects.filter(user=request.user)
+        .values('product')
+        .annotate(quantity=Count('product'))
+    )
+
+    if not cart_items.exists():
+        messages.warning(request, "Your cart is empty.")
+        return redirect("cart")
+
+    # Use last saved address
+    address = Address.objects.filter(user=request.user).last()
+    if not address:
+        messages.error(request, "Please add a shipping address before checkout.")
+        return redirect("cart")
+
+    # Create order
+    order = Order.objects.create(
+        user=request.user,
+        address=address,
+        payment_type="COD",
+        token_value=str(uuid.uuid4()),
+        expires_at=timezone.now() + timezone.timedelta(hours=1),
+        status="Pending"
+    )
+
+    # Add order items
+    for item in cart_items:
+        product = Product.objects.get(id=item['product'])
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            quantity=item['quantity'],
+            price=product.price
+        )
+
+    # Empty cart
+    Cart.objects.filter(user=request.user).delete()
+
+    messages.success(request, "Your order has been placed successfully!")
+    return redirect("yourorders")
+
+@login_required
+def yourorders(request):
+    orders = Order.objects.filter(user=request.user).prefetch_related("items__product").order_by("-created_at")
+
+    order_list = []
+    for order in orders:
+        # calculate subtotal from items (Decimal-safe)
+        subtotal = sum(item.price * item.quantity for item in order.items.all())
+        tax = subtotal * Decimal("0.10")   # use Decimal instead of float
+        shipping = Decimal("50.00")        # also Decimal
+        total_amount = subtotal + tax + shipping
+
+        order_list.append({
+            "id": order.id,
+            "date": order.created_at,
+            "status": order.status,
+            "items": [
+                {
+                    "name": item.product.name,
+                    "image": item.product.image,
+                    "quantity": item.quantity,
+                    "price": item.price,
+                }
+                for item in order.items.all()
+            ],
+            "total_amount": total_amount,
+            "expected_delivery": order.created_at + timedelta(days=5)  # example: 5 days delivery
+        })
+
+    return render(request, "yourorders.html", {"orders": order_list})
