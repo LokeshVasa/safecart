@@ -57,52 +57,32 @@ def yourorders(request):
 def clear_data(request):
     return render(request, 'clear_data.html')
 
-
 @login_required
 def cart(request):
-    cart_items = (
-        Cart.objects.filter(user=request.user)
-        .values('product')
-        .annotate(quantity=Count('product'))
-        .order_by('product')
-    )
-
-    products_with_quantity = []
-    subtotal = Decimal("0.00")
-
-    for item in cart_items:
-        product = Product.objects.get(id=item['product'])
-        quantity = item['quantity']
-        products_with_quantity.append({
-            'product': product,
-            'quantity': quantity
-        })
-
-        # ✅ Use Decimal for price × quantity
-        subtotal += product.price * quantity
-
-    # Tax = 10% of subtotal (Decimal)
-    tax = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-    # Example shipping (also Decimal)
+    cart_items = Cart.objects.filter(user=request.user).select_related("product")
+    subtotal = sum(item.product.price for item in cart_items)
+    tax = round(Decimal(subtotal) * Decimal("0.10"), 2)
     shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
-
-    # Final total
     total = subtotal + tax + shipping
 
-    # ---- Addresses ----
-    addresses = Address.objects.filter(user=request.user)
-    last_address = addresses.last()  # prefill with last used
+    # last address for prefill
+    last_address = Address.objects.filter(user=request.user).last()
     form = AddressForm(instance=last_address)
 
-    return render(request, 'cart.html', {
-        'cart_items': products_with_quantity,
-        'subtotal': subtotal,
-        'tax': tax,
-        'shipping': shipping,
-        'total': total,
-        'form' : form,
-    })
+    # all addresses for modal
+    all_addresses = Address.objects.filter(user=request.user).order_by("-id")
+
+    context = {
+        "cart_items": cart_items,
+        "subtotal": subtotal,
+        "tax": tax,
+        "shipping": shipping,
+        "total": total,
+        "form": form,
+        "all_addresses": all_addresses,
+    }
+    return render(request, "cart.html", context)
+
 # -------------------- AUTH --------------------
 
 def RegisterView(request):
@@ -433,13 +413,36 @@ def proceed_to_checkout(request):
         messages.warning(request, "Your cart is empty.")
         return redirect("cart")
 
-    # Use last saved address
-    address = Address.objects.filter(user=request.user).last()
-    if not address:
-        messages.error(request, "Please add a shipping address before checkout.")
-        return redirect("cart")
+    # Check if user submitted a new address via form
+    if request.method == "POST":
+        form = AddressForm(request.POST)
+        if form.is_valid():
+            addr_data = form.cleaned_data
 
-    # Create order
+            # Check if the same address already exists
+            address, created = Address.objects.get_or_create(
+                user=request.user,
+                street=addr_data['street'],
+                city=addr_data['city'],
+                state=addr_data['state'],
+                pincode=addr_data['pincode']
+            )
+            if created:
+                messages.success(request, "New shipping address added.")
+        else:
+            # Form invalid → fallback to last saved
+            address = Address.objects.filter(user=request.user).last()
+            if not address:
+                messages.error(request, "Please add a valid shipping address before checkout.")
+                return redirect("cart")
+    else:
+        # No POST data → use last saved address
+        address = Address.objects.filter(user=request.user).last()
+        if not address:
+            messages.error(request, "Please add a shipping address before checkout.")
+            return redirect("cart")
+
+    # Create the order
     order = Order.objects.create(
         user=request.user,
         address=address,
@@ -467,31 +470,29 @@ def proceed_to_checkout(request):
 
 @login_required
 def yourorders(request):
-    orders = Order.objects.filter(user=request.user).prefetch_related("items__product").order_by("-created_at")
+    orders = Order.objects.filter(user=request.user).order_by('-created_at')
 
-    order_list = []
+    # Prepare orders with items
+    orders_with_details = []
     for order in orders:
-        # calculate subtotal from items (Decimal-safe)
-        subtotal = sum(item.price * item.quantity for item in order.items.all())
-        tax = subtotal * Decimal("0.10")   # use Decimal instead of float
-        shipping = Decimal("50.00")        # also Decimal
-        total_amount = subtotal + tax + shipping
-
-        order_list.append({
-            "id": order.id,
-            "date": order.created_at,
-            "status": order.status,
-            "items": [
-                {
-                    "name": item.product.name,
-                    "image": item.product.image,
-                    "quantity": item.quantity,
-                    "price": item.price,
-                }
-                for item in order.items.all()
-            ],
-            "total_amount": total_amount,
-            "expected_delivery": order.created_at + timedelta(days=5)  # example: 5 days delivery
+        items = []
+        for item in order.items.all():  # related_name='items' in OrderItem
+            items.append({
+                'name': item.product.name,
+                'image': item.product.image,
+                'quantity': item.quantity,
+                'price': item.price,
+            })
+        total_amount = sum(i['price'] * i['quantity'] for i in items)
+        expected_delivery = order.created_at + timedelta(days=5)  # example 5 days delivery
+        orders_with_details.append({
+            'id': order.id,
+            'status': order.status,
+            'date': order.created_at,
+            'items': items,
+            'total_amount': total_amount,
+            'expected_delivery': expected_delivery,
+            'address': order.address,
         })
 
-    return render(request, "yourorders.html", {"orders": order_list})
+    return render(request, 'yourorders.html', {'orders': orders_with_details})

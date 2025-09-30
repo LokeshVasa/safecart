@@ -40,6 +40,16 @@
                                 <hr>
                                 <p class="mb-1"><strong>Total Paid:</strong> ₹{{ order.total_amount|floatformat:2 }}</p>
                                 <p class="mb-0"><strong>Expected Delivery:</strong> {{ order.expected_delivery|date:"M d, Y" }}</p>
+
+                                <!-- Display Address -->
+                                {% if order.address %}
+                                    <hr>
+                                    <p class="mb-1"><strong>Shipping Address:</strong></p>
+                                    <p class="mb-0">
+                                        {{ order.address.street }}, {{ order.address.city }}<br>
+                                        {{ order.address.state }} - {{ order.address.pincode }}
+                                    </p>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
