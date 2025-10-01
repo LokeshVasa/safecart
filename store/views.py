@@ -413,13 +413,12 @@ def proceed_to_checkout(request):
         messages.warning(request, "Your cart is empty.")
         return redirect("cart")
 
-    # Check if user submitted a new address via form
+    # Require address from form
     if request.method == "POST":
         form = AddressForm(request.POST)
         if form.is_valid():
             addr_data = form.cleaned_data
 
-            # Check if the same address already exists
             address, created = Address.objects.get_or_create(
                 user=request.user,
                 street=addr_data['street'],
@@ -430,17 +429,11 @@ def proceed_to_checkout(request):
             if created:
                 messages.success(request, "New shipping address added.")
         else:
-            # Form invalid → fallback to last saved
-            address = Address.objects.filter(user=request.user).last()
-            if not address:
-                messages.error(request, "Please add a valid shipping address before checkout.")
-                return redirect("cart")
-    else:
-        # No POST data → use last saved address
-        address = Address.objects.filter(user=request.user).last()
-        if not address:
-            messages.error(request, "Please add a shipping address before checkout.")
+            messages.error(request, "Please provide a valid shipping address.")
             return redirect("cart")
+    else:
+        messages.error(request, "Please submit a shipping address before checkout.")
+        return redirect("cart")
 
     # Create the order
     order = Order.objects.create(
@@ -467,6 +460,7 @@ def proceed_to_checkout(request):
 
     messages.success(request, "Your order has been placed successfully!")
     return redirect("yourorders")
+
 
 @login_required
 def yourorders(request):
