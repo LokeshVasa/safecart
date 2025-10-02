@@ -16,6 +16,9 @@ from django.template.loader import render_to_string
 from decimal import Decimal, ROUND_HALF_UP
 from .models import Address
 from .forms import AddressForm
+from .models import Order, OrderItem
+import uuid
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -54,52 +57,32 @@ def yourorders(request):
 def clear_data(request):
     return render(request, 'clear_data.html')
 
-
 @login_required
 def cart(request):
-    cart_items = (
-        Cart.objects.filter(user=request.user)
-        .values('product')
-        .annotate(quantity=Count('product'))
-        .order_by('product')
-    )
-
-    products_with_quantity = []
-    subtotal = Decimal("0.00")
-
-    for item in cart_items:
-        product = Product.objects.get(id=item['product'])
-        quantity = item['quantity']
-        products_with_quantity.append({
-            'product': product,
-            'quantity': quantity
-        })
-
-        # ✅ Use Decimal for price × quantity
-        subtotal += product.price * quantity
-
-    # Tax = 10% of subtotal (Decimal)
-    tax = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-    # Example shipping (also Decimal)
+    cart_items = Cart.objects.filter(user=request.user).select_related("product")
+    subtotal = sum(item.product.price for item in cart_items)
+    tax = round(Decimal(subtotal) * Decimal("0.10"), 2)
     shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
-
-    # Final total
     total = subtotal + tax + shipping
 
-    # ---- Addresses ----
-    addresses = Address.objects.filter(user=request.user)
-    last_address = addresses.last()  # prefill with last used
+    # last address for prefill
+    last_address = Address.objects.filter(user=request.user).last()
     form = AddressForm(instance=last_address)
 
-    return render(request, 'cart.html', {
-        'cart_items': products_with_quantity,
-        'subtotal': subtotal,
-        'tax': tax,
-        'shipping': shipping,
-        'total': total,
-        'form' : form,
-    })
+    # all addresses for modal
+    all_addresses = Address.objects.filter(user=request.user).order_by("-id")
+
+    context = {
+        "cart_items": cart_items,
+        "subtotal": subtotal,
+        "tax": tax,
+        "shipping": shipping,
+        "total": total,
+        "form": form,
+        "all_addresses": all_addresses,
+    }
+    return render(request, "cart.html", context)
+
 # -------------------- AUTH --------------------
 
 def RegisterView(request):
@@ -417,3 +400,93 @@ def save_address(request):
                 messages.info(request, "This address is already saved.")
 
     return redirect("cart")
+
+@login_required
+def proceed_to_checkout(request):
+    cart_items = (
+        Cart.objects.filter(user=request.user)
+        .values('product')
+        .annotate(quantity=Count('product'))
+    )
+
+    if not cart_items.exists():
+        messages.warning(request, "Your cart is empty.")
+        return redirect("cart")
+
+    # Require address from form
+    if request.method == "POST":
+        form = AddressForm(request.POST)
+        if form.is_valid():
+            addr_data = form.cleaned_data
+
+            address, created = Address.objects.get_or_create(
+                user=request.user,
+                street=addr_data['street'],
+                city=addr_data['city'],
+                state=addr_data['state'],
+                pincode=addr_data['pincode']
+            )
+            if created:
+                messages.success(request, "New shipping address added.")
+        else:
+            messages.error(request, "Please provide a valid shipping address.")
+            return redirect("cart")
+    else:
+        messages.error(request, "Please submit a shipping address before checkout.")
+        return redirect("cart")
+
+    # Create the order
+    order = Order.objects.create(
+        user=request.user,
+        address=address,
+        payment_type="COD",
+        token_value=str(uuid.uuid4()),
+        expires_at=timezone.now() + timezone.timedelta(hours=1),
+        status="Pending"
+    )
+
+    # Add order items
+    for item in cart_items:
+        product = Product.objects.get(id=item['product'])
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            quantity=item['quantity'],
+            price=product.price
+        )
+
+    # Empty cart
+    Cart.objects.filter(user=request.user).delete()
+
+    messages.success(request, "Your order has been placed successfully!")
+    return redirect("yourorders")
+
+
+@login_required
+def yourorders(request):
+    orders = Order.objects.filter(user=request.user).order_by('-created_at')
+
+    # Prepare orders with items
+    orders_with_details = []
+    for order in orders:
+        items = []
+        for item in order.items.all():  # related_name='items' in OrderItem
+            items.append({
+                'name': item.product.name,
+                'image': item.product.image,
+                'quantity': item.quantity,
+                'price': item.price,
+            })
+        total_amount = sum(i['price'] * i['quantity'] for i in items)
+        expected_delivery = order.created_at + timedelta(days=5)  # example 5 days delivery
+        orders_with_details.append({
+            'id': order.id,
+            'status': order.status,
+            'date': order.created_at,
+            'items': items,
+            'total_amount': total_amount,
+            'expected_delivery': expected_delivery,
+            'address': order.address,
+        })
+
+    return render(request, 'yourorders.html', {'orders': orders_with_details})

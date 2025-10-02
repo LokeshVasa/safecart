@@ -17,7 +17,7 @@ urlpatterns = [
     path("clear_data", views.clear_data),
     path("profile", views.profile, name="profile"),
     path("wishlist", views.wishlist_view, name='wishlist'),  
-    path("yourorders", views.yourorders),
+    path("yourorders", views.yourorders, name="yourorders"),
     path("product", views.product),
     path("add-to-cart/", views.add_to_cart, name='add-to-cart'),
     path("add-to-wishlist/", views.add_to_wishlist, name='add-to-wishlist'),
@@ -26,6 +26,8 @@ urlpatterns = [
     path('wishlist/remove/<int:product_id>/', views.remove_from_wishlist, name='remove_from_wishlist'),
     path('wishlist/move-to-cart/<int:product_id>/', views.move_to_cart, name='move_to_cart'),
     path("save-address/", views.save_address, name="save_address"),
+    path("proceed-to-checkout/", views.proceed_to_checkout, name="proceed_to_checkout"),
+    
 ]
 
 # Serve media in development
