@@ -32,6 +32,7 @@ urlpatterns = [
     path('dashboard/admin/promote/<int:user_id>/', views.make_delivery_agent, name='promote_user'),
     path('dashboard/delivery/', views.delivery_dashboard, name='delivery_dashboard'),
     path('dashboard/delivery/mark-delivered/<int:order_id>/', views.mark_order_delivered, name='mark_order_delivered'),
+    path('logout/', views.LogoutView, name='logout'),
 ]
 
 # Serve media in development

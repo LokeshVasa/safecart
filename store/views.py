@@ -18,6 +18,7 @@ from .models import Address
 from .forms import AddressForm
 from django.contrib.auth.decorators import login_required, permission_required
 from .models import Order
+from django.views.decorators.csrf import csrf_protect
 
 logger = logging.getLogger(__name__)
 
@@ -146,9 +147,16 @@ def LoginView(request):
 
     return render(request, 'registration/login.html')
 
+
+@csrf_protect
+@login_required
 def LogoutView(request):
-    logout(request)
-    return redirect('login')
+    if request.method == "POST":
+        logout(request)
+        messages.success(request, "You have been logged out.")
+        return redirect('login')
+    else:
+        return redirect('home')
 
 def ForgotPassword(request):
     if request.method == "POST":
