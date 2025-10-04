@@ -3,7 +3,7 @@ from .models import Product, Category, Cart, Wishlist, PasswordReset
 import logging
 from .forms import RegisterForm, ForgotPasswordForm
 from django.contrib.auth import login, logout, authenticate
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.conf import settings
@@ -16,9 +16,8 @@ from django.template.loader import render_to_string
 from decimal import Decimal, ROUND_HALF_UP
 from .models import Address
 from .forms import AddressForm
-from .models import Order, OrderItem
-import uuid
-from datetime import timedelta
+from django.contrib.auth.decorators import login_required, permission_required
+from .models import Order
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +113,13 @@ def LoginView(request):
 
         if user is not None:
             login(request, user)
-            return redirect('home')
+            # Role-based redirect
+            if user.is_superuser or user.groups.filter(name='Admin').exists():
+                return redirect('admin_dashboard')
+            elif user.groups.filter(name='DeliveryAgent').exists():
+                return redirect('delivery_dashboard')
+            else:  # Buyer or new user
+                return redirect('home')
         else:
             messages.error(request, "Invalid login credentials")
             return redirect('login')
@@ -401,92 +406,143 @@ def save_address(request):
 
     return redirect("cart")
 
-@login_required
-def proceed_to_checkout(request):
-    cart_items = (
-        Cart.objects.filter(user=request.user)
-        .values('product')
-        .annotate(quantity=Count('product'))
-    )
-
-    if not cart_items.exists():
-        messages.warning(request, "Your cart is empty.")
-        return redirect("cart")
-
-    # Require address from form
-    if request.method == "POST":
-        form = AddressForm(request.POST)
-        if form.is_valid():
-            addr_data = form.cleaned_data
-
-            address, created = Address.objects.get_or_create(
-                user=request.user,
-                street=addr_data['street'],
-                city=addr_data['city'],
-                state=addr_data['state'],
-                pincode=addr_data['pincode']
-            )
-            if created:
-                messages.success(request, "New shipping address added.")
-        else:
-            messages.error(request, "Please provide a valid shipping address.")
-            return redirect("cart")
-    else:
-        messages.error(request, "Please submit a shipping address before checkout.")
-        return redirect("cart")
-
-    # Create the order
-    order = Order.objects.create(
-        user=request.user,
-        address=address,
-        payment_type="COD",
-        token_value=str(uuid.uuid4()),
-        expires_at=timezone.now() + timezone.timedelta(hours=1),
-        status="Pending"
-    )
-
-    # Add order items
-    for item in cart_items:
-        product = Product.objects.get(id=item['product'])
-        OrderItem.objects.create(
-            order=order,
-            product=product,
-            quantity=item['quantity'],
-            price=product.price
-        )
-
-    # Empty cart
-    Cart.objects.filter(user=request.user).delete()
-
-    messages.success(request, "Your order has been placed successfully!")
-    return redirect("yourorders")
-
 
 @login_required
-def yourorders(request):
-    orders = Order.objects.filter(user=request.user).order_by('-created_at')
+def make_delivery_agent(request, user_id):
+    # Only Admin can promote users
+    if not request.user.has_perm('store.can_manage_orders'):
+        messages.error(request, "You don't have permission to do this.")
+        return redirect('home')
 
-    # Prepare orders with items
-    orders_with_details = []
-    for order in orders:
-        items = []
-        for item in order.items.all():  # related_name='items' in OrderItem
-            items.append({
-                'name': item.product.name,
-                'image': item.product.image,
-                'quantity': item.quantity,
-                'price': item.price,
-            })
-        total_amount = sum(i['price'] * i['quantity'] for i in items)
-        expected_delivery = order.created_at + timedelta(days=5)  # example 5 days delivery
-        orders_with_details.append({
-            'id': order.id,
-            'status': order.status,
-            'date': order.created_at,
-            'items': items,
-            'total_amount': total_amount,
-            'expected_delivery': expected_delivery,
-            'address': order.address,
+    user = User.objects.get(id=user_id)
+    delivery_group = Group.objects.get(name='DeliveryAgent')
+
+    # Remove from Buyer group if exists
+    buyer_group = Group.objects.get(name='Buyer')
+    user.groups.remove(buyer_group)
+
+    # Add to DeliveryAgent
+    user.groups.add(delivery_group)
+    messages.success(request, f"{user.username} is now a Delivery Agent!")
+    return redirect('home')
+
+@login_required
+@permission_required('store.can_manage_orders', raise_exception=True)
+def manage_users(request):
+    users = User.objects.filter(is_superuser=False)
+    delivery_group = Group.objects.get(name='DeliveryAgent')
+    buyer_group = Group.objects.get(name='Buyer')
+
+    # Users info
+    users_info = []
+    for u in users:
+        users_info.append({
+            'user': u,
+            'is_delivery': delivery_group in u.groups.all()
         })
 
-    return render(request, 'yourorders.html', {'orders': orders_with_details})
+    context = {
+        'users_info': users_info,
+        'total_users': users.count(),
+        'total_buyers': buyer_group.user_set.count(),
+        'total_delivery_agents': delivery_group.user_set.count(),
+        'total_products': Product.objects.count(),
+        'total_orders': Order.objects.count(),
+    }
+
+    return render(request, 'dashboard/admin_dashboard.html', context)
+
+
+@login_required
+def dashboard_redirect(request):
+    user = request.user
+    if user.is_superuser or user.groups.filter(name='Admin').exists():
+        return redirect('admin_dashboard')
+    elif user.groups.filter(name='DeliveryAgent').exists():
+        return redirect('delivery_dashboard')
+    else:  # Buyer or new user
+        return redirect('home')
+
+@login_required
+def admin_dashboard(request):
+    return render(request, 'dashboard/admin_dashboard.html')
+
+@login_required
+def delivery_dashboard(request):
+    return render(request, 'dashboard/delivery_dashboard.html')
+
+
+@login_required
+@permission_required('store.can_manage_orders', raise_exception=True)
+def admin_dashboard(request):
+    # Analytics
+    total_users = User.objects.filter(is_superuser=False).count()
+    buyer_group = Group.objects.get(name='Buyer')
+    delivery_group = Group.objects.get(name='DeliveryAgent')
+    total_buyers = buyer_group.user_set.count()
+    total_delivery_agents = delivery_group.user_set.count()
+    total_products = Product.objects.count()
+    total_orders = Order.objects.count()
+
+    # Users list
+    users = User.objects.filter(is_superuser=False).order_by('id')
+    users_info = []
+    for u in users:
+        users_info.append({
+            'user': u,
+            'is_delivery': delivery_group in u.groups.all()
+        })
+
+    context = {
+        'total_users': total_users,
+        'total_buyers': total_buyers,
+        'total_delivery_agents': total_delivery_agents,
+        'total_products': total_products,
+        'total_orders': total_orders,
+        'users_info': users_info,
+    }
+
+    return render(request, 'dashboard/admin_dashboard.html', context)
+
+
+@login_required
+@permission_required('store.can_manage_orders', raise_exception=True)
+def make_delivery_agent(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    delivery_group = Group.objects.get(name='DeliveryAgent')
+    buyer_group = Group.objects.get(name='Buyer')
+
+    if delivery_group in user.groups.all():
+        # Demote to buyer
+        user.groups.remove(delivery_group)
+        user.groups.add(buyer_group)
+        messages.success(request, f"{user.username} is now a Buyer.")
+    else:
+        # Promote to delivery agent
+        user.groups.remove(buyer_group)
+        user.groups.add(delivery_group)
+        messages.success(request, f"{user.username} is now a Delivery Agent.")
+
+    return redirect('admin_dashboard')
+
+@login_required
+@permission_required('store.can_deliver_order', raise_exception=True)
+def delivery_dashboard(request):
+    # Delivery agents see all orders (or assigned orders if you implement assignment)
+    orders = Order.objects.filter(status__in=['Packed', 'Shipped']).order_by('-created_at')
+    
+    context = {
+        'orders': orders
+    }
+    return render(request, 'dashboard/delivery_dashboard.html', context)
+
+
+@login_required
+@permission_required('store.can_deliver_order', raise_exception=True)
+def mark_order_delivered(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    order.status = 'Delivered'
+    order.save()
+    messages.success(request, f"Order {order.id} marked as delivered.")
+    return redirect('delivery_dashboard')
+

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Admin Dashboard</h2>
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger">Logout</button>
+        </form>
+    </div>
+
+    <!-- Analytics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2"><div class="card text-center p-3 bg-primary text-white">Users<br>{{ total_users }}</div></div>
+        <div class="col-md-2"><div class="card text-center p-3 bg-success text-white">Buyers<br>{{ total_buyers }}</div></div>
+        <div class="col-md-2"><div class="card text-center p-3 bg-warning text-dark">Delivery Agents<br>{{ total_delivery_agents }}</div></div>
+        <div class="col-md-2"><div class="card text-center p-3 bg-info text-white">Products<br>{{ total_products }}</div></div>
+        <div class="col-md-2"><div class="card text-center p-3 bg-secondary text-white">Orders<br>{{ total_orders }}</div></div>
+    </div>
+
+    <!-- Users Table -->
+    <h4>Users List</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for u in users_info %}
+            <tr>
+                <td>{{ u.user.id }}</td>
+                <td>{{ u.user.username }}</td>
+                <td>{{ u.user.email }}</td>
+                <td>{% if u.is_delivery %}Delivery Agent{% else %}Buyer{% endif %}</td>
+                <td>
+                    <a href="{% url 'promote_user' u.user.id %}" class="btn btn-sm {% if u.is_delivery %}btn-danger{% else %}btn-success{% endif %}">
+                        {% if u.is_delivery %}Demote to Buyer{% else %}Promote to Delivery{% endif %}
+                    </a>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
