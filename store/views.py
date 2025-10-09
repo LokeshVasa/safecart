@@ -57,52 +57,32 @@ def yourorders(request):
 def clear_data(request):
     return render(request, 'clear_data.html')
 
-
 @login_required
 def cart(request):
-    cart_items = (
-        Cart.objects.filter(user=request.user)
-        .values('product')
-        .annotate(quantity=Count('product'))
-        .order_by('product')
-    )
-
-    products_with_quantity = []
-    subtotal = Decimal("0.00")
-
-    for item in cart_items:
-        product = Product.objects.get(id=item['product'])
-        quantity = item['quantity']
-        products_with_quantity.append({
-            'product': product,
-            'quantity': quantity
-        })
-
-        # ✅ Use Decimal for price × quantity
-        subtotal += product.price * quantity
-
-    # Tax = 10% of subtotal (Decimal)
-    tax = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-    # Example shipping (also Decimal)
+    cart_items = Cart.objects.filter(user=request.user).select_related("product")
+    subtotal = sum(item.product.price for item in cart_items)
+    tax = round(Decimal(subtotal) * Decimal("0.10"), 2)
     shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
-
-    # Final total
     total = subtotal + tax + shipping
 
-    # ---- Addresses ----
-    addresses = Address.objects.filter(user=request.user)
-    last_address = addresses.last()  # prefill with last used
+    # last address for prefill
+    last_address = Address.objects.filter(user=request.user).last()
     form = AddressForm(instance=last_address)
 
-    return render(request, 'cart.html', {
-        'cart_items': products_with_quantity,
-        'subtotal': subtotal,
-        'tax': tax,
-        'shipping': shipping,
-        'total': total,
-        'form' : form,
-    })
+    # all addresses for modal
+    all_addresses = Address.objects.filter(user=request.user).order_by("-id")
+
+    context = {
+        "cart_items": cart_items,
+        "subtotal": subtotal,
+        "tax": tax,
+        "shipping": shipping,
+        "total": total,
+        "form": form,
+        "all_addresses": all_addresses,
+    }
+    return render(request, "cart.html", context)
+
 # -------------------- AUTH --------------------
 
 def RegisterView(request):

@@ -22,7 +22,7 @@
                         <div class="card shadow-sm border-0 h-100">
                             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                                 <div>
-                                    <small>{{ order.date|date:"M d, Y" }}</small><br>
+                                    <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
                                     <strong>#{{ order.id }}</strong>
                                 </div>
                                 <span class="badge bg-success">{{ order.status|default:"Confirmed" }}</span>
@@ -33,10 +33,23 @@
                                         <img src="{{ item.image.url }}" alt="{{ item.name }}" class="img-fluid rounded me-3" style="width:60px; height:60px; object-fit:cover;">
                                         <div>
                                             <h6 class="mb-1">{{ item.name }}</h6>
-                                            <small class="text-muted">Qty: {{ item.quantity }} | ${{ item.price|floatformat:2 }}</small>
+                                            <small class="text-muted">Qty: {{ item.quantity }} | ₹{{ item.price|floatformat:2 }}</small>
                                         </div>
                                     </div>
                                 {% endfor %}
+                                <hr>
+                                <p class="mb-1"><strong>Total Paid:</strong> ₹{{ order.total_amount|floatformat:2 }}</p>
+                                <p class="mb-0"><strong>Expected Delivery:</strong> {{ order.expected_delivery|date:"M d, Y" }}</p>
+
+                                <!-- Display Address -->
+                                {% if order.address %}
+                                    <hr>
+                                    <p class="mb-1"><strong>Shipping Address:</strong></p>
+                                    <p class="mb-0">
+                                        {{ order.address.street }}, {{ order.address.city }}<br>
+                                        {{ order.address.state }} - {{ order.address.pincode }}
+                                    </p>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
