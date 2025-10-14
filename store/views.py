@@ -19,6 +19,8 @@ from .forms import AddressForm
 from .models import Order, OrderItem
 import uuid
 from datetime import timedelta
+from django.views.decorators.http import require_POST
+
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +58,56 @@ def yourorders(request):
 
 def clear_data(request):
     return render(request, 'clear_data.html')
+
+@login_required
+@require_POST
+def increase_quantity(request, product_id):
+    """Increase quantity of a cart item and return updated totals."""
+    cart_item = get_object_or_404(Cart, user=request.user, product_id=product_id)
+    cart_item.quantity += 1
+    cart_item.save()
+
+    subtotal, tax, shipping, total = calculate_cart_totals_with_qty(request.user)
+    return JsonResponse({
+        "updated_product_id": product_id,
+        "new_qty": cart_item.quantity,
+        "subtotal": str(subtotal),
+        "tax": str(tax),
+        "shipping": str(shipping),
+        "total": str(total),
+    })
+
+
+@login_required
+@require_POST
+def decrease_quantity(request, product_id):
+    """Decrease quantity of a cart item and return updated totals."""
+    cart_item = get_object_or_404(Cart, user=request.user, product_id=product_id)
+    if cart_item.quantity > 1:
+        cart_item.quantity -= 1
+        cart_item.save()
+    else:
+        cart_item.delete()
+
+    subtotal, tax, shipping, total = calculate_cart_totals_with_qty(request.user)
+    return JsonResponse({
+        "updated_product_id": product_id,
+        "new_qty": cart_item.quantity if cart_item.id else 0,
+        "subtotal": str(subtotal),
+        "tax": str(tax),
+        "shipping": str(shipping),
+        "total": str(total),
+    })
+
+
+def calculate_cart_totals_with_qty(user):
+    """Recalculate totals considering product quantity."""
+    cart_items = Cart.objects.filter(user=user)
+    subtotal = sum(item.product.price * item.quantity for item in cart_items)
+    tax = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"))
+    shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
+    total = subtotal + tax + shipping
+    return subtotal, tax, shipping, total
 
 @login_required
 def cart(request):
@@ -346,7 +398,7 @@ def remove_from_wishlist(request, product_id):
         return JsonResponse({
             "wishlist_count": wishlist_count,
             "flash_html": flash_html,
-            "removed_product_id": product_id,   # 🔑 used by JS to remove card
+            "removed_product_id": product_id,   
         })
 
     return redirect(request.META.get("HTTP_REFERER", "wishlist"))
@@ -403,11 +455,8 @@ def save_address(request):
 
 @login_required
 def proceed_to_checkout(request):
-    cart_items = (
-        Cart.objects.filter(user=request.user)
-        .values('product')
-        .annotate(quantity=Count('product'))
-    )
+    cart_items = Cart.objects.filter(user=request.user).select_related('product')
+
 
     if not cart_items.exists():
         messages.warning(request, "Your cart is empty.")
@@ -447,13 +496,13 @@ def proceed_to_checkout(request):
 
     # Add order items
     for item in cart_items:
-        product = Product.objects.get(id=item['product'])
         OrderItem.objects.create(
-            order=order,
-            product=product,
-            quantity=item['quantity'],
-            price=product.price
-        )
+        order=order,
+        product=item.product,
+        quantity=item.quantity,
+        price=item.product.price
+    )
+
 
     # Empty cart
     Cart.objects.filter(user=request.user).delete()
