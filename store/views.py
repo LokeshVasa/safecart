@@ -61,53 +61,46 @@ def clear_data(request):
 
 @login_required
 @require_POST
-def increase_quantity(request, product_id):
-    """Increase quantity of a cart item and return updated totals."""
+def change_quantity(request, product_id):
+    """
+    Handle both increase and decrease of cart item quantity.
+    Expects POST param: action = 'increase' or 'decrease'
+    """
+    action = request.POST.get("action")
     cart_item = get_object_or_404(Cart, user=request.user, product_id=product_id)
-    cart_item.quantity += 1
-    cart_item.save()
 
-    subtotal, tax, shipping, total = calculate_cart_totals_with_qty(request.user)
-    return JsonResponse({
-        "updated_product_id": product_id,
-        "new_qty": cart_item.quantity,
-        "subtotal": str(subtotal),
-        "tax": str(tax),
-        "shipping": str(shipping),
-        "total": str(total),
-    })
-
-
-@login_required
-@require_POST
-def decrease_quantity(request, product_id):
-    """Decrease quantity of a cart item and return updated totals."""
-    cart_item = get_object_or_404(Cart, user=request.user, product_id=product_id)
-    if cart_item.quantity > 1:
-        cart_item.quantity -= 1
+    if action == "increase":
+        cart_item.quantity += 1
         cart_item.save()
+    elif action == "decrease":
+        if cart_item.quantity > 1:
+            cart_item.quantity -= 1
+            cart_item.save()
+        else:
+            cart_item.delete()
     else:
-        cart_item.delete()
+        return JsonResponse({"error": "Invalid action"}, status=400)
 
-    subtotal, tax, shipping, total = calculate_cart_totals_with_qty(request.user)
-    return JsonResponse({
+    # Recalculate totals
+    subtotal = sum(item.product.price * item.quantity for item in Cart.objects.filter(user=request.user))
+    tax = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"))
+    shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
+    total = subtotal + tax + shipping
+
+    response = {
         "updated_product_id": product_id,
         "new_qty": cart_item.quantity if cart_item.id else 0,
         "subtotal": str(subtotal),
         "tax": str(tax),
         "shipping": str(shipping),
         "total": str(total),
-    })
+    }
 
+    # HTMX support
+    if request.headers.get("HX-Request"):
+        response["flash_html"] = render_to_string("flash_messages.html", {}, request=request)
 
-def calculate_cart_totals_with_qty(user):
-    """Recalculate totals considering product quantity."""
-    cart_items = Cart.objects.filter(user=user)
-    subtotal = sum(item.product.price * item.quantity for item in cart_items)
-    tax = (subtotal * Decimal("0.10")).quantize(Decimal("0.01"))
-    shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
-    total = subtotal + tax + shipping
-    return subtotal, tax, shipping, total
+    return JsonResponse(response)
 
 @login_required
 def cart(request):

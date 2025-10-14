@@ -21,15 +21,10 @@
 
       <!-- Left: Cart Items -->
       <div class="col-md-8 d-flex">
-        <div class="border rounded p-3 bg-white w-100 d-flex flex-column"
-          style="max-height: 130vh; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none;"
-          id="cart-items-container">
-          <style>
-            /* Hide scrollbar but keep scrolling */
-            #cart-items-container::-webkit-scrollbar {
-            display: none; /* Chrome, Safari, Edge */
-            }
-          </style>
+        <div class="border rounded p-3 bg-white w-100 d-flex flex-column overflow-auto" 
+     id="cart-items-container" 
+     style="max-height: 130vh;">
+
 
           {% if cart_items %}
           {% for item in cart_items %}
@@ -47,29 +42,35 @@
               <h6 class="mb-1">{{ item.product.name }}</h6>
               <p class="mb-0 text-primary fw-bold">₹{{ item.product.price }}</p>
               <!-- ✅ Quantity controls -->
-              <div class="d-flex align-items-center">
+<div class="d-flex align-items-center">
 
-                <!-- Decrease button -->
-                <button 
-  hx-post="{% url 'decrease_quantity' item.product.id %}" 
-  hx-swap="none"
-  hx-on::after-request="updateCartState(event)" 
-  class="btn btn-outline-secondary btn-sm"
-  id="decrease-{{ item.product.id }}" 
-  data-product-id="{{ item.product.id }}" 
-  {% if item.quantity <= 1 %}disabled{% endif %}
->−</button>
+  <!-- Decrease button -->
+  <button 
+    hx-post="{% url 'change_quantity' item.product.id %}" 
+    hx-vals='{"action": "decrease"}'
+    hx-swap="none"
+    hx-on::after-request="updateCartState(event)" 
+    class="btn btn-outline-secondary btn-sm"
+    id="decrease-{{ item.product.id }}" 
+    data-product-id="{{ item.product.id }}" 
+    {% if item.quantity <= 1 %}disabled{% endif %}
+  >−</button>
 
+  <!-- Current quantity -->
+  <span id="qty-{{ item.product.id }}" class="mx-2 fw-bold">{{ item.quantity }}</span>
 
-                <!-- Current quantity -->
-                <span id="qty-{{ item.product.id }}" class="mx-2 fw-bold">{{ item.quantity }}</span>
+  <!-- Increase button -->
+  <button 
+    hx-post="{% url 'change_quantity' item.product.id %}" 
+    hx-vals='{"action": "increase"}'
+    hx-swap="none"
+    hx-on::after-request="updateCartState(event)" 
+    class="btn btn-outline-secondary btn-sm"
+    id="increase-{{ item.product.id }}" 
+    data-product-id="{{ item.product.id }}"
+  >+</button>
 
-                <!-- Increase button -->
-                <button hx-post="{% url 'increase_quantity' item.product.id %}" hx-swap="none"
-                  hx-on::after-request="updateCartState(event)" class="btn btn-outline-secondary btn-sm"
-                  id="increase-{{ item.product.id }}" data-product-id="{{ item.product.id }}">+</button>
-
-              </div>
+</div>
 
 
             </div>
