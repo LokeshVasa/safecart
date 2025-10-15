@@ -28,6 +28,7 @@ urlpatterns = [
     path("save-address/", views.save_address, name="save_address"),
     path("proceed-to-checkout/", views.proceed_to_checkout, name="proceed_to_checkout"),
     path("cart/change/<int:product_id>/", views.change_quantity, name="change_quantity"),
+    path('sellerorders/', views.sellerorders, name='sellerorders'),
     path('manage-users/', views.manage_users, name='manage_users'),
     path('redirect-dashboard/', views.dashboard_redirect, name='dashboard_redirect'),
     path('dashboard/admin/', views.admin_dashboard, name='admin_dashboard'),

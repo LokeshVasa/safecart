@@ -1,0 +1,100 @@
+{% extends "root.html" %}
+{% load static %}
+{% load qr_code %}
+
+{% block title %}Seller Orders - SafeCart{% endblock %}
+{% block body_class %}d-flex flex-column min-vh-100{% endblock %}
+
+{% block content %}
+<section class="py-3 bg-primary text-white text-center border-bottom mt-0">
+    <div class="container">
+        <h1 class="fw-bold">Seller Orders</h1>
+        <p class="mb-0">View all the orders placed for your products</p>
+    </div>
+</section>
+
+<section class="py-2 flex-grow-1">
+    <div class="container">
+        {% if orders %}
+            <div class="row g-4">
+                {% for order in orders %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card shadow-sm border-0 h-100">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
+                                    <strong>#{{ order.id }}</strong>
+                                </div>
+                                <span class="badge bg-success">{{ order.status|default:"Confirmed" }}</span>
+                            </div>
+                            <div class="card-body">
+                                {% for item in order.items %}
+                                    <div class="d-flex align-items-center mb-3">
+                                        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="img-fluid rounded me-3" style="width:60px; height:60px; object-fit:cover;">
+                                        <div>
+                                            <h6 class="mb-1">{{ item.name }}</h6>
+                                            <small class="text-muted">Qty: {{ item.quantity }} | ₹{{ item.price|floatformat:2 }}</small>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                                <hr>
+                                <p class="mb-1"><strong>Total Paid:</strong> ₹{{ order.total_amount|floatformat:2 }}</p>
+                                <p class="mb-0"><strong>Expected Delivery:</strong> {{ order.expected_delivery|date:"M d, Y" }}</p>
+
+                                {% if order.address %}
+                                    <hr>
+                                    <p class="mb-1"><strong>Pin Code:</strong> {{ order.address.pincode }}</p>
+                                {% endif %}
+
+                                <!-- Hidden container for printable content -->
+                                <div id="printable-{{ order.id }}" style="display:none; padding:20px; background:#fff; border:1px solid #000; text-align:center; font-family: Arial, sans-serif;">
+                                    <h2>Order #{{ order.id }}</h2>
+                                    <p>Pin Code: {{ order.address.pincode }}</p>
+                                    {% qr_from_text order.token_ size="M" %}
+                                </div>
+
+                                <button class="btn btn-outline-secondary" onclick="downloadLabel({{ order.id }})">Print QR</button>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <h3>No orders yet</h3>
+                <p class="text-muted">No recent orders by customers.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Include html2canvas library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script>
+function downloadLabel(orderId) {
+    var printableContent = document.getElementById('printable-' + orderId);
+
+    // Temporarily show the div if hidden
+    printableContent.style.display = 'block';
+
+    html2canvas(printableContent).then(function(canvas) {
+        // Hide after canvas created
+        printableContent.style.display = 'none';
+
+        // Convert to data URL and trigger download
+        var link = document.createElement('a');
+        link.download = 'order_' + orderId + '_label.png';
+        link.href = canvas.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }).catch(function(error) {
+        alert('Error generating printable label. Please try again.');
+        printableContent.style.display = 'none';
+    });
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}
