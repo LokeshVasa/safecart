@@ -28,7 +28,9 @@ class Product(models.Model):
 
     class Meta:
         db_table = 'products'  #table name
-
+        permissions = [
+            ("can_manage_products","Can manage products"), # Admin, Super Admin
+        ]
 
 class Category(models.Model):
     category = models.CharField(max_length=100)
@@ -116,6 +118,10 @@ class Order(models.Model):
 
     class Meta:
         db_table = 'orders'
+        permissions = [
+            ("can_deliver_order", "Can deliver assigned orders"),  # Delivery Agent
+            ("can_manage_orders", "Can manage all orders"),        # Admin, Super Admin
+        ]
 
 
 class OrderItem(models.Model):

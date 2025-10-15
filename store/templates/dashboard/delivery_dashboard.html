@@ -1,0 +1,48 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Delivery Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container py-4">
+    <h2 class="mb-4">Delivery Agent Dashboard</h2>
+
+    {% if orders %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Order ID</th>
+                <th>User</th>
+                <th>Address</th>
+                <th>Payment</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for order in orders %}
+            <tr>
+                <td>{{ order.id }}</td>
+                <td>{{ order.user.username }}</td>
+                <td>{{ order.address.street }}, {{ order.address.city }}, {{ order.address.state }} - {{ order.address.pincode }}</td>
+                <td>{{ order.payment_type }}</td>
+                <td>{{ order.status }}</td>
+                <td>
+                    <a href="{% url 'mark_order_delivered' order.id %}" class="btn btn-sm btn-success">Mark as Delivered</a>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <div class="alert alert-info">No orders to deliver right now.</div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
