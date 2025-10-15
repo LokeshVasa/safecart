@@ -10,7 +10,7 @@ class StoreConfig(AppConfig):
         from django.contrib.contenttypes.models import ContentType
         from .models import Product, Order
 
-        def create_user_groups(sender, **kwargs):
+        def create_user_groups_and_permissions(sender, **kwargs):
             # --- Groups ---
             buyer_group, _ = Group.objects.get_or_create(name='Buyer')
             delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
@@ -23,13 +23,15 @@ class StoreConfig(AppConfig):
                 name='Can manage products',
                 content_type=product_ct
             )
-            admin_group.permissions.add(manage_products_perm)
+            if manage_products_perm not in admin_group.permissions.all():
+                admin_group.permissions.add(manage_products_perm)
+
 
             # --- Order permissions ---
             order_ct = ContentType.objects.get_for_model(Order)
-            manage_orders_perm, _ = Permission.objects.get_or_create(
-                codename='can_manage_orders',
-                name='Can manage all orders',
+            admin_perm, _ = Permission.objects.get_or_create(
+                codename='can_perform_admin_actions',
+                name='Can perform admin actions',
                 content_type=order_ct
             )
             deliver_order_perm, _ = Permission.objects.get_or_create(
@@ -37,7 +39,10 @@ class StoreConfig(AppConfig):
                 name='Can deliver assigned orders',
                 content_type=order_ct
             )
-            admin_group.permissions.add(manage_orders_perm)
-            delivery_group.permissions.add(deliver_order_perm)
+               # Assign permissions only if missing
+            if admin_perm not in admin_group.permissions.all():
+                admin_group.permissions.add(admin_perm)
+            if deliver_order_perm not in delivery_group.permissions.all():
+                delivery_group.permissions.add(deliver_order_perm)
 
-        post_migrate.connect(create_user_groups, sender=self)
+        post_migrate.connect(create_user_groups_and_permissions, sender=self)
