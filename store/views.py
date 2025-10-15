@@ -541,7 +541,7 @@ def yourorders(request):
     return render(request, 'yourorders.html', {'orders': orders_with_details})
 
 @login_required
-@permission_required('store.can_manage_orders', raise_exception=True)
+@permission_required('store.can_perform_admin_actions', raise_exception=True)
 def make_delivery_agent(request, user_id):
     user = get_object_or_404(User, id=user_id)
     delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
@@ -560,7 +560,7 @@ def make_delivery_agent(request, user_id):
 
 
 @login_required
-@permission_required('store.can_manage_orders', raise_exception=True)
+@permission_required('store.can_perform_admin_actions', raise_exception=True)
 def admin_dashboard(request):
     total_users = User.objects.filter(is_superuser=False).count()
     buyer_group, _ = Group.objects.get_or_create(name='Buyer')
@@ -613,7 +613,7 @@ def dashboard_redirect(request):
         return redirect('home')
     
 @login_required
-@permission_required('store.can_manage_orders', raise_exception=True)
+@permission_required('store.can_perform_admin_actions', raise_exception=True)
 def manage_users(request):
     users = User.objects.filter(is_superuser=False)
     delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
