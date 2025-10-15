@@ -18,75 +18,95 @@
 <section>
   <div class="container py-4">
     <div class="row g-4 align-items-stretch">
-      
-<!-- Left: Cart Items -->
-  <div class="col-md-8 d-flex">
-    <div class="border rounded p-3 bg-white w-100 d-flex flex-column"
-          style="max-height: 130vh; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none;"
-          id="cart-items-container">
-          <style>
-          /* Hide scrollbar but keep scrolling */
-          #cart-items-container::-webkit-scrollbar {
-            display: none; /* Chrome, Safari, Edge */
-          }
-        </style>
 
-    {% if cart_items %}
-      {% for item in cart_items %}
-      <div class="d-flex align-items-center justify-content-between border-bottom py-3 cart-item"
-           id="cart-item-{{ item.product.id }}">
-        
-        <!-- Product Image -->
-        <div class="flex-shrink-0 me-3">
-          <img src="{{ item.product.image.url }}"
-               alt="{{ item.product.name }}"
-               style="width: 80px; height: 80px; object-fit: cover;"
-               class="rounded">
-        </div>
+      <!-- Left: Cart Items -->
+      <div class="col-md-8 d-flex">
+        <div class="border rounded p-3 bg-white w-100 d-flex flex-column overflow-auto" 
+     id="cart-items-container" 
+     style="max-height: 130vh;">
 
-        <!-- Product Info -->
-        <div class="flex-grow-1">
-          <h6 class="mb-1">{{ item.product.name }}</h6>
-          <p class="mb-0 text-primary fw-bold">₹{{ item.product.price }}</p>
-          <small class="text-muted">Quantity: {{ item.quantity }}</small>
-        </div>
 
-        <!-- Actions -->
-        <div class="d-flex flex-column gap-2 ms-3">
-          <!-- Remove -->
-          <form hx-post="{% url 'remove_from_cart' item.product.id %}"
-                hx-swap="none"
-                hx-on::after-request="updateCartState(event)"
-                method="post" class="m-0">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-outline-danger btn-sm">
-              <i class="bi bi-trash"></i> Remove
-            </button>
-          </form>
+          {% if cart_items %}
+          {% for item in cart_items %}
+          <div class="d-flex align-items-center justify-content-between border-bottom py-3 cart-item"
+            id="cart-item-{{ item.product.id }}">
 
-          <!-- Wishlist -->
-          <form hx-post="{% url 'move_to_wishlist' item.product.id %}"
-                hx-swap="none"
-                hx-on::after-request="updateWishlistState(event)"
-                method="post" class="m-0">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-outline-primary btn-sm">
-              <i class="bi bi-heart"></i> Wishlist
-            </button>
-          </form>
-        </div>
-      </div>
-      {% endfor %}
-    {% else %}
-      <div class="text-center py-5">
-        <h2>Your cart is empty</h2>
-        <p class="text-muted">Looks like you haven’t added anything to your cart yet.</p>
-        <a href="home" class="btn btn-primary">Continue Shopping</a>
-      </div>
-    {% endif %}
+            <!-- Product Image -->
+            <div class="flex-shrink-0 me-3">
+              <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}"
+                style="width: 80px; height: 80px; object-fit: cover;" class="rounded">
+            </div>
 
-  </div>
+            <!-- Product Info -->
+            <div class="flex-grow-1">
+              <h6 class="mb-1">{{ item.product.name }}</h6>
+              <p class="mb-0 text-primary fw-bold">₹{{ item.product.price }}</p>
+              <!-- ✅ Quantity controls -->
+<div class="d-flex align-items-center">
+
+  <!-- Decrease button -->
+  <button 
+    hx-post="{% url 'change_quantity' item.product.id %}" 
+    hx-vals='{"action": "decrease"}'
+    hx-swap="none"
+    hx-on::after-request="updateCartState(event)" 
+    class="btn btn-outline-secondary btn-sm"
+    id="decrease-{{ item.product.id }}" 
+    data-product-id="{{ item.product.id }}" 
+    {% if item.quantity <= 1 %}disabled{% endif %}
+  >−</button>
+
+  <!-- Current quantity -->
+  <span id="qty-{{ item.product.id }}" class="mx-2 fw-bold">{{ item.quantity }}</span>
+
+  <!-- Increase button -->
+  <button 
+    hx-post="{% url 'change_quantity' item.product.id %}" 
+    hx-vals='{"action": "increase"}'
+    hx-swap="none"
+    hx-on::after-request="updateCartState(event)" 
+    class="btn btn-outline-secondary btn-sm"
+    id="increase-{{ item.product.id }}" 
+    data-product-id="{{ item.product.id }}"
+  >+</button>
+
 </div>
+
+
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex flex-column gap-2 ms-3">
+              <!-- Remove -->
+              <form hx-post="{% url 'remove_from_cart' item.product.id %}" hx-swap="none"
+                hx-on::after-request="updateCartState(event)" method="post" class="m-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                  <i class="bi bi-trash"></i> Remove
+                </button>
+              </form>
+
+              <!-- Wishlist -->
+              <form hx-post="{% url 'move_to_wishlist' item.product.id %}" hx-swap="none"
+                hx-on::after-request="updateWishlistState(event)" method="post" class="m-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-primary btn-sm">
+                  <i class="bi bi-heart"></i> Wishlist
+                </button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="text-center py-5">
+            <h2>Your cart is empty</h2>
+            <p class="text-muted">Looks like you haven’t added anything to your cart yet.</p>
+            <a href="home" class="btn btn-primary">Continue Shopping</a>
+          </div>
+          {% endif %}
+
+        </div>
+      </div>
 
 
       <!-- Right: Order Summary + Address -->
@@ -99,9 +119,9 @@
               <span id="subtotal">₹{{ subtotal }}</span>
             </div>
             <div class="d-flex justify-content-between">
-                <span>Tax (10%)</span>
-                <span id="tax">₹{{ tax }}</span>
-              </div>
+              <span>Tax (10%)</span>
+              <span id="tax">₹{{ tax }}</span>
+            </div>
             <div class="d-flex justify-content-between">
               <span>Shipping</span>
               <span id="shipping">₹{{ shipping }}</span>
@@ -114,54 +134,55 @@
           </div>
         </div>
 
-  <div class="card shadow-sm mt-3 flex-grow-1 d-flex flex-column">
-  <div class="card-body d-flex flex-column">
-    <h5 class="fw-bold mb-3">Shipping Address</h5>
+        <div class="card shadow-sm mt-3 flex-grow-1 d-flex flex-column">
+          <div class="card-body d-flex flex-column">
+            <h5 class="fw-bold mb-3">Shipping Address</h5>
 
-    <!-- Address Form -->
-    <form method="post" action="{% url 'proceed_to_checkout' %}">
-      {% csrf_token %}
-      {{ form.as_p }}
-      <button type="submit" class="btn btn-success w-100 mb-2">Proceed to Checkout</button>
-    </form>
+            <!-- Address Form -->
+            <form method="post" action="{% url 'proceed_to_checkout' %}">
+              {% csrf_token %}
+              {{ form.as_p }}
+              <button type="submit" class="btn btn-success w-100 mb-2">Proceed to Checkout</button>
+            </form>
 
-    {% if all_addresses|length > 1 %}
-      <button type="button" class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#addressModal">
-        Change Address
-      </button>
-    {% endif %}
-  </div>
-</div>
-
-<!-- Address Modal -->
-<div class="modal fade" id="addressModal" tabindex="-1" aria-labelledby="addressModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="addressModalLabel">Select Shipping Address</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <!-- List of addresses -->
-        <div class="list-group">
-          {% for addr in all_addresses %}
-          <label class="list-group-item d-flex justify-content-between align-items-start">
-            <div>
-              <strong>{{ addr.street }}</strong><br>
-              {{ addr.city }}, {{ addr.state }} - {{ addr.pincode }}
-            </div>
-            <button type="button" class="btn btn-sm btn-outline-success"
-                    onclick="selectAddress('{{ addr.id }}', '{{ addr.street }}', '{{ addr.city }}', '{{ addr.state }}', '{{ addr.pincode }}')"
-                    data-bs-dismiss="modal">
-              Use this
+            {% if all_addresses|length > 1 %}
+            <button type="button" class="btn btn-outline-primary w-100" data-bs-toggle="modal"
+              data-bs-target="#addressModal">
+              Change Address
             </button>
-          </label>
-          {% endfor %}
+            {% endif %}
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
+
+        <!-- Address Modal -->
+        <div class="modal fade" id="addressModal" tabindex="-1" aria-labelledby="addressModalLabel" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="addressModalLabel">Select Shipping Address</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <!-- List of addresses -->
+                <div class="list-group">
+                  {% for addr in all_addresses %}
+                  <label class="list-group-item d-flex justify-content-between align-items-start">
+                    <div>
+                      <strong>{{ addr.street }}</strong><br>
+                      {{ addr.city }}, {{ addr.state }} - {{ addr.pincode }}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-success"
+                      onclick="selectAddress('{{ addr.id }}', '{{ addr.street }}', '{{ addr.city }}', '{{ addr.state }}', '{{ addr.pincode }}')"
+                      data-bs-dismiss="modal">
+                      Use this
+                    </button>
+                  </label>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -171,12 +192,12 @@
 <script src="https://unpkg.com/htmx.org@1.9.3"></script>
 
 <script>
-function selectAddress(id, street, city, state, pincode) {
-  document.querySelector('[name="street"]').value = street;
-  document.querySelector('[name="city"]').value = city;
-  document.querySelector('[name="state"]').value = state;
-  document.querySelector('[name="pincode"]').value = pincode;
-}
+  function selectAddress(id, street, city, state, pincode) {
+    document.querySelector('[name="street"]').value = street;
+    document.querySelector('[name="city"]').value = city;
+    document.querySelector('[name="state"]').value = state;
+    document.querySelector('[name="pincode"]').value = pincode;
+  }
 </script>
 
 
@@ -218,29 +239,47 @@ function selectAddress(id, street, city, state, pincode) {
         if (card) card.remove();
       }
 
-          // ✅ update order summary
-    if (data.subtotal !== undefined) {
-      document.getElementById("subtotal").innerText = "₹" + data.subtotal;
-      document.getElementById("tax").innerText = "₹" + data.tax;
-      document.getElementById("shipping").innerText = "₹" + data.shipping;
-      document.getElementById("total").innerText = "₹" + data.total;
-    }
-    // if item removed, hide card
-    if (data.removed_product_id !== undefined) {
-      const card = document.getElementById("cart-item-" + data.removed_product_id);
-      if (card) card.remove();
-    }
+      // ✅ update order summary
+      if (data.updated_product_id !== undefined && data.new_qty !== undefined) {
+        const qtyElem = document.getElementById("qty-" + data.updated_product_id);
+        if (qtyElem) qtyElem.innerText = data.new_qty;
+      }
 
-    // if cart is empty, show the empty cart message
-    if (data.cart_empty) {
-      const container = document.getElementById("cart-items-container");
-      container.innerHTML = `
+      // ✅ Disable minus button if quantity <= 1
+      if (data.updated_product_id !== undefined && data.new_qty !== undefined) {
+        const decBtn = document.getElementById("decrease-" + data.updated_product_id);
+        if (decBtn) {
+          if (data.new_qty <= 1) {
+            decBtn.disabled = true;
+          } else {
+            decBtn.disabled = false;
+          }
+        }
+      }
+
+
+      if (data.subtotal !== undefined) {
+        document.getElementById("subtotal").innerText = "₹" + data.subtotal;
+        document.getElementById("tax").innerText = "₹" + data.tax;
+        document.getElementById("shipping").innerText = "₹" + data.shipping;
+        document.getElementById("total").innerText = "₹" + data.total;
+      }
+      // if item removed, hide card
+      if (data.removed_product_id !== undefined) {
+        const card = document.getElementById("cart-item-" + data.removed_product_id);
+        if (card) card.remove();
+      }
+
+      // if cart is empty, show the empty cart message
+      if (data.cart_empty) {
+        const container = document.getElementById("cart-items-container");
+        container.innerHTML = `
       <div class="text-center py-5">
         <h2>Your cart is empty</h2>
         <p class="text-muted">Looks like you haven’t added anything to your cart yet.</p>
         <a href="home" class="btn btn-primary">Continue Shopping</a>
       </div>`;
-    }
+      }
 
     } catch (e) {
       console.error("[updateCartState] JSON parse error:", e);
@@ -297,4 +336,16 @@ function selectAddress(id, street, city, state, pincode) {
     }
   }
 </script>
+
+<script src="https://unpkg.com/htmx.org@1.9.3"></script>
+<script>
+  // Ensure Django CSRF token is added to all HTMX requests
+  document.body.addEventListener('htmx:configRequest', (event) => {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrfToken) {
+      event.detail.headers['X-CSRFToken'] = csrfToken.value;
+    }
+  });
+</script>
+
 {% endblock %}
