@@ -40,16 +40,18 @@
                                 <hr>
                                 <p class="mb-1"><strong>Total Paid:</strong> ₹{{ order.total_amount|floatformat:2 }}</p>
                                 <p class="mb-0"><strong>Expected Delivery:</strong> {{ order.expected_delivery|date:"M d, Y" }}</p>
+                                <p class="mb-1"><strong>Pin Code:</strong> {{ order.pincode }}</p>
+
 
                                 {% if order.address %}
                                     <hr>
-                                    <p class="mb-1"><strong>Pin Code:</strong> {{ order.address.pincode }}</p>
+                                    <p class="mb-1"><strong>Pin Code:</strong> {{ order.pincode }}</p>
                                 {% endif %}
 
                                 <!-- Hidden printable section -->
                                 <div id="printable-{{ order.id }}" style="display:none; padding:20px; background:#fff; border:1px solid #000; text-align:center; font-family: Arial, sans-serif;">
                                     <h2>Order #{{ order.id }}</h2>
-                                    <p>Pin Code: {{ order.address.pincode }}</p>
+                                    <p>Pin Code: {{ order.pincode }}</p>
                                     {% qr_from_text order.token_ size="M" %}
                                 </div>
 
