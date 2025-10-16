@@ -73,7 +73,7 @@
 <script>
 function printLabel(orderId) {
     var printableContent = document.getElementById('printable-' + orderId);
-    var printWindow = window.open('', '', 'width=600,height=400');
+    var printWindow = window.open();
     printWindow.document.write('<html><head><title>Order Label</title>');
     printWindow.document.write('<style>body{font-family:Arial,sans-serif;text-align:center;padding:20px;} h2{margin-bottom:10px;} p{margin:5px 0;} img{max-width:200px;}</style>');
     printWindow.document.write('</head><body>');
