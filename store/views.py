@@ -541,6 +541,34 @@ def yourorders(request):
     return render(request, 'yourorders.html', {'orders': orders_with_details})
 
 @login_required
+def sellerorders(request):
+    # Adjust the filtering below for what a "seller" should see (e.g., all orders or only for their products)
+    orders = Order.objects.all().order_by('-created_at')
+    orders_with_details = []
+    for order in orders:
+        items = []
+        for item in order.items.all():
+            items.append({
+                'name': item.product.name,
+                'image': item.product.image,
+                'quantity': item.quantity,
+                'price': item.price,
+            })
+        total_amount = sum(i['price'] * i['quantity'] for i in items)
+        expected_delivery = order.created_at + timedelta(days=5)
+        orders_with_details.append({
+            'id': order.id,
+            'status': order.status,
+            'date': order.created_at,
+            'items': items,
+            'total_amount': total_amount,
+            'expected_delivery': expected_delivery,
+            'pincode': order.address.pincode,
+            'token_': order.token_value,  # Ensure your Order model has token_value
+        })
+    return render(request, 'sellerorders.html', {'orders': orders_with_details})
+
+@login_required
 @permission_required('store.can_perform_admin_actions', raise_exception=True)
 def make_delivery_agent(request, user_id):
     user = get_object_or_404(User, id=user_id)

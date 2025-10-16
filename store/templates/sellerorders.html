@@ -1,0 +1,90 @@
+{% extends "root.html" %}
+{% load static %}
+{% load qr_code %}
+
+{% block title %}Seller Orders - SafeCart{% endblock %}
+{% block body_class %}d-flex flex-column min-vh-100{% endblock %}
+
+{% block content %}
+<section class="py-3 bg-primary text-white text-center border-bottom mt-0">
+    <div class="container">
+        <h1 class="fw-bold">Seller Orders</h1>
+        <p class="mb-0">View all the orders placed for your products</p>
+    </div>
+</section>
+
+<section class="py-2 flex-grow-1">
+    <div class="container">
+        {% if orders %}
+            <div class="row g-4">
+                {% for order in orders %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card shadow-sm border-0 h-100">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
+                                    <strong>#{{ order.id }}</strong>
+                                </div>
+                                <span class="badge bg-success">{{ order.status|default:"Confirmed" }}</span>
+                            </div>
+                            <div class="card-body">
+                                {% for item in order.items %}
+                                    <div class="d-flex align-items-center mb-3">
+                                        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="img-fluid rounded me-3" style="width:60px; height:60px; object-fit:cover;">
+                                        <div>
+                                            <h6 class="mb-1">{{ item.name }}</h6>
+                                            <small class="text-muted">Qty: {{ item.quantity }} | ₹{{ item.price|floatformat:2 }}</small>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                                <hr>
+                                <p class="mb-1"><strong>Total Paid:</strong> ₹{{ order.total_amount|floatformat:2 }}</p>
+                                <p class="mb-0"><strong>Expected Delivery:</strong> {{ order.expected_delivery|date:"M d, Y" }}</p>
+                                <p class="mb-1"><strong>Pin Code:</strong> {{ order.pincode }}</p>
+
+
+                                {% if order.address %}
+                                    <hr>
+                                    <p class="mb-1"><strong>Pin Code:</strong> {{ order.pincode }}</p>
+                                {% endif %}
+
+                                <!-- Hidden printable section -->
+                                <div id="printable-{{ order.id }}" style="display:none; padding:20px; background:#fff; border:1px solid #000; text-align:center; font-family: Arial, sans-serif;">
+                                    <h2>Order #{{ order.id }}</h2>
+                                    <p>Pin Code: {{ order.pincode }}</p>
+                                    {% qr_from_text order.token_ size="M" %}
+                                </div>
+
+                                <button class="btn btn-outline-secondary" onclick="printLabel({{ order.id }})">Print QR</button>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <h3>No orders yet</h3>
+                <p class="text-muted">No recent orders by customers.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<script>
+function printLabel(orderId) {
+    var printableContent = document.getElementById('printable-' + orderId);
+    var printWindow = window.open();
+    printWindow.document.write('<html><head><title>Order Label</title>');
+    printWindow.document.write('<style>body{font-family:Arial,sans-serif;text-align:center;padding:20px;} h2{margin-bottom:10px;} p{margin:5px 0;} img{max-width:200px;}</style>');
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(printableContent.innerHTML);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}
