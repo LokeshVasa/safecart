@@ -563,7 +563,6 @@ def sellerorders(request):
             'items': items,
             'total_amount': total_amount,
             'expected_delivery': expected_delivery,
-            'address': order.address,
             'token_': order.token_value,  # Ensure your Order model has token_value
         })
     return render(request, 'sellerorders.html', {'orders': orders_with_details})

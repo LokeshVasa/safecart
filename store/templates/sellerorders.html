@@ -46,14 +46,14 @@
                                     <p class="mb-1"><strong>Pin Code:</strong> {{ order.address.pincode }}</p>
                                 {% endif %}
 
-                                <!-- Hidden container for printable content -->
+                                <!-- Hidden printable section -->
                                 <div id="printable-{{ order.id }}" style="display:none; padding:20px; background:#fff; border:1px solid #000; text-align:center; font-family: Arial, sans-serif;">
                                     <h2>Order #{{ order.id }}</h2>
                                     <p>Pin Code: {{ order.address.pincode }}</p>
                                     {% qr_from_text order.token_ size="M" %}
                                 </div>
 
-                                <button class="btn btn-outline-secondary" onclick="downloadLabel({{ order.id }})">Print QR</button>
+                                <button class="btn btn-outline-secondary" onclick="printLabel({{ order.id }})">Print QR</button>
                             </div>
                         </div>
                     </div>
@@ -68,31 +68,19 @@
     </div>
 </section>
 
-<!-- Include html2canvas library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
 <script>
-function downloadLabel(orderId) {
+function printLabel(orderId) {
     var printableContent = document.getElementById('printable-' + orderId);
-
-    // Temporarily show the div if hidden
-    printableContent.style.display = 'block';
-
-    html2canvas(printableContent).then(function(canvas) {
-        // Hide after canvas created
-        printableContent.style.display = 'none';
-
-        // Convert to data URL and trigger download
-        var link = document.createElement('a');
-        link.download = 'order_' + orderId + '_label.png';
-        link.href = canvas.toDataURL('image/png');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }).catch(function(error) {
-        alert('Error generating printable label. Please try again.');
-        printableContent.style.display = 'none';
-    });
+    var printWindow = window.open('', '', 'width=600,height=400');
+    printWindow.document.write('<html><head><title>Order Label</title>');
+    printWindow.document.write('<style>body{font-family:Arial,sans-serif;text-align:center;padding:20px;} h2{margin-bottom:10px;} p{margin:5px 0;} img{max-width:200px;}</style>');
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(printableContent.innerHTML);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
 }
 </script>
 
