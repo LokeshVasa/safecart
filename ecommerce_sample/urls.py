@@ -32,8 +32,9 @@ urlpatterns = [
     path('redirect-dashboard/', views.dashboard_redirect, name='dashboard_redirect'),
     path('dashboard/admin/', views.admin_dashboard, name='admin_dashboard'),
     path('dashboard/admin/promote/<int:user_id>/', views.make_delivery_agent, name='promote_user'),
-    path('dashboard/delivery/', views.delivery_dashboard, name='delivery_dashboard'),
-    path('dashboard/delivery/mark-delivered/<int:order_id>/', views.mark_order_delivered, name='mark_order_delivered'),   
+    path('delivery/dashboard/', views.delivery_dashboard, name='delivery_dashboard'),
+    path('delivery/order/', views.delivery_order_detail, name='delivery_order_detail'),
+    path('delivery/mark-delivered/<int:order_id>/', views.mark_order_delivered, name='mark_order_delivered'), 
 ]
 
 # Serve media in development
