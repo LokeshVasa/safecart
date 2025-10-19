@@ -617,7 +617,7 @@ def admin_dashboard(request):
 @login_required
 @permission_required('store.can_deliver_order', raise_exception=True)
 def delivery_dashboard(request):
-    orders = Order.objects.filter(status__in=['Packed', 'Shipped']).order_by('-created_at')
+    orders = Order.objects.all()
     return render(request, 'dashboard/delivery_dashboard.html', {'orders': orders})
 
 
@@ -662,3 +662,7 @@ def manage_users(request):
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
+def delivery_order_detail(request):
+    order_id = request.GET.get('order-id')
+    order = get_object_or_404(Order, id=order_id)
+    return render(request, 'dashboard/delivery_order_detail.html', {'order': order})
