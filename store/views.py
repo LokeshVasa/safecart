@@ -673,7 +673,7 @@ def get_order_by_token(request):
         return JsonResponse({'success': False, 'error': 'No token provided'})
 
     try:
-        order = Order.objects.get(tokenvalue=token)
+        order = Order.objects.get(token_value=token)
         return JsonResponse({'success': True, 'order_id': order.id})
     except Order.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Order not found'})
