@@ -1,42 +1,181 @@
-
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Delivery Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Delivery Agent Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
 </head>
 <body class="bg-light">
 
-<div class="container py-4">
-
-        <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Delivery Agent Dashboard</h2>
+<!-- Minimal Navbar with Logout -->
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-2">
+    <div class="container">
+        <a class="navbar-brand fw-semibold fs-4 text-primary" href="#">SafeCart</a>
         <form method="post" action="{% url 'logout' %}">
             {% csrf_token %}
             <button type="submit" class="btn btn-outline-danger">Logout</button>
         </form>
     </div>
+</nav>
 
-    {% if orders %}
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Order ID</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for order in orders %}
-        <tr onclick="window.location.href='{% url 'delivery_order_detail' %}?order-id={{ order.id }}'" style="cursor:pointer;"> <td>{{ order.id }}</td> <td>{{ order.status }}</td> </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-        <div class="alert alert-info">No orders to deliver right now.</div>
-    {% endif %}
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Delivery Agent Dashboard</h2>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#scanQrModal">
+            Scan QR
+        </button>
+    </div>
+
+    <!-- Your existing dashboard content -->
+
+</div>
+
+<!-- Scan QR Modal -->
+<div class="modal fade" id="scanQrModal" tabindex="-1" aria-labelledby="scanQrModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title" id="scanQrModalLabel">Scan QR Code</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="closeModalBtn"></button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Option Selection -->
+        <div id="optionSelection" class="text-center">
+          <button id="openCameraBtn" class="btn btn-success me-2 mb-3">Open Camera</button>
+          <label class="btn btn-info mb-3">
+            Upload File
+            <input type="file" id="uploadFileInput" accept="image/*,application/pdf" hidden />
+          </label>
+        </div>
+
+        <!-- Camera Preview for QR scanning -->
+        <div id="qrScanner" style="display:none;">
+          <div id="reader" style="width: 100%;"></div>
+          <button class="btn btn-secondary mt-3" id="stopCameraBtn">Stop Camera</button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+const modal = new bootstrap.Modal(document.getElementById('scanQrModal'));
+const readerContainer = document.getElementById('reader');
+const optionSelection = document.getElementById('optionSelection');
+const qrScanner = document.getElementById('qrScanner');
+const openCameraBtn = document.getElementById('openCameraBtn');
+const stopCameraBtn = document.getElementById('stopCameraBtn');
+const uploadFileInput = document.getElementById('uploadFileInput');
+let html5QrCode;
+
+openCameraBtn.addEventListener('click', () => {
+    optionSelection.style.display = 'none';
+    qrScanner.style.display = 'block';
+
+    html5QrCode = new Html5Qrcode("reader");
+    Html5Qrcode.getCameras().then(cameras => {
+        if (cameras && cameras.length) {
+            let cameraId = cameras[0].id;
+            html5QrCode.start(
+                cameraId,
+                { fps: 10, qrbox: 250 },
+                qrCodeMessage => {
+                    console.log(`QR Code detected: ${qrCodeMessage}`);
+                    html5QrCode.stop().then(() => {
+                        processToken(qrCodeMessage);
+                    });
+                },
+                errorMessage => {
+                    // console.log(`QR Code no match: ${errorMessage}`);
+                })
+                .catch(err => {
+                    alert("Unable to start the camera for scanning.");
+                    closeModal();
+                });
+        } else {
+            alert("No cameras found on this device.");
+            closeModal();
+        }
+    }).catch(err => {
+        alert("Error getting cameras: " + err);
+        closeModal();
+    });
+});
+
+stopCameraBtn.addEventListener('click', () => {
+    if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+            closeModal();
+        }).catch(err => {
+            alert("Error stopping camera: " + err);
+        });
+    }
+});
+
+uploadFileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function () {
+        const imgData = reader.result;
+        // Using html5-qrcode library for async QR decoding from file
+        Html5Qrcode.getCameras().then(() => { // just to ensure loaded
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.scanFile(file, true)
+                .then(decodedText => {
+                    console.log(`QR Code from file: ${decodedText}`);
+                    processToken(decodedText);
+                })
+                .catch(err => {
+                    alert("Unable to decode QR code from file.");
+                });
+        });
+    }
+    reader.readAsDataURL(file);
+});
+
+function processToken(token) {
+    // Send token to backend to get order id and redirect
+    fetch(`/api/get_order_by_token/?token=${encodeURIComponent(token)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.order_id) {
+                window.location.href = `/delivery/order/?order-id=${data.order_id}`;
+            } else {
+                alert("Invalid or unknown QR token.");
+                closeModal();
+            }
+        })
+        .catch(error => {
+            alert("Error contacting server: " + error);
+            closeModal();
+        });
+}
+
+function closeModal() {
+    if (html5QrCode) {
+        html5QrCode.clear();
+    }
+    optionSelection.style.display = 'block';
+    qrScanner.style.display = 'none';
+    uploadFileInput.value = '';
+    modal.hide();
+}
+
+document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+</script>
+
 </body>
 </html>
