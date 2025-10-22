@@ -13,15 +13,17 @@
 
 <body class="bg-light">
 
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-2">
-        <div class="container">
-            <a class="navbar-brand fw-semibold fs-4 text-primary" href="#">SafeCart</a>
-            <form method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-2 sticky-top">
+  <div class="container d-flex justify-content-between align-items-center">
+    <a class="navbar-brand fw-semibold fs-4 text-primary" href="home">
+      <i class="bi bi-bag-check-fill"></i> SafeCart
+    </a>
+    <form method="post" action="{% url 'logout' %}" >
+      {% csrf_token %}
                 <button type="submit" class="btn btn-outline-danger">Logout</button>
-            </form>
-        </div>
-    </nav>
+    </form>
+  </div>
+</nav>
 
     <div class="container py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
