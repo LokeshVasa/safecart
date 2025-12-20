@@ -666,3 +666,14 @@ def delivery_order_detail(request):
     order_id = request.GET.get('order-id')
     order = get_object_or_404(Order, id=order_id)
     return render(request, 'dashboard/delivery_order_detail.html', {'order': order})
+
+def get_order_by_token(request):
+    token = request.GET.get('token')
+    if not token:
+        return JsonResponse({'success': False, 'error': 'No token provided'})
+
+    try:
+        order = Order.objects.get(token_value=token)
+        return JsonResponse({'success': True, 'order_id': order.id})
+    except Order.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Order not found'})
