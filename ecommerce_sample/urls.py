@@ -37,6 +37,11 @@ urlpatterns = [
     path('delivery/order/', views.delivery_order_detail, name='delivery_order_detail'),
     path('delivery/mark-delivered/<int:order_id>/', views.mark_order_delivered, name='mark_order_delivered'), 
     path('api/get_order_by_token/', views.get_order_by_token, name='get_order_by_token'),
+    path(
+    "confirm-address/<int:address_id>/",
+    views.confirm_address_location,
+    name="confirm_address_location"
+),
 ]
 
 # Serve media in development
