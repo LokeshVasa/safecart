@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Confirm Delivery Location</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+      #map {
+        height: 80vh;
+      }
+    </style>
+  </head>
+  <body>
+    <h3 style="text-align: center">Confirm Delivery Location</h3>
+
+    <div id="map"></div>
+
+    <form method="post" style="text-align: center; margin-top: 15px">
+      {% csrf_token %}
+      <input type="hidden" id="lat" name="lat" />
+      <input type="hidden" id="lng" name="lng" />
+      <button type="submit">Confirm Location</button>
+    </form>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <script>
+      const initialLat = {{ address.lat|default:"20.5937" }};
+      const initialLng = {{ address.lng|default:"78.9629" }};
+
+      const map = L.map("map").setView([initialLat, initialLng], 15);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+      }).addTo(map);
+
+      // ✅ ALWAYS create marker
+      const marker = L.marker([initialLat, initialLng], {
+        draggable: true,
+      }).addTo(map);
+
+      // Set initial hidden values
+      document.getElementById("lat").value = initialLat;
+      document.getElementById("lng").value = initialLng;
+
+      // Update values when marker moves
+      marker.on("dragend", function () {
+        const pos = marker.getLatLng();
+        document.getElementById("lat").value = pos.lat;
+        document.getElementById("lng").value = pos.lng;
+      });
+    </script>
+  </body>
+</html>
