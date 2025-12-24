@@ -139,18 +139,21 @@
             <h5 class="fw-bold mb-3">Shipping Address</h5>
 
             <!-- Address Form -->
+            {% if all_addresses|length > 1 %}
+            <button type="button" class="btn btn-outline-primary w-100 mb-2" data-bs-toggle="modal"
+              data-bs-target="#addressModal">
+              Saved Addresses
+            </button>
+            {% endif %}
+
             <form method="post" action="{% url 'proceed_to_checkout' %}">
               {% csrf_token %}
               {{ form.as_p }}
+              <button type="button" class="btn btn-outline-primary w-100 mb-2" id="use-current-location">
+              📍 Use Current Location
+              </button>
               <button type="submit" class="btn btn-success w-100 mb-2">Proceed to Checkout</button>
             </form>
-
-            {% if all_addresses|length > 1 %}
-            <button type="button" class="btn btn-outline-primary w-100" data-bs-toggle="modal"
-              data-bs-target="#addressModal">
-              Change Address
-            </button>
-            {% endif %}
           </div>
         </div>
 
@@ -178,6 +181,32 @@
                     </button>
                   </label>
                   {% endfor %}
+
+                <div class="modal fade" id="mapModal" tabindex="-1">
+                  <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+
+                      <div class="modal-header">
+                        <h5 class="modal-title">Confirm Delivery Location</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body">
+                        <div id="map" style="height:400px;"></div>
+                        <form method="post" action="{% url 'confirm_address' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="latitude" id="latitude">
+                            <input type="hidden" name="longitude" id="longitude">
+                            <input type="hidden" name="address" id="address">
+
+                            <button type="submit" class="btn btn-success">
+                              Confirm Address
+                            </button>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 </div>
               </div>
             </div>
@@ -347,5 +376,27 @@
     }
   });
 </script>
+
+<script>
+document.getElementById("use-current-location").addEventListener("click", () => {
+  if (!navigator.geolocation) {
+    alert("Geolocation not supported");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const latitude = pos.coords.latitude;
+      const longitude = pos.coords.longitude;
+
+      // redirect to backend with coords
+      window.location.href =
+        `/use-current-location/?latitude=${latitude}&longitude=${longitude}`;
+    },
+    () => alert("Location permission denied")
+  );
+});
+</script>
+
 
 {% endblock %}
