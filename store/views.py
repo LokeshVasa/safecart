@@ -465,9 +465,9 @@ def geocode_address_obj(address):
     location = geolocator.geocode(full_address)
 
     if location:
-        address.lat = location.latitude
-        address.lng = location.longitude
-        address.save(update_fields=["lat", "lng"])
+        address.latitude = location.latitude
+        address.longitude = location.longitude
+        address.save(update_fields=["latitude", "longitude"])
         return True
     return False
 
@@ -476,24 +476,98 @@ def confirm_address_location(request, address_id):
     address = get_object_or_404(Address, id=address_id, user=request.user)
 
     if request.method == "POST":
-        lat = request.POST.get("lat")
-        lng = request.POST.get("lng")
+        latitude = request.POST.get("latitude")
+        longitude = request.POST.get("longitude")
 
-        if not lat or not lng:
+        if not latitude or not longitude:
             messages.error(request, "Invalid location selected.")
             return redirect("confirm_address_location", address_id=address.id)
 
-        address.lat = lat
-        address.lng = lng
+        address.latitude = latitude
+        address.longitude = longitude
         address.is_confirmed = True
-        address.save(update_fields=["lat", "lng", "is_confirmed"])
+        address.save(update_fields=["latitude", "longitude", "is_confirmed"])
 
-        messages.success(request, "Delivery location confirmed.")
-        return redirect("proceed_to_checkout")
+        reverse_geocode_address(address)
+
+        messages.success(request, "Location confirmed. Please review your address.")
+        return redirect("cart")
 
     return render(request, "confirm_address_location.html", {
         "address": address
     })
+
+@login_required
+def use_current_location(request):
+    latitude = request.GET.get("latitude")
+    longitude = request.GET.get("longitude")
+
+    if not latitude or not longitude:
+        messages.error(request, "Unable to fetch location.")
+        return redirect("cart")
+
+    # reverse geocode
+    geolocator = Nominatim(user_agent="safecart")
+    location = geolocator.reverse(f"{latitude}, {longitude}", exactly_one=True)
+
+    addr = location.raw.get("address", {}) if location else {}
+
+    address = Address.objects.create(
+        user=request.user,
+        street=addr.get("road", ""),
+        city=addr.get("city") or addr.get("town") or "",
+        state=addr.get("state", ""),
+        pincode=addr.get("postcode", ""),
+        latitude=latitude,
+        longitude=longitude,
+        is_confirmed=False
+    )
+
+    return redirect("confirm_address_location", address_id=address.id)
+
+def confirm_address(request):
+    if request.method == "POST":
+        lat = request.POST.get("latitude")
+        lng = request.POST.get("longitude")
+        address = request.POST.get("address")
+
+        # Save to session or order
+        request.session['checkout_address'] = {
+            'latitude': lat,
+            'longitude': lng,
+            'address': address,
+        }
+
+        return redirect('cart') 
+    
+def reverse_geocode_address(address):
+    geolocator = Nominatim(user_agent="safecart")
+    location = geolocator.reverse(
+        (address.latitude, address.longitude),
+        exactly_one=True
+    )
+
+    if not location:
+        return
+
+    addr = location.raw.get("address", {})
+
+    address.street = (
+        addr.get("road")
+        or addr.get("neighbourhood")
+        or addr.get("suburb", "")
+    )
+    address.city = (
+        addr.get("city")
+        or addr.get("town")
+        or addr.get("village", "")
+    )
+    address.state = addr.get("state", "")
+    address.pincode = addr.get("postcode", "")
+
+    address.save(update_fields=[
+        "street", "city", "state", "pincode"
+    ])
 
 
 @login_required
@@ -517,42 +591,68 @@ def proceed_to_checkout(request):
 
     addr_data = form.cleaned_data
 
-    address_obj, created = Address.objects.get_or_create(
+    # Try to find existing address
+    address_obj = (
+        Address.objects.filter(
             user=request.user,
             street=addr_data['street'],
             city=addr_data['city'],
             state=addr_data['state'],
             pincode=addr_data['pincode']
         )
+        .order_by('-id')
+        .first()
+    )
+
+    address_changed = False
+    if not address_obj:
+        # create new address if not exists
+        address_obj = Address.objects.create(
+            user=request.user,
+            street=addr_data['street'],
+            city=addr_data['city'],
+            state=addr_data['state'],
+            pincode=addr_data['pincode'],
+            is_confirmed=False
+        )
+    else:
+        # Check if any field changed
+        for field in ["street", "city", "state", "pincode"]:
+            if getattr(address_obj, field) != addr_data[field]:
+                address_changed = True
+                setattr(address_obj, field, addr_data[field])
+        if address_changed:
+            address_obj.is_confirmed = False
+            address_obj.save(update_fields=["street","city","state","pincode","is_confirmed"])
 
     # ---------- METHOD 1: Geocode with fallback ----------
-    lat = address_obj.lat
-    lng = address_obj.lng
+    latitude = address_obj.latitude
+    longitude = address_obj.longitude
 
     # Try full address
-    if not lat or not lng:
-        lat, lng = geocode_address(
+    if not latitude or not longitude:
+        latitude, longitude = geocode_address(
             f"{address_obj.street}, {address_obj.city}, {address_obj.state}, {address_obj.pincode}"
         )
 
     # Fallback: city + pincode
-    if not lat or not lng:
-        lat, lng = geocode_address(
+    if not latitude or not longitude:
+        latitude, longitude = geocode_address(
             f"{address_obj.city}, {address_obj.state}, {address_obj.pincode}"
         )
 
     # Fallback: city only
-    if not lat or not lng:
-        lat, lng = geocode_address(address_obj.city)
+    if not latitude or not longitude:
+        latitude, longitude = geocode_address(address_obj.city)
 
     # Final fallback (never fail)
-    if not lat or not lng:
-        lat, lng = 20.5937, 78.9629  # India center
+    if not latitude or not longitude:
+        latitude, longitude = 20.5937, 78.9629  # India center
 
-    address_obj.lat = lat
-    address_obj.lng = lng
-    address_obj.save(update_fields=["lat", "lng"])
-            
+    address_obj.latitude = latitude
+    address_obj.longitude = longitude
+    address_obj.save(update_fields=["latitude", "longitude"])
+
  # ---------- METHOD 2: User confirms pin ----------
     if not address_obj.is_confirmed:
         return redirect("confirm_address_location", address_id=address_obj.id)

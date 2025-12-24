@@ -1,54 +1,86 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Confirm Delivery Location</title>
+{% extends "root.html" %} 
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <style>
-      #map {
-        height: 80vh;
-      }
-    </style>
-  </head>
-  <body>
-    <h3 style="text-align: center">Confirm Delivery Location</h3>
+{% load static %}
 
-    <div id="map"></div>
+{% block title %} Confirm Delivery Location - SafeCart {% endblock %} 
+
+{% block body_class %}d-flex flex-column min-vh-100{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+  #map {
+    height: 80vh;
+  }
+</style>
+{% endblock %} 
+
+{% block content %}
+
+<!-- Page Header -->
+<section class="bg-primary text-white py-4 border-bottom mb-3">
+  <div class="container text-center">
+    <h1 class="fw-bold mb-1">
+      <i class="bi bi-geo-alt-fill me-2"></i>
+      Confirm Delivery Location
+    </h1>
+    <p class="mb-0 opacity-75">
+      Drag the marker to set the exact delivery point
+    </p>
+  </div>
+</section>
+
+<div class="container-fluid px-3">
+  <div id="map"></div>
+</div>
 
     <form method="post" style="text-align: center; margin-top: 15px">
       {% csrf_token %}
-      <input type="hidden" id="lat" name="lat" />
-      <input type="hidden" id="lng" name="lng" />
-      <button type="submit">Confirm Location</button>
+      <input type="hidden" id="latitude" name="latitude" />
+      <input type="hidden" id="longitude" name="longitude" />
+      <div class="d-flex justify-content-center gap-3 flex-wrap">
+        <a href="{% url 'cart' %}" class="btn btn-outline-secondary px-4 py-2 mb-3">
+          <i class="bi bi-x-circle me-1"></i>
+          Cancel
+        </a>
+
+        <button type="submit" class="btn btn-success px-4 py-2 mb-3">
+          <i class="bi bi-check-circle-fill me-1"></i>
+          Confirm Location
+        </button>
+      </div>
     </form>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
 
     <script>
-      const initialLat = {{ address.lat|default:"20.5937" }};
-      const initialLng = {{ address.lng|default:"78.9629" }};
+      const initialLatitude = {{ address.latitude|default:"20.5937" }};
+      const initialLongitude = {{ address.longitude|default:"78.9629" }};
 
-      const map = L.map("map").setView([initialLat, initialLng], 15);
+      const map = L.map("map").setView([initialLatitude, initialLongitude], 15);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
       }).addTo(map);
 
       // ✅ ALWAYS create marker
-      const marker = L.marker([initialLat, initialLng], {
+      const marker = L.marker([initialLatitude, initialLongitude], {
         draggable: true,
       }).addTo(map);
 
       // Set initial hidden values
-      document.getElementById("lat").value = initialLat;
-      document.getElementById("lng").value = initialLng;
+      document.getElementById("latitude").value = initialLatitude;
+      document.getElementById("longitude").value = initialLongitude;
 
       // Update values when marker moves
       marker.on("dragend", function () {
         const pos = marker.getLatLng();
-        document.getElementById("lat").value = pos.lat;
-        document.getElementById("lng").value = pos.lng;
+        document.getElementById("latitude").value = pos.lat;
+        document.getElementById("longitude").value = pos.lng;
       });
     </script>
   </body>
 </html>
+{% endblock %}
