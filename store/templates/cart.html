@@ -346,6 +346,19 @@
       event.detail.headers['X-CSRFToken'] = csrfToken.value;
     }
   });
+
+  
+document.addEventListener("DOMContentLoaded", function() {
+  const pin = document.querySelector('input[name="pincode"]');
+  if (pin) {
+    pin.setAttribute("type", "number");
+    pin.setAttribute("min", "100000");
+    pin.setAttribute("max", "999999");
+    pin.setAttribute("oninput", "if(this.value.length>6)this.value=this.value.slice(0,6);");
+  }
+});
+
+
 </script>
 
 {% endblock %}
