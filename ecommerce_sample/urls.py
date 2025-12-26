@@ -40,6 +40,7 @@ urlpatterns = [
     path("confirm-address/<int:address_id>/",views.confirm_address_location,name="confirm_address_location"),
     path("use-current-location/", views.use_current_location, name="use_current_location"),
     path('save-address-and-map/', views.save_address_and_map, name='save_address_and_map'),
+    path('save-address-session/', views.save_address_session, name='save_address_session'),
 ]
 
 # Serve media in development

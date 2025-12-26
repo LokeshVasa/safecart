@@ -23,7 +23,7 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required, permission_required
 from .utils import geocode_address
 from geopy.geocoders import Nominatim
-
+from django.db import IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -491,20 +491,24 @@ def confirm_address_location(request, address_id):
         address.latitude = latitude
         address.longitude = longitude
         address.is_confirmed = True
-        address.save(update_fields=["latitude", "longitude", "is_confirmed"])
 
-        reverse_geocode_address(address)
+        try:
+            address.save(update_fields=["latitude", "longitude", "is_confirmed"])
 
-        request.session["new_address_data"] = {
-            "street": address.street,
-            "city": address.city,
-            "state": address.state,
-            "pincode": address.pincode,
-            "latitude": address.latitude,
-            "longitude": address.longitude
-        }
+            reverse_geocode_address(address)
 
-        messages.success(request, "Location confirmed. Please review your address.")
+            request.session["new_address_data"] = {
+                "street": address.street,
+                "city": address.city,
+                "state": address.state,
+                "pincode": address.pincode,
+                "latitude": address.latitude,
+                "longitude": address.longitude
+            }
+
+            messages.success(request, "Location confirmed. Please review your address.")
+        except IntegrityError:
+            messages.info(request, "An address with these details already exists.")
         return redirect("cart")
     
     if not address.latitude or not address.longitude:
@@ -514,7 +518,10 @@ def confirm_address_location(request, address_id):
         if location:
             address.latitude = location.latitude
             address.longitude = location.longitude
-            address.save(update_fields=["latitude", "longitude"])
+            try:
+                address.save(update_fields=["latitude", "longitude"])
+            except IntegrityError:
+                pass
 
     return render(request, "confirm_address_location.html", {
         "address": address
@@ -528,6 +535,9 @@ def use_current_location(request):
     if not latitude or not longitude:
         messages.error(request, "Unable to fetch location.")
         return redirect("cart")
+    
+    latitude = float(latitude)
+    longitude = float(longitude)
 
     # reverse geocode
     geolocator = Nominatim(user_agent="safecart")
@@ -535,16 +545,28 @@ def use_current_location(request):
 
     addr = location.raw.get("address", {}) if location else {}
 
-    address = Address.objects.create(
+    if not any([addr.get("road"), addr.get("city"), addr.get("town"), addr.get("postcode")]):
+        messages.error(request, "Unable to detect address from location.")
+        return redirect("cart")
+
+    address,created = Address.objects.get_or_create(
         user=request.user,
-        street=addr.get("road", ""),
-        city=addr.get("city") or addr.get("town") or "",
-        state=addr.get("state", ""),
-        pincode=addr.get("postcode", ""),
-        latitude=latitude,
-        longitude=longitude,
-        is_confirmed=False
+        street=addr.get("road", "").strip(),
+        city=(addr.get("city") or addr.get("town") or "").strip(),
+        state=addr.get("state", "").strip(),
+        pincode=addr.get("postcode", "").strip(),
+        defaults={
+            "latitude": latitude,
+            "longitude": longitude,
+            "is_confirmed": False
+        }
     )
+
+    if not created:
+        address.latitude = latitude
+        address.longitude = longitude
+        address.is_confirmed = False
+        address.save(update_fields=["latitude", "longitude", "is_confirmed"])
 
     return redirect('confirm_address_location', address.id)
     
@@ -590,11 +612,14 @@ def save_address_and_map(request):
         return redirect("cart")
 
     # Try to find a nearby address
-    address = Address.objects.filter(
+    address, _ = Address.objects.get_or_create(
         user=request.user,
-        city__iexact=city,
-        street__icontains=street
-    ).first()
+        street=street.strip(),
+        city=city.strip(),
+        state=state.strip(),
+        pincode=pincode.strip(),
+        defaults={"is_confirmed": False}
+    )
 
     if not address:
         address = Address.objects.create(
@@ -624,7 +649,23 @@ def save_address_and_map(request):
 
     return redirect("confirm_address_location", address.id)
 
+@login_required
+def save_address_session(request):
+    street = request.GET.get("street")
+    city = request.GET.get("city")
+    state = request.GET.get("state")
+    pincode = request.GET.get("pincode")
 
+    if not all([street, city, state, pincode]):
+        return JsonResponse({"success": False})
+
+    request.session["new_address_data"] = {
+        "street": street,
+        "city": city,
+        "state": state,
+        "pincode": pincode
+    }
+    return JsonResponse({"success": True})
 
 @login_required
 def proceed_to_checkout(request):
