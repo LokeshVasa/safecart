@@ -39,7 +39,7 @@ urlpatterns = [
     path('api/get_order_by_token/', views.get_order_by_token, name='get_order_by_token'),
     path("confirm-address/<int:address_id>/",views.confirm_address_location,name="confirm_address_location"),
     path("use-current-location/", views.use_current_location, name="use_current_location"),
-    path('confirm-address/', views.confirm_address, name='confirm_address'),
+    path('save-address-and-map/', views.save_address_and_map, name='save_address_and_map'),
 ]
 
 # Serve media in development

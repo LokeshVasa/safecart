@@ -111,6 +111,35 @@
 
       <!-- Right: Order Summary + Address -->
       <div class="col-md-4 d-flex flex-column">
+        <div class="card shadow-sm mb-3 flex-grow-1 d-flex flex-column">
+          <div class="card-body d-flex flex-column">
+            <h5 class="fw-bold mb-3">Shipping Address</h5>
+
+            <!-- Address Form -->
+            {% if all_addresses|length > 1 %}
+            <a class="w-100 mb-2" data-bs-toggle="modal"
+              data-bs-target="#addressModal">
+              Use Saved Addresses
+            </a>
+            {% endif %}
+
+            <form id="addres-form" method="post">
+              {% csrf_token %}
+              {{ form.as_p }}
+
+              <button type="button" class="btn btn-outline-primary w-100 mb-1" id="use-current-location">
+              📍 Use Current Location
+              </button>
+
+              {% if not hide_confirm_button %}
+              <div class="text-center text-muted mb-1 fw-bold">or</div>
+
+               <button type="button" class="btn btn-success w-100" id="confirm-address">confirm address</button>
+               {% endif %}
+            </form>
+          </div>
+        </div>
+
         <div class="card shadow-sm flex-grow-1 d-flex flex-column mb-3">
           <div class="card-body">
             <h5 class="fw-bold mb-3">Order Summary</h5>
@@ -131,28 +160,9 @@
               <span>Total</span>
               <span id="total">₹{{ total }}</span>
             </div>
-          </div>
-        </div>
-
-        <div class="card shadow-sm mt-3 flex-grow-1 d-flex flex-column">
-          <div class="card-body d-flex flex-column">
-            <h5 class="fw-bold mb-3">Shipping Address</h5>
-
-            <!-- Address Form -->
-            {% if all_addresses|length > 1 %}
-            <button type="button" class="btn btn-outline-primary w-100 mb-2" data-bs-toggle="modal"
-              data-bs-target="#addressModal">
-              Saved Addresses
-            </button>
-            {% endif %}
-
-            <form method="post" action="{% url 'proceed_to_checkout' %}">
+            <form method="post" action="{% url 'proceed_to_checkout'%}" id="checkout-form">
               {% csrf_token %}
-              {{ form.as_p }}
-              <button type="button" class="btn btn-outline-primary w-100 mb-2" id="use-current-location">
-              📍 Use Current Location
-              </button>
-              <button type="submit" class="btn btn-success w-100 mb-2">Proceed to Checkout</button>
+              <button type="submit" class="btn btn-primary w-100 mt-3" id="checkout-btn">Proceed to Checkout</button>
             </form>
           </div>
         </div>
@@ -181,32 +191,6 @@
                     </button>
                   </label>
                   {% endfor %}
-
-                <div class="modal fade" id="mapModal" tabindex="-1">
-                  <div class="modal-dialog modal-lg modal-dialog-centered">
-                    <div class="modal-content">
-
-                      <div class="modal-header">
-                        <h5 class="modal-title">Confirm Delivery Location</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                      </div>
-                      <div class="modal-body">
-                        <div id="map" style="height:400px;"></div>
-                        <form method="post" action="{% url 'confirm_address' %}">
-                            {% csrf_token %}
-                            <input type="hidden" name="latitude" id="latitude">
-                            <input type="hidden" name="longitude" id="longitude">
-                            <input type="hidden" name="address" id="address">
-
-                            <button type="submit" class="btn btn-success">
-                              Confirm Address
-                            </button>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 </div>
               </div>
             </div>
@@ -378,25 +362,90 @@
 </script>
 
 <script>
-document.getElementById("use-current-location").addEventListener("click", () => {
-  if (!navigator.geolocation) {
-    alert("Geolocation not supported");
-    return;
-  }
+document.addEventListener("DOMContentLoaded", () => {
+    const currentLocationBtn = document.getElementById("use-current-location");
+    const confirmBtn = document.getElementById("confirm-address");
+    const checkoutBtn = document.getElementById("checkout-btn");
+    const checkoutForm = document.getElementById("checkout-form");
+    const flashContainer = document.getElementById("flash-messages");
+    const hasConfirmedAddress = "{{ has_confirmed_address|yesno:'true,false' }}" === "true";
 
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const latitude = pos.coords.latitude;
-      const longitude = pos.coords.longitude;
+    // Use current location
+    currentLocationBtn?.addEventListener("click", () => {
+        if (!navigator.geolocation) {
+            alert("Geolocation not supported");
+            return;
+        }
+        currentLocationBtn.disabled = true;
+        currentLocationBtn.innerText = "Fetching location...";
 
-      // redirect to backend with coords
-      window.location.href =
-        `/use-current-location/?latitude=${latitude}&longitude=${longitude}`;
-    },
-    () => alert("Location permission denied")
-  );
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const { latitude, longitude } = pos.coords;
+                window.location.href = `/use-current-location/?latitude=${latitude}&longitude=${longitude}`;
+            },
+            () => {
+                alert("Location permission denied");
+                currentLocationBtn.disabled = false;
+                currentLocationBtn.innerText = "📍 Use Current Location";
+            }
+        );
+    });
+
+    // Confirm address
+    confirmBtn?.addEventListener("click", (e) => {
+        const form = document.getElementById("addres-form");
+        if (!form) return;
+
+        const street = form.querySelector('[name="street"]')?.value.trim();
+        const city = form.querySelector('[name="city"]')?.value.trim();
+        const state = form.querySelector('[name="state"]')?.value.trim();
+        const pincode = form.querySelector('[name="pincode"]')?.value.trim();
+
+        if (!street || !city || !state || !pincode) {
+            e.preventDefault();
+            if (!flashContainer.querySelector(".alert-danger")) {
+                const alertDiv = document.createElement("div");
+                alertDiv.className = "alert alert-danger alert-dismissible fade show shadow";
+                alertDiv.role = "alert";
+                alertDiv.innerHTML = `
+                    Please fill all address fields before confirming.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                flashContainer.appendChild(alertDiv);
+                setTimeout(() => alertDiv.remove(), 3000);
+            }
+            return;
+        }
+
+        const url = "{% url 'save_address_and_map' %}" +
+                    `?street=${encodeURIComponent(street)}` +
+                    `&city=${encodeURIComponent(city)}` +
+                    `&state=${encodeURIComponent(state)}` +
+                    `&pincode=${encodeURIComponent(pincode)}`;
+        window.location.href = url;
+    });
+
+    // Checkout button
+    if (!hasConfirmedAddress && checkoutBtn) checkoutBtn.classList.add("disabled");
+
+    checkoutForm?.addEventListener("submit", (e) => {
+        if (!hasConfirmedAddress) {
+            e.preventDefault();
+            if (!flashContainer.querySelector(".alert-success")) {
+                const alertDiv = document.createElement("div");
+                alertDiv.className = "alert alert-success bg-success-subtle text-success-emphasis alert-dismissible fade show shadow";
+                alertDiv.role = "alert";
+                alertDiv.innerHTML = `
+                    Please confirm your address on the map before proceeding to checkout.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                flashContainer.appendChild(alertDiv);
+                setTimeout(() => alertDiv.remove(), 3000);
+            }
+        }
+    });
 });
 </script>
-
 
 {% endblock %}
