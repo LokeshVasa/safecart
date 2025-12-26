@@ -93,6 +93,7 @@ class Address(models.Model):
         return f"{self.street}, {self.city}, {self.state} - {self.pincode}"
 
     class Meta:
+        db_table = 'addresses'
         unique_together = ("user", "street", "city", "state", "pincode")
 
 
