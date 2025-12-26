@@ -113,15 +113,17 @@
       <div class="col-md-4 d-flex flex-column">
         <div class="card shadow-sm mb-3 flex-grow-1 d-flex flex-column">
           <div class="card-body d-flex flex-column">
-            <h5 class="fw-bold mb-3">Shipping Address</h5>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-nowrap">
+              <h5 class="fw-bold mb-0">Shipping Address</h5>
 
-            <!-- Address Form -->
-            {% if all_addresses|length > 1 %}
-            <a class="w-100 mb-2" data-bs-toggle="modal"
-              data-bs-target="#addressModal">
-              Use Saved Addresses
-            </a>
-            {% endif %}
+              <!-- Address Form -->
+              {% if all_addresses|length > 1 %}
+              <a class="text-primary fw-medium" data-bs-toggle="modal" style="cursor: pointer; white-space: nowrap;"
+                data-bs-target="#addressModal">
+                Saved Addresses*
+              </a>
+              {% endif %}
+            </div>
 
             <form id="addres-form" method="post">
               {% csrf_token %}
@@ -132,7 +134,7 @@
               </button>
 
               {% if not hide_confirm_button %}
-              <div class="text-center text-muted mb-1 fw-bold">or</div>
+              <div class="text-center text-muted mb-1 fw-bold" id="or">or</div>
 
                <button type="button" class="btn btn-success w-100" id="confirm-address">confirm address</button>
                {% endif %}
@@ -447,5 +449,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 </script>
+
+<script>
+function selectAddress(id, street, city, state, pincode) {
+    const form = document.getElementById('addres-form');
+    form.querySelector('[name="street"]').value = street;
+    form.querySelector('[name="city"]').value = city;
+    form.querySelector('[name="state"]').value = state;
+    form.querySelector('[name="pincode"]').value = pincode;
+
+    const confirmBtn = document.getElementById('confirm-address');
+    const orDiv = document.getElementById('or');
+    if (confirmBtn) confirmBtn.style.display = 'none';
+    if (orDiv) orDiv.style.display = 'none';
+
+    fetch("{% url 'save_address_session' %}?street=" + encodeURIComponent(street) +
+          "&city=" + encodeURIComponent(city) +
+          "&state=" + encodeURIComponent(state) +
+          "&pincode=" + encodeURIComponent(pincode));
+}
+</script>
+
 
 {% endblock %}
