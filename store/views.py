@@ -113,14 +113,18 @@ def cart(request):
     shipping = Decimal("50.00") if subtotal > 0 else Decimal("0.00")
     total = subtotal + tax + shipping
 
-    # last address for prefill
-    last_address = Address.objects.filter(user=request.user).last()
-    form = AddressForm(instance=last_address)
+    new_address_data = request.session.get("new_address_data")
 
+    form = AddressForm(initial=new_address_data) if new_address_data else AddressForm()
+
+    hide_confirm_button = True if new_address_data else False
+    
     # all addresses for modal
     all_addresses = Address.objects.filter(user=request.user).order_by("-id")
 
-    context = {
+    has_confirmed_address = all_addresses.filter(is_confirmed=True).exists()
+
+    return render(request,"cart.html", {
         "cart_items": cart_items,
         "subtotal": subtotal,
         "tax": tax,
@@ -128,8 +132,9 @@ def cart(request):
         "total": total,
         "form": form,
         "all_addresses": all_addresses,
-    }
-    return render(request, "cart.html", context)
+        "hide_confirm_button": hide_confirm_button,
+        "has_confirmed_address": has_confirmed_address,
+    })
 
 # -------------------- AUTH --------------------
 
@@ -490,8 +495,26 @@ def confirm_address_location(request, address_id):
 
         reverse_geocode_address(address)
 
+        request.session["new_address_data"] = {
+            "street": address.street,
+            "city": address.city,
+            "state": address.state,
+            "pincode": address.pincode,
+            "latitude": address.latitude,
+            "longitude": address.longitude
+        }
+
         messages.success(request, "Location confirmed. Please review your address.")
         return redirect("cart")
+    
+    if not address.latitude or not address.longitude:
+        geolocator = Nominatim(user_agent="safecart")
+        full_address = f"{address.street}, {address.city}, {address.state}, {address.pincode}"
+        location = geolocator.geocode(full_address)
+        if location:
+            address.latitude = location.latitude
+            address.longitude = location.longitude
+            address.save(update_fields=["latitude", "longitude"])
 
     return render(request, "confirm_address_location.html", {
         "address": address
@@ -523,22 +546,7 @@ def use_current_location(request):
         is_confirmed=False
     )
 
-    return redirect("confirm_address_location", address_id=address.id)
-
-def confirm_address(request):
-    if request.method == "POST":
-        lat = request.POST.get("latitude")
-        lng = request.POST.get("longitude")
-        address = request.POST.get("address")
-
-        # Save to session or order
-        request.session['checkout_address'] = {
-            'latitude': lat,
-            'longitude': lng,
-            'address': address,
-        }
-
-        return redirect('cart') 
+    return redirect('confirm_address_location', address.id)
     
 def reverse_geocode_address(address):
     geolocator = Nominatim(user_agent="safecart")
@@ -571,118 +579,109 @@ def reverse_geocode_address(address):
 
 
 @login_required
-def proceed_to_checkout(request):
-    cart_items = Cart.objects.filter(user=request.user).select_related('product')
+def save_address_and_map(request):
+    street = request.GET.get("street")
+    city = request.GET.get("city")
+    state = request.GET.get("state")
+    pincode = request.GET.get("pincode")
 
-
-    if not cart_items.exists():
-        messages.warning(request, "Your cart is empty.")
+    if not all([street, city, state, pincode]):
+        messages.error(request, "Invalid address data.")
         return redirect("cart")
 
-    if request.method != "POST":
-        messages.error(request, "Please submit a shipping address before checkout.")
-        return redirect("cart")
-    
-    form = AddressForm(request.POST)
-    if not form.is_valid():
-            messages.error(request, "Please provide a valid shipping address."
-            )
-            return redirect("cart")
+    # Try to find a nearby address
+    address = Address.objects.filter(
+        user=request.user,
+        city__iexact=city,
+        street__icontains=street
+    ).first()
 
-    addr_data = form.cleaned_data
-
-    # Try to find existing address
-    address_obj = (
-        Address.objects.filter(
+    if not address:
+        address = Address.objects.create(
             user=request.user,
-            street=addr_data['street'],
-            city=addr_data['city'],
-            state=addr_data['state'],
-            pincode=addr_data['pincode']
-        )
-        .order_by('-id')
-        .first()
-    )
-
-    address_changed = False
-    if not address_obj:
-        # create new address if not exists
-        address_obj = Address.objects.create(
-            user=request.user,
-            street=addr_data['street'],
-            city=addr_data['city'],
-            state=addr_data['state'],
-            pincode=addr_data['pincode'],
+            street=street,
+            city=city,
+            state=state,
+            pincode=pincode,
             is_confirmed=False
         )
-    else:
-        # Check if any field changed
-        for field in ["street", "city", "state", "pincode"]:
-            if getattr(address_obj, field) != addr_data[field]:
-                address_changed = True
-                setattr(address_obj, field, addr_data[field])
-        if address_changed:
-            address_obj.is_confirmed = False
-            address_obj.save(update_fields=["street","city","state","pincode","is_confirmed"])
 
-    # ---------- METHOD 1: Geocode with fallback ----------
-    latitude = address_obj.latitude
-    longitude = address_obj.longitude
+    geolocator = Nominatim(user_agent="safecart")
+    fallback_addresses = [
+        f"{street}, {city}, {state}, {pincode}",
+        f"{city}, {state}, {pincode}",
+        f"{state}, {pincode}",
+        f"{pincode}"
+    ]
 
-    # Try full address
-    if not latitude or not longitude:
-        latitude, longitude = geocode_address(
-            f"{address_obj.street}, {address_obj.city}, {address_obj.state}, {address_obj.pincode}"
-        )
+    for addr_str in fallback_addresses:
+        location = geolocator.geocode(addr_str)
+        if location:
+            address.latitude = location.latitude
+            address.longitude = location.longitude
+            address.save(update_fields=["latitude", "longitude"])
+            break
 
-    # Fallback: city + pincode
-    if not latitude or not longitude:
-        latitude, longitude = geocode_address(
-            f"{address_obj.city}, {address_obj.state}, {address_obj.pincode}"
-        )
+    return redirect("confirm_address_location", address.id)
 
-    # Fallback: city only
-    if not latitude or not longitude:
-        latitude, longitude = geocode_address(address_obj.city)
 
-    # Final fallback (never fail)
-    if not latitude or not longitude:
-        latitude, longitude = 20.5937, 78.9629  # India center
 
-    address_obj.latitude = latitude
-    address_obj.longitude = longitude
-    address_obj.save(update_fields=["latitude", "longitude"])
+@login_required
+def proceed_to_checkout(request):
+    if request.method != "POST":
+        return redirect("cart")
 
- # ---------- METHOD 2: User confirms pin ----------
-    if not address_obj.is_confirmed:
-        return redirect("confirm_address_location", address_id=address_obj.id)
+    cart_items = Cart.objects.filter(user=request.user).select_related('product')
+    if not cart_items.exists():
+        messages.error(request, "Your cart is empty.")
+        return redirect("cart")
+    
+    session_addr = request.session.get("new_address_data")
+    if not session_addr:
+        messages.info(request, "Please select and confirm an address before proceeding to checkout.")
+        return redirect("cart")
 
-    # only confirmed addresses allowed
+    address = Address.objects.filter(
+        user=request.user,
+        street=session_addr["street"],
+        city=session_addr["city"],
+        state=session_addr["state"],
+        pincode=session_addr["pincode"]
+    ).first()
+
+    if not address:
+        messages.info(request, "Please confirm a valid address before proceeding to checkout.")
+        return redirect("cart")
+    
+    if not all([address.street, address.city, address.state, address.pincode]):
+        messages.info(request, "Please ensure your address has all required fields before checkout.")
+        return redirect("cart")
+    
     order = Order.objects.create(
         user=request.user,
-        address=address_obj,
+        address=address,
         payment_type="COD",
         token_value=str(uuid.uuid4()),
         expires_at=timezone.now() + timezone.timedelta(hours=1),
         status="Pending"
     )
 
-    # Add order items
-    for item in cart_items:
-        OrderItem.objects.create(
-        order=order,
-        product=item.product,
-        quantity=item.quantity,
-        price=item.product.price
-    )
+    OrderItem.objects.bulk_create([
+        OrderItem(
+            order=order,
+            product=item.product,
+            quantity=item.quantity,
+            price=item.product.price,
+        )
+        for item in cart_items
+    ])
+    
+    cart_items.delete()
 
-
-    # Empty cart
-    Cart.objects.filter(user=request.user).delete()
+    request.session.pop("new_address_data", None)   
 
     messages.success(request, "Your order has been placed successfully!")
     return redirect("yourorders")
-
 
 @login_required
 def yourorders(request):
