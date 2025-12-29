@@ -37,9 +37,13 @@
         </div>
     </div>
 
-    <!-- Map -->
-    <div class="ratio ratio-16x9">
-        <div id="map"></div>
+    <!-- Map Card -->
+    <div class="card mb-4 border border-dark">
+        <div class="card-body p-0">
+            <div class="ratio ratio-16x9">
+                <div id="map"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -48,29 +52,60 @@
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
 <script>
-    // Initialize map
+    // Delivery agent icon
+    var deliveryAgentIcon = L.icon({
+        iconUrl: '/media/assets/delivery-agent.png',
+        iconSize: [72, 72],
+        iconAnchor: [36, 50],
+        popupAnchor: [0, -50]
+    });
+
+    // Destination icon
+    var destinationIcon = L.icon({
+        iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers/img/marker-icon-2x-blue.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34]
+    });
+
+    // Init map
     var map = L.map('map').fitWorld();
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        subdomains: 'abcd',
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'SafeCart ©',
         maxZoom: 19
     }).addTo(map);
 
-    // Destination from DB (safe)
+    L.control.scale({ position: 'bottomleft' }).addTo(map);
+
+    // Destination from DB
     var destinationLat = {{ order.address.latitude|default:0 }};
     var destinationLng = {{ order.address.longitude|default:0 }};
 
     var routingControl;
+    var deliveryMarker = null;
 
-    // Get agent location
+    if (destinationLat !== 0 && destinationLng !== 0) {
+        L.marker([destinationLat, destinationLng], { icon: destinationIcon })
+            .addTo(map)
+            .bindPopup("Customer Delivery Location")
+            .openPopup();
+    }
+
     map.locate({ setView: true, maxZoom: 16, watch: true });
 
     function updateRoute(e) {
         if (destinationLat === 0 || destinationLng === 0) return;
 
-        var agentLat = e.latlng.lat;
-        var agentLng = e.latlng.lng;
+        var agentLocation = e.latlng;
+
+        if (!deliveryMarker) {
+            deliveryMarker = L.marker(agentLocation, { icon: deliveryAgentIcon })
+                .addTo(map)
+                .bindPopup("Delivery Agent");
+        } else {
+            deliveryMarker.setLatLng(agentLocation);
+        }
 
         if (routingControl) {
             map.removeControl(routingControl);
@@ -78,33 +113,27 @@
 
         routingControl = L.Routing.control({
             waypoints: [
-                L.latLng(agentLat, agentLng),
+                L.latLng(agentLocation.lat, agentLocation.lng),
                 L.latLng(destinationLat, destinationLng)
             ],
             createMarker: function () { return null; },
             lineOptions: {
-                styles: [{ weight: 5, opacity: 0.7 }]
+                styles: [{
+                    color: 'black',
+                    weight: 6,
+                    opacity: 0.9
+                }]
             },
             addWaypoints: false,
             draggableWaypoints: false,
+            routeWhileDragging: false,
             fitSelectedRoutes: true,
-            show: false
+            show: false,
+            collapsible: false
         }).addTo(map);
     }
 
-    // Draw destination marker ONLY if coords exist
-    if (destinationLat !== 0 && destinationLng !== 0) {
-        L.circleMarker([destinationLat, destinationLng], {
-            radius: 8,
-            color: 'red',
-            fillColor: '#f03',
-            fillOpacity: 0.9
-        }).addTo(map).bindPopup("Customer Delivery Location");
-
-        map.on('locationfound', updateRoute);
-    }
-
-    // ✅ YOUR ORIGINAL MESSAGE — UNCHANGED
+    map.on('locationfound', updateRoute);
     map.on('locationerror', function () {
         alert("Cannot get your location.");
     });
