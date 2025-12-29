@@ -58,8 +58,8 @@
     }).addTo(map);
 
     // Destination from DB (safe)
-    var destinationLat = {{ 'order.address.latitude|default:0' }};
-    var destinationLng = {{ 'order.address.longitude|default:0' }};
+    var destinationLat = {{ order.address.latitude|default:0 }};
+    var destinationLng = {{ order.address.longitude|default:0 }};
 
     var routingControl;
 
@@ -103,10 +103,13 @@
 
         map.on('locationfound', updateRoute);
     }
+
+    // ✅ YOUR ORIGINAL MESSAGE — UNCHANGED
     map.on('locationerror', function () {
         alert("Cannot get your location.");
     });
 </script>
+
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
