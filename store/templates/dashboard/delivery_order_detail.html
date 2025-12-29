@@ -36,106 +36,105 @@
         <!-- Map Container -->
         <div class="card mb-4 border border-dark">
             <div class="card-body p-0">
-                <div class="ratio ratio-16x9">
-                    <div id="map"></div>
-                </div>
-            </div>
+        <div class="ratio ratio-16x9">
+            <div id="map"></div>
+        </div>
+    </div>
         </div>
 
 
-        <!-- Leaflet JS -->
-        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-        <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
-        <script>
-            // SafeCart delivery agent icon
-            var deliveryAgentIcon = L.icon({
-                iconUrl: '/media/assets/delivery-agent.png',   // adjust path if needed
-                iconSize: [72, 72],
-                iconAnchor: [36, 50],
-                popupAnchor: [0, -50]
+<script>
+    // SafeCart delivery agent icon
+    var deliveryAgentIcon = L.icon({
+        iconUrl: '/media/assets/delivery-agent.png',   // adjust path if needed
+        iconSize: [72, 72],
+        iconAnchor: [36, 50],
+        popupAnchor: [0, -50]
 
-            });
+    });
 
-            // Destination pin icon
-            var destinationIcon = L.icon({
-                iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers/img/marker-icon-2x-blue.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34]
-            });
+    // Destination pin icon
+    var destinationIcon = L.icon({
+        iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers/img/marker-icon-2x-blue.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34]
+    });
 
-            // Initialize the map
-            var map = L.map('map').fitWorld();
+    // Initialize the map
+    var map = L.map('map').fitWorld();
 
-            // Beautiful OpenStreetMap tiles (like Leaflet demo)
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: 'SafeCart &copy',
-                maxZoom: 19
-            }).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        subdomains: 'abcd',
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        maxZoom: 19
+    }).addTo(map);
 
+    // Add scale control
+    L.control.scale({ position: 'bottomleft' }).addTo(map);
 
-            // Add scale control
-            L.control.scale({ position: 'bottomleft' }).addTo(map);
+    // Destination coordinates (Garuda Food Court) 
+    var destination = [16.778893088489124, 81.22118994913994];
 
-            // Destination coordinates (Garuda Food Court) 
-            var destination = [16.778893088489124, 81.22118994913994];
+    // Destination marker using pin icon
+    L.marker(destination, { icon: destinationIcon })
+        .addTo(map)
+        .bindPopup("Garuda Food Court")
+        .openPopup();
 
-            // Destination marker using pin icon
-            L.marker(destination, { icon: destinationIcon })
+    // Get delivery agent location
+    map.locate({ setView: true, maxZoom: 16, watch: true });
+
+    var routingControl;
+    var deliveryMarker = null;
+
+    function updateRoute(e) {
+        var userLocation = e.latlng;
+
+        // Delivery agent marker
+        if (!deliveryMarker) {
+            deliveryMarker = L.marker(userLocation, { icon: deliveryAgentIcon })
                 .addTo(map)
-                .bindPopup("Garuda Food Court")
-                .openPopup();
+                .bindPopup("Delivery Agent");
+        } else {
+            deliveryMarker.setLatLng(userLocation);
+        }
 
-            // Get delivery agent location
-            map.locate({ setView: true, maxZoom: 16, watch: true });
+        if (routingControl) {
+            map.removeControl(routingControl);
+        }
 
-            var routingControl;
-            var deliveryMarker = null;
+        routingControl = L.Routing.control({
+            waypoints: [
+                L.latLng(userLocation.lat, userLocation.lng),
+                L.latLng(destination[0], destination[1])
+            ],
+            createMarker: function () { return null; },
+            lineOptions: {
+                styles: [{
+                    color: 'black',
+                    weight: 6,
+                    opacity: 0.9
+                }]
+            },
+            addWaypoints: false,
+            draggableWaypoints: false,
+            routeWhileDragging: false,
+            fitSelectedRoutes: true,
+            show: false,
+            collapsible: false
+        }).addTo(map);
+    }
 
-            function updateRoute(e) {
-                var userLocation = e.latlng;
-
-                // Delivery agent marker
-                if (!deliveryMarker) {
-                    deliveryMarker = L.marker(userLocation, { icon: deliveryAgentIcon })
-                        .addTo(map)
-                        .bindPopup("Delivery Agent");
-                } else {
-                    deliveryMarker.setLatLng(userLocation);
-                }
-
-                if (routingControl) {
-                    map.removeControl(routingControl);
-                }
-
-                routingControl = L.Routing.control({
-                    waypoints: [
-                        L.latLng(userLocation.lat, userLocation.lng),
-                        L.latLng(destination[0], destination[1])
-                    ],
-                    createMarker: function () { return null; },
-                    lineOptions: {
-                        styles: [{
-                            color: 'black',
-                            weight: 6,
-                            opacity: 0.9
-                        }]
-                    },
-                    addWaypoints: false,
-                    draggableWaypoints: false,
-                    routeWhileDragging: false,
-                    fitSelectedRoutes: true,
-                    show: false,
-                    collapsible: false
-                }).addTo(map);
-            }
-
-            map.on('locationfound', updateRoute);
-            map.on('locationerror', function () { alert("Cannot get your location."); });
-        </script>
+    map.on('locationfound', updateRoute);
+    map.on('locationerror', function () { alert("Cannot get your location."); });
+</script>
 
 
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
