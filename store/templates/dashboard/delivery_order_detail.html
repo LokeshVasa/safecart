@@ -48,7 +48,7 @@
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
 <script>
-    /* ===================== MAP INIT ===================== */
+    // Initialize map
     var map = L.map('map').fitWorld();
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -57,31 +57,18 @@
         maxZoom: 19
     }).addTo(map);
 
-    /* ===================== DYNAMIC DESTINATION ===================== */
-    var destinationLat = {{ 'order.address.latitude' }};
-    var destinationLng = {{ 'order.address.longitude' }};
-    var destination = [destinationLat, destinationLng];
-
-    /* Order Location Marker */
-    L.circleMarker(destination, {
-        radius: 8,
-        color: 'red',
-        fillColor: '#f03',
-        fillOpacity: 0.9
-    }).addTo(map)
-      .bindPopup("Customer Delivery Location")
-      .openPopup();
-
-    /* ===================== AGENT LOCATION ===================== */
-    map.locate({
-        setView: true,
-        maxZoom: 16,
-        watch: true
-    });
+    // Destination from DB (safe)
+    var destinationLat = {{ 'order.address.latitude|default:0' }};
+    var destinationLng = {{ 'order.address.longitude|default:0' }};
 
     var routingControl;
 
+    // Get agent location
+    map.locate({ setView: true, maxZoom: 16, watch: true });
+
     function updateRoute(e) {
+        if (destinationLat === 0 || destinationLng === 0) return;
+
         var agentLat = e.latlng.lat;
         var agentLng = e.latlng.lng;
 
@@ -105,10 +92,19 @@
         }).addTo(map);
     }
 
-    map.on('locationfound', updateRoute);
+    // Draw destination marker ONLY if coords exist
+    if (destinationLat !== 0 && destinationLng !== 0) {
+        L.circleMarker([destinationLat, destinationLng], {
+            radius: 8,
+            color: 'red',
+            fillColor: '#f03',
+            fillOpacity: 0.9
+        }).addTo(map).bindPopup("Customer Delivery Location");
 
+        map.on('locationfound', updateRoute);
+    }
     map.on('locationerror', function () {
-        alert("Location permission denied.");
+        alert("Cannot get your location.");
     });
 </script>
 
