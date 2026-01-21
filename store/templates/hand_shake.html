@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Handshake Animation</title>
+
+    <style>
+        /* =================================================
+   🔧 ALL CONTROLS — EDIT ONLY THESE VARIABLES
+   ================================================= */
+        :root {
+
+            /* ---------- GLOBAL STACKING ---------- */
+            --z-shake: 0;
+            --z-left-hand: 20;
+            /* LEFT ALWAYS ABOVE RIGHT */
+            --z-right-hand: 10;
+
+            --z-arm: 3;
+            --z-left-palm: 2;
+            --z-right-palm: 1;
+            --z-blast: 5;
+
+            /* ---------- ARM SIZES ---------- */
+            --left-arm-height: 100px;
+            --right-arm-height: 100px;
+
+            /* ---------- PALM SIZES ---------- */
+            --left-palm-height: 80px;
+            --right-palm-height: 80px;
+
+            /* ---------- SHAKE SIZE ---------- */
+            --shake-height: 104px;
+
+            /* ---------- ARM POSITION (X,Y) ---------- */
+            --left-arm-x: 10px;
+            --left-arm-y: 0px;
+
+            --right-arm-x: 0px;
+            --right-arm-y: 0px;
+
+            /* ---------- PALM POSITION (X,Y) ---------- */
+            --left-palm-x: -92px;
+            --left-palm-y: -6px;
+
+            --right-palm-x: 120px;
+            --right-palm-y: 0px;
+
+            /* ---------- SHAKE POSITION (X,Y) ---------- */
+            --shake-x: 0px;
+            --shake-y: 8px;
+
+            /* ---------- HAND MOVEMENT ---------- */
+            --hands-move-distance: 220px;
+
+            /* ---------- TIMING ---------- */
+            --hand-move-duration: 1s;
+            --palm-fade-duration: 0.1s;
+            --shake-fade-duration: 0.3s;
+            --palm-fade-delay: 0.9s;
+
+            /* ---------- BLAST EFFECT ---------- */
+            --blast-size: 160px;
+            --blast-color: rgba(77, 163, 255, 0.35);
+            --blast-duration: 0.45s;
+        }
+
+        /* =================================================
+   PAGE
+   ================================================= */
+        body {
+            margin: 0;
+            height: 100vh;
+            background: #060b1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* =================================================
+   STAGE
+   ================================================= */
+        .stage {
+            width: 1230px;
+            height: 300px;
+            position: relative;
+        }
+
+        /* =================================================
+   HAND CONTAINERS
+   ================================================= */
+        .hand {
+            position: absolute;
+            top: 50%;
+            display: flex;
+            align-items: center;
+            transition: transform var(--hand-move-duration) cubic-bezier(.22, .61, .36, 1);
+        }
+
+        .hand.left {
+            left: 0;
+            z-index: var(--z-left-hand);
+            transform: translateY(calc(-50% + var(--left-arm-y)));
+        }
+
+        .hand.right {
+            right: 0;
+            z-index: var(--z-right-hand);
+            transform: translateY(calc(-50% + var(--right-arm-y)));
+        }
+
+        /* =================================================
+   IMAGE BASE
+   ================================================= */
+        .arm,
+        .palm,
+        .shake {
+            width: auto;
+            display: block;
+        }
+
+        /* =================================================
+   ARM STYLES
+   ================================================= */
+        .left .arm {
+            height: var(--left-arm-height);
+            transform: translate(var(--left-arm-x), 0);
+            z-index: var(--z-arm);
+        }
+
+        .right .arm {
+            height: var(--right-arm-height);
+            transform: translate(var(--right-arm-x), 0);
+            z-index: var(--z-arm);
+        }
+
+        /* =================================================
+   PALM STYLES
+   ================================================= */
+        .palm {
+            transition:
+                opacity var(--palm-fade-duration) ease,
+                transform var(--palm-fade-duration) ease;
+        }
+
+        .left .palm {
+            height: var(--left-palm-height);
+            transform: translate(var(--left-palm-x), var(--left-palm-y));
+            z-index: var(--z-left-palm);
+        }
+
+        .right .palm {
+            height: var(--right-palm-height);
+            transform: translate(var(--right-palm-x), var(--right-palm-y));
+            z-index: var(--z-right-palm);
+        }
+
+        /* =================================================
+   SHAKE IMAGE
+   ================================================= */
+        .shake {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            height: var(--shake-height);
+            transform: translate(calc(-50% + var(--shake-x)),
+                    calc(-50% + var(--shake-y)));
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--shake-fade-duration) ease;
+            z-index: var(--z-shake);
+        }
+
+        /* =================================================
+   BLAST EFFECT (IMPACT FEEDBACK)
+   ================================================= */
+        .blast {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: var(--blast-size);
+            height: var(--blast-size);
+            border-radius: 50%;
+            background: radial-gradient(circle,
+                    var(--blast-color) 0%,
+                    rgba(77, 163, 255, 0.15) 40%,
+                    rgba(77, 163, 255, 0.05) 60%,
+                    transparent 70%);
+            transform: translate(-50%, -50%) scale(0.4);
+            opacity: 0;
+            pointer-events: none;
+            z-index: var(--z-blast);
+        }
+
+        /* =================================================
+   SUCCESS SEQUENCE
+   ================================================= */
+        .success .hand.left {
+            transform: translate(var(--hands-move-distance),
+                    calc(-50% + var(--left-arm-y)));
+        }
+
+        .success .hand.right {
+            transform: translate(calc(-1 * var(--hands-move-distance)),
+                    calc(-50% + var(--right-arm-y)));
+        }
+
+        .success .open-palm {
+            opacity: 0;
+            transition-delay: var(--palm-fade-delay);
+        }
+
+        .success .shake {
+            opacity: 1;
+            transition-delay: var(--hand-move-duration);
+        }
+
+        .success .blast {
+            animation: blastPulse var(--blast-duration) ease-out var(--hand-move-duration) forwards;
+        }
+
+        /* =================================================
+   BLAST KEYFRAMES
+   ================================================= */
+        @keyframes blastPulse {
+            0% {
+                opacity: 0.9;
+                transform: translate(-50%, -50%) scale(0.6);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1.7);
+            }
+        }
+
+        /* =================================================
+   BUTTON
+   ================================================= */
+        button {
+            position: absolute;
+            bottom: -60px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 18px;
+            background: #2d4bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="stage" id="stage">
+
+        <!-- LEFT SIDE -->
+        <div class="hand left">
+            <img src="left_hand.png" class="arm" alt="">
+            <img src="left_palm.png" class="palm open-palm" alt="">
+        </div>
+
+        <!-- RIGHT SIDE -->
+        <div class="hand right">
+            <img src="right_palm.png" class="palm open-palm" alt="">
+            <img src="right_hand.png" class="arm" alt="">
+        </div>
+
+        <!-- IMPACT BLAST -->
+        <div class="blast"></div>
+
+        <!-- SHAKE -->
+        <img src="shake_palms.png" class="shake" alt="">
+
+        <button onclick="handshake()">Handshake</button>
+    </div>
+
+    <script>
+        function handshake() {
+            document.getElementById("stage").classList.add("success");
+        }
+    </script>
+
+</body>
+
+</html>
