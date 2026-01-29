@@ -1,0 +1,527 @@
+{% load static %}
+
+<style>
+    :root {
+        --safecart-primary: var(--bs-primary, #0d6efd);
+        --safecart-primary-glow: rgba(13, 110, 253, 0.6);
+    }
+</style>
+
+<style>
+    .safe-handshake-modal {
+        position: fixed;
+        inset: 0;
+        display: none;
+        z-index: 9999;
+    }
+
+    .safe-handshake-modal.active {
+        display: block;
+    }
+
+    .safe-handshake-backdrop {
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(circle at center,
+                rgba(13, 110, 253, 0.06),
+                rgba(0, 0, 0, 0.75));
+    }
+
+    .safe-handshake-wrapper {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+</style>
+
+<style>
+    /* =================================================
+           CONTROL VARIABLES
+        ================================================= */
+    .handshake-component {
+        --component-width: 1000px;
+        --component-height: calc(var(--component-width) / 2);
+        --neon-blue: var(--safecart-primary);
+        --success-color: var(--safecart-primary);
+        --neon-red: #dc3545;
+        --failure-color: #dc3545;
+
+        /* HAND POSITIONS */
+        --left-hand-start: 0px;
+        --right-hand-start: 0px;
+        --left-hand-meet: 52%;
+        --right-hand-meet: 72%;
+
+        /* HAND ANGLES */
+        --left-arm-angle: 4deg;
+        --right-arm-angle: -4deg;
+        --left-palm-angle: -8deg;
+        --right-palm-angle: 8deg;
+        --left-input-angle: 8deg;
+        --right-input-angle: -6deg;
+
+        /* MEET ANGLES */
+        --left-arm-meet-angle: 0deg;
+        --right-arm-meet-angle: -1deg;
+        --left-palm-meet-angle: 0deg;
+        --right-palm-meet-angle: 0deg;
+        --left-input-meet-angle: 10deg;
+        --right-input-meet-angle: -8deg;
+
+        --shake-angle: -4deg;
+
+        /* IMAGE SIZES */
+        --left-arm-height: 60;
+        --right-arm-height: 50;
+        --left-palm-height: 40;
+        --right-palm-height: 45;
+        --shake-height: 40;
+
+        /* PALM OFFSETS */
+        --left-palm-offset-x: 87%;
+        --left-palm-offset-y: -4%;
+        --right-palm-offset-x: 81%;
+        --right-palm-offset-y: -5%;
+
+        /* OTP BOX SIZING */
+        --otp-box-size: calc(var(--component-width) * 0.03);
+        --otp-gap: calc(var(--otp-box-size) * 0.3);
+
+        /* ANIMATION TIMING */
+        --move-duration: 1s;
+        --shake-duration: 0.5s;
+        --shake-strength: 6px;
+        --shake-count: 2;
+        --shake-speed: 0.15s;
+
+        position: absolute;
+        width: var(--component-width);
+        height: calc(var(--component-width) / 2);
+        background: #060b1a;
+        border-radius: 30px;
+        overflow: visible;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        box-sizing: border-box;
+    }
+
+    /* Outer Neon Border */
+    .handshake-component::before {
+        content: '';
+        position: absolute;
+        inset: -8px;
+        background: var(--neon-blue);
+        z-index: -1;
+        opacity: 0.8;
+        filter: blur(12px);
+        box-shadow: 0 0 30px var(--safecart-primary-glow);
+        border-radius: 30px;
+    }
+
+    .handshake-component::after {
+        content: '';
+        position: absolute;
+        inset: 4px;
+        background: #060b1a;
+        z-index: -1;
+        border-radius: 30px;
+    }
+
+
+    /* =================================================
+           INTERNAL STAGE
+        ================================================= */
+    .stage {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+
+    /* =================================================
+           HAND CONTAINERS
+        ================================================= */
+    .hand {
+        position: absolute;
+        top: 50%;
+        display: flex;
+        align-items: center;
+        transition: transform var(--move-duration) cubic-bezier(.22, .61, .36, 1);
+    }
+
+    .hand.left {
+        left: var(--left-hand-start);
+        z-index: 20;
+        transform: translateY(-50%) rotate(var(--left-arm-angle));
+    }
+
+    .hand.right {
+        right: var(--right-hand-start);
+        z-index: 10;
+        transform: translateY(-50%) rotate(var(--right-arm-angle));
+    }
+
+    /* =================================================
+           IMAGES
+        ================================================= */
+    .arm,
+    .palm,
+    .shake {
+        width: auto;
+        display: block;
+    }
+
+    /* ARMS */
+    .left .arm {
+        height: calc(var(--component-height) * calc(var(--left-arm-height) / 100));
+        transition: transform var(--move-duration) ease;
+        transform: rotate(var(--left-arm-angle));
+    }
+
+    .right .arm {
+        height: calc(var(--component-height) * calc(var(--right-arm-height) / 100));
+        transition: transform var(--move-duration) ease;
+        transform: rotate(var(--right-arm-angle));
+    }
+
+    /* PALMS */
+    .palm {
+        position: absolute;
+        transition:
+            opacity 0.1s ease,
+            transform var(--move-duration) ease;
+    }
+
+    .left .palm {
+        height: calc(var(--component-height) * calc(var(--left-palm-height) / 100));
+        left: var(--left-palm-offset-x);
+        transform:
+            translateY(var(--left-palm-offset-y)) rotate(var(--left-palm-angle));
+    }
+
+    .right .palm {
+        height: calc(var(--component-height) * calc(var(--right-palm-height) / 100));
+        right: var(--right-palm-offset-x);
+        transform:
+            translateY(var(--right-palm-offset-y)) rotate(var(--right-palm-angle));
+    }
+
+    /* SHAKE HANDS IMAGE */
+    .shake {
+        position: absolute;
+        top: 53%;
+        left: 51%;
+        height: calc(var(--component-height) * calc(var(--shake-height) / 100));
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        z-index: 5;
+        transform: translate(-50%, -50%) rotate(var(--shake-angle));
+    }
+
+    /* =================================================
+           OTP CONTAINER - ONE LINE ON ARM
+        ================================================= */
+    .otp-container {
+        position: absolute;
+        display: flex;
+        gap: var(--otp-gap);
+        z-index: 100;
+        transform: rotate(var(--left-input-angle));
+    }
+
+    /* Left arm OTP container */
+    .hand.left .otp-container {
+        left: 50%;
+        top: 48.5%;
+        transform: translate(-50%, -50%) rotate(var(--left-input-angle));
+    }
+
+    /* Right arm OTP container */
+    .hand.right .otp-container {
+        right: 50%;
+        top: 48%;
+        transform: translate(50%, -50%) rotate(var(--right-input-angle));
+    }
+
+    /* =================================================
+           OTP INPUT BOXES - LEFT SIDE BLUE, RIGHT SIDE RED
+        ================================================= */
+    .otp-box {
+        width: var(--otp-box-size);
+        height: var(--otp-box-size);
+        background: rgba(6, 11, 26, 0.95);
+        border: 2px solid;
+        border-radius: 8px;
+        font-size: calc(var(--otp-box-size) * 0.5);
+        font-weight: bold;
+        font-family: monospace;
+        text-align: center;
+        text-transform: uppercase;
+        transition: all 0.2s ease;
+    }
+
+    /* Left side inputs - always blue */
+    .hand.left .otp-box {
+        border-color: var(--neon-blue);
+        color: var(--neon-blue);
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+    }
+
+    /* Right side inputs - always red */
+    .hand.right .otp-box {
+        border-color: var(--neon-red);
+        color: var(--neon-red);
+        box-shadow: 0 0 10px rgba(255, 0, 0, 0.6);
+    }
+
+    /* Focus states */
+    .hand.left .otp-box:focus {
+        outline: none;
+        box-shadow: 0 0 20px rgba(0, 255, 255, 1);
+        background: rgba(6, 11, 26, 1);
+        transform: scale(1.1);
+    }
+
+    .hand.right .otp-box:focus {
+        outline: none;
+        box-shadow: 0 0 20px rgba(255, 0, 0, 1);
+        background: rgba(6, 11, 26, 1);
+        transform: scale(1.1);
+    }
+
+    /* Disabled state - keep side colors */
+    .otp-box:disabled {
+        opacity: 0.8;
+        cursor: not-allowed;
+    }
+
+    .otp-box::placeholder {
+        font-size: calc(var(--otp-box-size) * 0.4);
+    }
+
+    /* Placeholder colors */
+    .hand.left .otp-box::placeholder {
+        color: rgba(0, 255, 255, 0.3);
+    }
+
+    .hand.right .otp-box::placeholder {
+        color: rgba(255, 0, 0, 0.3);
+    }
+
+    /* =================================================
+           ANIMATION STATES
+        ================================================= */
+    .success .hand.left {
+        transform: translateX(var(--left-hand-meet)) translateY(-50%) rotate(var(--left-arm-meet-angle));
+    }
+
+    .success .hand.right {
+        transform: translateX(calc(-1 * var(--right-hand-meet))) translateY(-50%) rotate(var(--right-arm-meet-angle));
+    }
+
+    .success .hand.left .otp-container {
+        transform: translate(-50%, -50%) rotate(var(--left-input-meet-angle));
+    }
+
+    .success .hand.right .otp-container {
+        transform: translate(50%, -50%) rotate(var(--right-input-meet-angle));
+    }
+
+    .success .hand.left {
+        animation: handshakeShakeLeft var(--shake-speed) ease-in-out var(--shake-count);
+        animation-delay: var(--move-duration);
+    }
+
+    .success .hand.right {
+        animation: handshakeShakeRight var(--shake-speed) ease-in-out var(--shake-count);
+        animation-delay: var(--move-duration);
+    }
+
+    .success .open-palm {
+        opacity: 0;
+        transition-delay: calc(var(--move-duration) + var(--shake-duration));
+    }
+
+    .success .shake {
+        opacity: 1;
+        transition-delay: calc(var(--move-duration) + var(--shake-duration) + 0.1s);
+    }
+
+    /* Failure state - hands return to original positions */
+    .failure .hand.left {
+        transform: translateY(-50%) rotate(var(--left-arm-angle));
+        left: var(--left-hand-start);
+        transition-delay: calc(var(--move-duration) + var(--shake-duration) + 0.5s);
+        transition-duration: 0.8s;
+    }
+
+    .failure .hand.right {
+        transform: translateY(-50%) rotate(var(--right-arm-angle));
+        right: var(--right-hand-start);
+        transition-delay: calc(var(--move-duration) + var(--shake-duration) + 0.5s);
+        transition-duration: 0.8s;
+    }
+
+    .failure .hand.left .otp-container {
+        transform: translate(-50%, -50%) rotate(var(--left-input-angle));
+        transition-delay: calc(var(--move-duration) + var(--shake-duration) + 0.5s);
+        transition-duration: 0.8s;
+    }
+
+    .failure .hand.right .otp-container {
+        transform: translate(50%, -50%) rotate(var(--right-input-angle));
+        transition-delay: calc(var(--move-duration) + var(--shake-duration) + 0.5s);
+        transition-duration: 0.8s;
+    }
+
+    .failure .open-palm {
+        opacity: 1;
+        transition-delay: calc(var(--move-duration) + var(--shake-duration) + 0.5s);
+    }
+
+    .failure .shake {
+        opacity: 0;
+        transition-delay: 0s;
+    }
+
+    /* =================================================
+           SHAKE ANIMATIONS
+        ================================================= */
+    @keyframes handshakeShakeLeft {
+
+        0%,
+        100% {
+            transform: translateX(var(--left-hand-meet)) translateY(-50%) rotate(var(--left-arm-meet-angle));
+        }
+
+        50% {
+            transform: translateX(var(--left-hand-meet)) translateY(calc(-50% - var(--shake-strength))) rotate(var(--left-arm-meet-angle));
+        }
+    }
+
+    @keyframes handshakeShakeRight {
+
+        0%,
+        100% {
+            transform: translateX(calc(-1 * var(--right-hand-meet))) translateY(-50%) rotate(var(--right-arm-meet-angle));
+        }
+
+        50% {
+            transform: translateX(calc(-1 * var(--right-hand-meet))) translateY(calc(-50% - var(--shake-strength))) rotate(var(--right-arm-meet-angle));
+        }
+    }
+
+    /* =================================================
+           BUTTON WITH NEON BORDER
+        ================================================= */
+    .neon-button {
+        position: absolute;
+        bottom: 5%;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 30px;
+        background: transparent;
+        color: var(--neon-blue);
+        border: 2px solid var(--neon-blue);
+        border-radius: 20px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        transition: all 0.3s ease;
+        z-index: 10;
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    }
+
+    .neon-button:hover {
+        background: rgba(0, 255, 255, 0.05);
+        box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+    }
+
+    .neon-button::before {
+        content: '';
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        bottom: -2px;
+        background: linear-gradient(45deg, var(--neon-blue), var(--neon-red));
+        border-radius: 22px;
+        z-index: -1;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .neon-button:hover::before {
+        opacity: 0.3;
+        filter: blur(3px);
+    }
+
+    /* =================================================
+           ROTATING BORDER ANIMATION
+        ================================================= */
+    @keyframes rotateBorder {
+        0% {
+            filter: hue-rotate(0deg) blur(10px);
+            opacity: 0.8;
+        }
+
+        50% {
+            opacity: 1;
+            filter: hue-rotate(60deg) blur(10px);
+        }
+
+        100% {
+            filter: hue-rotate(120deg) blur(10px);
+            opacity: 0.8;
+        }
+    }
+</style>
+<div class="safe-handshake-modal" id="safeHandshakeModal-{{ order.id }}" data-auto-side="{{ otp_side }}"
+    data-display-otp="{{ display_otp }}" data-verify-otp="{{ verify_otp }}">
+
+    <div class="safe-handshake-backdrop" onclick="closeHandshake('{{ order.id }}')"></div>
+
+    <div class="safe-handshake-wrapper">
+        <div class="handshake-component">
+            <div class="stage" id="stage">
+
+                <!-- LEFT -->
+                <div class="hand left">
+                    <img src="{% static 'images/safe_handshake/left_hand.png' %}" class="arm">
+                    <img src="{% static 'images/safe_handshake/left_palm.png' %}" class="palm open-palm">
+                    <div class="otp-container">
+                        <input class="otp-box" id="left-otp-1" maxlength="1">
+                        <input class="otp-box" id="left-otp-2" maxlength="1">
+                        <input class="otp-box" id="left-otp-3" maxlength="1">
+                        <input class="otp-box" id="left-otp-4" maxlength="1">
+                    </div>
+                </div>
+
+                <!-- RIGHT -->
+                <div class="hand right">
+                    <img src="{% static 'images/safe_handshake/right_palm.png' %}" class="palm open-palm">
+                    <img src="{% static 'images/safe_handshake/right_hand.png' %}" class="arm">
+                    <div class="otp-container">
+                        <input class="otp-box" id="right-otp-1" maxlength="1">
+                        <input class="otp-box" id="right-otp-2" maxlength="1">
+                        <input class="otp-box" id="right-otp-3" maxlength="1">
+                        <input class="otp-box" id="right-otp-4" maxlength="1">
+                    </div>
+                </div>
+
+                <img src="{% static 'images/safe_handshake/shake_palms.png' %}" class="shake">
+
+                <!-- BUTTON -->
+                <button class="neon-button" onclick="handshake('{{ order.id }}')">
+                    HANDSHAKE
+                </button>
+
+            </div>
+        </div>
+    </div>
+</div>
