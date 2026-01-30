@@ -5,65 +5,256 @@
 {% block body_class %}d-flex flex-column min-vh-100{% endblock %}
 
 {% block content %}
-<!-- Page Header -->
-<section class="py-3 bg-primary text-white text-center border-bottom mt-0">
+
+<!-- PAGE HEADER -->
+<section class="py-3 bg-primary text-white text-center border-bottom">
     <div class="container">
         <h1 class="fw-bold">Your Orders</h1>
         <p class="mb-0">View your recent purchases and order details</p>
     </div>
 </section>
 
-<section class="py-2 flex-grow-1">
+<section class="py-4 flex-grow-1">
     <div class="container">
-        {% if orders %}
-            <div class="row g-4">
-                {% for order in orders %}
-                    <div class="col-md-6 col-lg-4">
-                        <div class="card shadow-sm border-0 h-100">
-                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                                <div>
-                                    <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
-                                    <strong>#{{ order.id }}</strong>
-                                </div>
-                                <span class="badge bg-success">{{ order.status|default:"Confirmed" }}</span>
-                            </div>
-                            <div class="card-body">
-                                {% for item in order.items %}
-                                    <div class="d-flex align-items-center mb-3">
-                                        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="img-fluid rounded me-3" style="width:60px; height:60px; object-fit:cover;">
-                                        <div>
-                                            <h6 class="mb-1">{{ item.name }}</h6>
-                                            <small class="text-muted">Qty: {{ item.quantity }} | ₹{{ item.price|floatformat:2 }}</small>
-                                        </div>
-                                    </div>
-                                {% endfor %}
-                                <hr>
-                                <p class="mb-1"><strong>Total Paid:</strong> ₹{{ order.total_amount|floatformat:2 }}</p>
-                                <p class="mb-0"><strong>Expected Delivery:</strong> {{ order.expected_delivery|date:"M d, Y" }}</p>
 
-                                <!-- Display Address -->
-                                {% if order.address %}
-                                    <hr>
-                                    <p class="mb-1"><strong>Shipping Address:</strong></p>
-                                    <p class="mb-0">
-                                        {{ order.address.street }}, {{ order.address.city }}<br>
-                                        {{ order.address.state }} - {{ order.address.pincode }}
-                                    </p>
-                                {% endif %}
+        {% if orders %}
+        <div class="row g-4">
+
+            {% for order in orders %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card shadow-sm border-0 h-100">
+
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <div>
+                            <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
+                            <strong>#{{ order.id }}</strong>
+                        </div>
+                        <span class="badge bg-success">
+                            {{ order.status|default:"Confirmed" }}
+                        </span>
+                    </div>
+
+                    <div class="card-body">
+                        {% for item in order.items %}
+                        <div class="d-flex align-items-center mb-3">
+                            <img src="{{ item.image.url }}" class="img-fluid rounded me-3"
+                                style="width:60px;height:60px;object-fit:cover;">
+                            <div>
+                                <h6 class="mb-1">{{ item.name }}</h6>
+                                <small class="text-muted">
+                                    Qty: {{ item.quantity }} |
+                                    ₹{{ item.price|floatformat:2 }}
+                                </small>
                             </div>
                         </div>
+                        {% endfor %}
+
+                        <hr>
+                        <p><strong>Total Paid:</strong>
+                            ₹{{ order.total_amount|floatformat:2 }}</p>
+
+                        <p><strong>Expected Delivery:</strong>
+                            {{ order.expected_delivery|date:"M d, Y" }}</p>
+
+                        {% if order.address %}
+                        <hr>
+                        <p><strong>Shipping Address:</strong></p>
+                        <p class="mb-0">
+                            {{ order.address.street }},
+                            {{ order.address.city }}<br>
+                            {{ order.address.state }} -
+                            {{ order.address.pincode }}
+                        </p>
+                        {% endif %}
+
+                        <!-- SAFE HANDSHAKE BUTTON -->
+                        <button class="btn btn-outline-primary btn-sm mt-3" onclick="openHandshake('{{ order.id }}')">
+                            Safe Handshake
+                        </button>
                     </div>
-                {% endfor %}
+                </div>
             </div>
+
+            {% with otp_side="right" display_otp="3DR6" verify_otp="1234" %}
+            {% include "components/safe_handshake.html" %}
+            {% endwith %}
+
+            {% endfor %}
+        </div>
+
         {% else %}
-            <div class="text-center py-5">
-                <h3>No orders yet</h3>
-                <p class="text-muted">Start shopping to place your first order!</p>
-                <a href="{% url 'home' %}" class="btn btn-primary">Shop Now</a>
-            </div>
+        <div class="text-center py-5">
+            <h3>No orders yet</h3>
+            <p class="text-muted">Start shopping to place your first order.</p>
+            <a href="{% url 'home' %}" class="btn btn-primary">
+                Shop Now
+            </a>
+        </div>
         {% endif %}
     </div>
 </section>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- =============================
+ GLOBAL SAFE HANDSHAKE SCRIPT
+============================= -->
+<script>
+    /* =====================================================
+       MODAL OPEN / CLOSE
+    ===================================================== */
+    function openHandshake(orderId) {
+        const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+        if (!modal) return;
+        modal.classList.add('active');
+    }
+
+    function closeHandshake(orderId) {
+        const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+        if (!modal) return;
+        modal.classList.remove('active');
+    }
+
+    /* =====================================================
+       READ CONFIG FROM DATA ATTRIBUTES
+    ===================================================== */
+    function getHandshakeConfig(orderId) {
+        const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+        if (!modal) return null;
+
+        const userSide = modal.dataset.autoSide; // ← this is otp_side
+
+        return {
+            modal,
+            userInputSide: userSide,                              // LEFT or RIGHT
+            autoFillSide: userSide === 'left' ? 'right' : 'left', // opposite
+            displayOTP: modal.dataset.displayOtp || '',
+            verifyOTP: modal.dataset.verifyOtp || ''
+        };
+    }
+
+
+    /* =====================================================
+       INITIALIZE OTP INPUTS (RUN ON OPEN)
+    ===================================================== */
+    function initHandshake(orderId) {
+        const config = getHandshakeConfig(orderId);
+        if (!config) return;
+
+        // Prevent re-initializing if already done
+        if (config.modal.dataset.initialized === 'true') return;
+
+        const displayChars = config.displayOTP.split('');
+
+        const autoContainer = config.modal.querySelector(
+            `.hand.${config.autoFillSide} .otp-container`
+        );
+        const userContainer = config.modal.querySelector(
+            `.hand.${config.userInputSide} .otp-container`
+        );
+
+        // Auto-filled side
+        autoContainer.querySelectorAll('.otp-box').forEach((input, i) => {
+            input.value = displayChars[i] || '';
+            input.disabled = true;
+        });
+
+        // User input side
+        const userInputs = userContainer.querySelectorAll('.otp-box');
+        userInputs.forEach(input => {
+            input.value = '';
+            input.disabled = false;
+
+            input.oninput = function () {
+                this.value = this.value.toUpperCase();
+                if (this.value && this.nextElementSibling) {
+                    this.nextElementSibling.focus();
+                }
+            };
+
+            input.onkeydown = function (e) {
+                if (
+                    !/[a-zA-Z0-9]/.test(e.key) &&
+                    !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'].includes(e.key)
+                ) {
+                    e.preventDefault();
+                }
+            };
+        });
+
+        config.modal.dataset.initialized = 'true';
+    }
+
+    /* =====================================================
+       READ USER ENTERED OTP
+    ===================================================== */
+    function getUserOTP(config) {
+        const inputs = config.modal.querySelectorAll(
+            `.hand.${config.userInputSide} .otp-box`
+        );
+
+        return Array.from(inputs)
+            .map(i => i.value || '')
+            .join('');
+    }
+
+    /* =====================================================
+       DISABLE USER INPUTS
+    ===================================================== */
+    function disableUserInputs(config) {
+        config.modal
+            .querySelectorAll(`.hand.${config.userInputSide} .otp-box`)
+            .forEach(i => i.disabled = true);
+    }
+
+    /* =====================================================
+       HANDSHAKE ACTION
+    ===================================================== */
+    function handshake(orderId) {
+        const config = getHandshakeConfig(orderId);
+        if (!config) return;
+
+        initHandshake(orderId);
+
+        const userOTP = getUserOTP(config);
+        if (userOTP.length < 4) {
+            alert('Please complete the OTP');
+            return;
+        }
+
+        const stage = config.modal.querySelector('.stage');
+        if (!stage) return;
+
+        stage.classList.remove('success', 'failure');
+        void stage.offsetWidth;
+        stage.classList.add('success');
+
+        setTimeout(() => {
+            if (userOTP === config.verifyOTP) {
+                // ✅ SUCCESS
+                disableUserInputs(config);
+
+                const btn = config.modal.querySelector('.neon-button');
+                btn.textContent = 'Success';
+                btn.style.cursor = 'not-allowed';
+                btn.onclick = null;
+
+            } else {
+                // ❌ FAILURE
+                stage.classList.remove('success');
+                // stage.classList.add('failure');
+            }
+        }, 1500);
+    }
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('[onclick^="openHandshake"]');
+        if (!btn) return;
+
+        const match = btn.getAttribute('onclick').match(/openHandshake\('?(.*?)'?\)/);
+        if (match) {
+            initHandshake(match[1]);
+        }
+    });
+</script>
+
+
 {% endblock %}
