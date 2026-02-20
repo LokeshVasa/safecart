@@ -17,12 +17,6 @@
     <div class="card mb-4">
         <div class="card-body">
             <p><strong>User:</strong> {{ order.user.username }}</p>
-            <p><strong>Address:</strong>
-                {{ order.address.street }},
-                {{ order.address.city }},
-                {{ order.address.state }} -
-                {{ order.address.pincode }}
-            </p>
             <p><strong>Payment Type:</strong> {{ order.payment_type }}</p>
             <p><strong>Status:</strong> {{ order.status }}</p>
 
@@ -81,6 +75,7 @@
     // Destination from DB
     var destinationLat = {{ order.address.latitude|default:0 }};
     var destinationLng = {{ order.address.longitude|default:0 }};
+    var updateLocationUrl = "{% url 'update_agent_location' order.id %}";
 
     var routingControl;
     var deliveryMarker = null;
@@ -93,6 +88,37 @@
     }
 
     map.locate({ setView: true, maxZoom: 16, watch: true });
+
+    function getCookie(name) {
+        var cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function sendLiveLocation(lat, lng) {
+        fetch(updateLocationUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken")
+            },
+            body: JSON.stringify({
+                latitude: lat,
+                longitude: lng
+            })
+        }).catch(function () {
+            // Ignore transient network errors; next location update will retry.
+        });
+    }
 
     function updateRoute(e) {
         if (destinationLat === 0 || destinationLng === 0) return;
@@ -133,7 +159,10 @@
         }).addTo(map);
     }
 
-    map.on('locationfound', updateRoute);
+    map.on('locationfound', function (e) {
+        updateRoute(e);
+        sendLiveLocation(e.latlng.lat, e.latlng.lng);
+    });
     map.on('locationerror', function () {
         alert("Cannot get your location.");
     });

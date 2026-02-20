@@ -113,6 +113,7 @@ class Order(models.Model):
     expires_at = models.DateTimeField()
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pending')
     created_at = models.DateTimeField(auto_now_add=True)
+    delivery_agent = models.ForeignKey('DeliveryAgent',on_delete=models.SET_NULL,null=True,blank=True,related_name='orders')
 
     def __str__(self):
         return f"Order {self.order_id} - {self.status}"
@@ -148,3 +149,11 @@ class OrderUpdate(models.Model):
 if not hasattr(User, 'profile_image'):
     User.add_to_class('profile_image', models.BinaryField(null=True, blank=True))
 
+class DeliveryAgent(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.user.username}"

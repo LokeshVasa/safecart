@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Track Your Order</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
+    <style>
+        #map { height: 500px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+<h2>Tracking Order #{{ order.id }}</h2>
+<p id="tracking-status"></p>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+
+<script>
+    // Initialize map centered on customer location
+    var customerLat = {{ order.address.latitude|default:0 }};
+    var customerLng = {{ order.address.longitude|default:0 }};
+
+    var map = L.map('map').setView([customerLat || 0, customerLng || 0], customerLat && customerLng ? 16 : 2);
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    // Customer marker
+    if (customerLat !== 0 && customerLng !== 0) {
+        L.marker([customerLat, customerLng])
+            .addTo(map)
+            .bindPopup("Your Location")
+            .openPopup();
+    }
+
+    // Delivery agent icon
+    var deliveryAgentIcon = L.icon({
+        iconUrl: '/static/images/delivery-agent.png',
+        iconSize: [72, 72],
+        iconAnchor: [36, 50],
+        popupAnchor: [0, -50]
+    });
+
+    var deliveryMarker = null;
+    var routingControl = null;
+    var pollTimer = null;
+    var statusEl = document.getElementById("tracking-status");
+
+    function setStatus(msg) {
+        statusEl.textContent = msg;
+    }
+
+    function updateAgentLocation(lat, lng) {
+        if (!deliveryMarker) {
+            deliveryMarker = L.marker([lat, lng], { icon: deliveryAgentIcon })
+                .addTo(map)
+                .bindPopup("Delivery Agent");
+        } else {
+            deliveryMarker.setLatLng([lat, lng]);
+        }
+
+        if (routingControl) map.removeControl(routingControl);
+
+        routingControl = L.Routing.control({
+            waypoints: [
+                L.latLng(lat, lng),
+                L.latLng(customerLat, customerLng)
+            ],
+            createMarker: function() { return null; },
+            lineOptions: { styles: [{ color: 'black', weight: 6, opacity: 0.9 }] },
+            addWaypoints: false,
+            draggableWaypoints: false,
+            routeWhileDragging: false,
+            fitSelectedRoutes: true,
+            show: false
+        }).addTo(map);
+    }
+
+    function pollLocation() {
+        fetch("{% url 'get_agent_location' order.id %}")
+            .then(res => res.json())
+            .then(data => {
+                if (data.latitude !== 0 && data.longitude !== 0) {
+                    setStatus("Delivery agent is on the way.");
+                    updateAgentLocation(data.latitude, data.longitude);
+                } else {
+                    setStatus(data.message || "Waiting for delivery agent location...");
+                }
+
+                if (data.trackable === false && pollTimer) {
+                    clearInterval(pollTimer);
+                    pollTimer = null;
+                }
+            })
+            .catch(function () {
+                setStatus("Unable to refresh location right now.");
+            });
+    }
+
+    pollLocation();
+    pollTimer = setInterval(pollLocation, 5000);
+</script>
+</body>
+</html>
