@@ -11,12 +11,12 @@ from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
 from django.db.models import Count
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseForbidden
 from django.template.loader import render_to_string
 from decimal import Decimal, ROUND_HALF_UP
 from .models import Address
 from .forms import AddressForm
-from .models import Order, OrderItem
+from .models import Order, OrderItem, DeliveryAgent
 import uuid
 from datetime import timedelta
 from django.views.decorators.http import require_POST
@@ -754,6 +754,10 @@ def yourorders(request):
             'total_amount': total_amount,
             'expected_delivery': expected_delivery,
             'address': order.address,
+            'can_track': (
+                order.status in ['Packed', 'Shipped']
+                and order.delivery_agent_id is not None
+            ),
         })
 
     return render(request, 'yourorders.html', {'orders': orders_with_details})
@@ -879,9 +883,26 @@ def manage_users(request):
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
+@login_required
+@permission_required('store.can_deliver_order', raise_exception=True)
 def delivery_order_detail(request):
     order_id = request.GET.get('order-id')
     order = get_object_or_404(Order, id=order_id)
+
+    delivery_agent, _ = DeliveryAgent.objects.get_or_create(user=request.user)
+    if order.delivery_agent_id is None:
+        order.delivery_agent = delivery_agent
+        if order.status in ['Pending', 'Packed']:
+            order.status = 'Shipped'
+            order.save(update_fields=['delivery_agent', 'status'])
+        else:
+            order.save(update_fields=['delivery_agent'])
+    elif order.delivery_agent_id != delivery_agent.id:
+        return HttpResponseForbidden("This order is assigned to another delivery agent.")
+    elif order.status in ['Pending', 'Packed']:
+        order.status = 'Shipped'
+        order.save(update_fields=['status'])
+
     return render(request, 'dashboard/delivery_order_detail.html', {'order': order})
 
 def get_order_by_token(request):
@@ -895,154 +916,88 @@ def get_order_by_token(request):
     except Order.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Order not found'})
 
+# Render customer tracking map
 @login_required
+def customer_track_order(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    return render(request, 'customer_track_order.html', {'order': order})
 
-def generate_order_otp(request, order_id):
-
-    order = get_object_or_404(Order, id=order_id)
-
-    # ❌ prevent OTP if already delivered
-    if order.status == "Delivered":
+# API: Return delivery agent's current coordinates
+@login_required
+def get_agent_location(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    if order.status in ['Delivered', 'Cancelled']:
         return JsonResponse({
-            "success": False,
-            "error": "Order already delivered"
+            'latitude': 0,
+            'longitude': 0,
+            'status': order.status,
+            'trackable': False,
+            'message': 'Order is no longer trackable.'
         })
 
-    # check existing OTP
-    otp_obj = OrderOTP.objects.filter(order=order).first()
-
-    if otp_obj and otp_obj.is_active and not otp_obj.is_expired():
+    agent = order.delivery_agent
+    if agent and agent.latitude is not None and agent.longitude is not None:
         return JsonResponse({
-    "success": True,
-    "agent_half": decrypt_value(otp_obj.enc_agent_half),
-    "customer_half": decrypt_value(otp_obj.enc_customer_half)
-})
-
-    # generate new OTP
-    otp = str(random.randint(10000000, 99999999))
-
-    customer_half = otp[:4]
-    agent_half = otp[4:]
-
-    hashed = hashlib.sha256(otp.encode()).hexdigest()
-
-    OrderOTP.objects.update_or_create(
-    order=order,
-    defaults={
-        "otp_hash": hashed,
-        "enc_customer_half": encrypt_value(customer_half),
-        "enc_agent_half": encrypt_value(agent_half),
-        "expires_at": timezone.now() + timedelta(minutes=10),
-        "is_active": True,
-        "attempts": 0,
-        "customer_verified": False,
-        "agent_verified": False
-    }
-)
-
-    print(f"Generated OTP for order {order.id}: {otp}")
-
+            'latitude': agent.latitude,
+            'longitude': agent.longitude,
+            'status': order.status,
+            'trackable': True
+        })
     return JsonResponse({
-    "success": True,
-    "agent_half": agent_half,
-    "customer_half": customer_half,
-    "customer_verified": otp_obj.customer_verified if otp_obj else False,
-    "agent_verified": otp_obj.agent_verified if otp_obj else False
-})
+        'latitude': 0,
+        'longitude': 0,
+        'status': order.status,
+        'trackable': True,
+        'message': 'Waiting for delivery agent location.'
+    })
+
+import json
 
 @login_required
+@permission_required('store.can_deliver_order', raise_exception=True)
 @require_POST
-def verify_otp(request, order_id):
+def update_agent_location(request, order_id):
+    """
+    Endpoint for delivery agent to send their latest latitude/longitude
+    Expects POST: { "latitude": 28.6139, "longitude": 77.2090 }
+    """
+    try:
+        data = json.loads(request.body)
+        lat = data.get("latitude")
+        lng = data.get("longitude")
+    except (TypeError, json.JSONDecodeError):
+        return JsonResponse({"status": "error", "message": "Invalid JSON"}, status=400)
 
-    MAX_ATTEMPTS = 5
-
-    order = get_object_or_404(Order, id=order_id)
+    if lat is None or lng is None:
+        return JsonResponse({"status": "error", "message": "Latitude and longitude are required"}, status=400)
 
     try:
-        otp_obj = order.otp
-    except OrderOTP.DoesNotExist:
-        return JsonResponse({"success": False, "error": "OTP not found"})
+        lat = float(lat)
+        lng = float(lng)
+    except (TypeError, ValueError):
+        return JsonResponse({"status": "error", "message": "Latitude/longitude must be numeric"}, status=400)
 
-    # OTP expired
-    if otp_obj.is_expired():
-        otp_obj.is_active = False
-        otp_obj.save(update_fields=["is_active"])
-        return JsonResponse({"success": False, "error": "OTP expired"})
-
-    # Too many attempts
-    if otp_obj.attempts >= MAX_ATTEMPTS:
-        otp_obj.is_active = False
-        otp_obj.save(update_fields=["is_active"])
-        return JsonResponse({
-            "success": False,
-            "error": "Maximum attempts exceeded. Generate a new OTP."
-        })
-
-    data = json.loads(request.body)
-
-    customer_half = data.get("customer_half")
-    agent_half = data.get("agent_half")
-
-    if not customer_half or not agent_half:
-        return JsonResponse({"success": False, "error": "Invalid OTP format"})
-
-    full_otp = customer_half + agent_half
-    hashed = hashlib.sha256(full_otp.encode()).hexdigest()
-
-    # WRONG OTP
-    if hashed != otp_obj.otp_hash:
-
-        otp_obj.attempts += 1
-        otp_obj.save(update_fields=["attempts"])
-
-        remaining = MAX_ATTEMPTS - otp_obj.attempts
-
-        return JsonResponse({
-            "success": False,
-            "remaining_attempts": remaining
-        })
-
-    # CORRECT OTP
-    user = request.user
-
-    if user.groups.filter(name="DeliveryAgent").exists():
-        otp_obj.agent_verified = True
-    else:
-        otp_obj.customer_verified = True
-
-    otp_obj.save(update_fields=["agent_verified", "customer_verified"])
-
-    # BOTH VERIFIED
-    if otp_obj.agent_verified and otp_obj.customer_verified:
-
-        otp_obj.is_active = False
-        otp_obj.save(update_fields=["is_active"])
-
-        order.status = "Delivered"
-        order.save(update_fields=["status"])
-
-    return JsonResponse({"success": True})
-
-@login_required
-def get_order_otp_halves(request, order_id):
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return JsonResponse({"status": "error", "message": "Latitude/longitude out of range"}, status=400)
 
     order = get_object_or_404(Order, id=order_id)
+    agent = DeliveryAgent.objects.filter(user=request.user).first()
+    if not agent:
+        return JsonResponse({"status": "error", "message": "Delivery agent profile not found"}, status=404)
 
-    otp_obj = OrderOTP.objects.filter(order=order).first()
+    if order.delivery_agent_id is None:
+        order.delivery_agent = agent
+        order.save(update_fields=["delivery_agent"])
+    elif order.delivery_agent_id != agent.id:
+        return JsonResponse({"status": "error", "message": "Order is assigned to another delivery agent"}, status=403)
 
-    if not otp_obj:
-        return JsonResponse({
-            "success": False,
-            "error": "OTP not generated"
-        })
+    agent.latitude = lat
+    agent.longitude = lng
+    agent.save(update_fields=["latitude", "longitude"])
 
-    customer_half = decrypt_value(otp_obj.enc_customer_half)
-    agent_half = decrypt_value(otp_obj.enc_agent_half)
+    if order.status in ["Pending", "Packed"]:
+        order.status = "Shipped"
+        order.save(update_fields=["status"])
 
-    return JsonResponse({
-        "success": True,
-        "customer_half": customer_half,
-        "agent_half": agent_half,
-        "customer_verified": otp_obj.customer_verified,
-        "agent_verified": otp_obj.agent_verified
-    })
+    return JsonResponse({"status": "success", "latitude": lat, "longitude": lng})
+

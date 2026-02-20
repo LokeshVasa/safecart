@@ -116,6 +116,7 @@ class Order(models.Model):
     expires_at = models.DateTimeField()
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pending')
     created_at = models.DateTimeField(auto_now_add=True)
+    delivery_agent = models.ForeignKey('DeliveryAgent',on_delete=models.SET_NULL,null=True,blank=True,related_name='orders')
 
     def __str__(self):
         return f"Order {self.order_id} - {self.status}"
@@ -151,35 +152,11 @@ class OrderUpdate(models.Model):
 if not hasattr(User, 'profile_image'):
     User.add_to_class('profile_image', models.BinaryField(null=True, blank=True))
 
-class OrderOTP(models.Model):
-
-    order = models.OneToOneField(
-        Order,
-        on_delete=models.CASCADE,
-        related_name='otp'
-    )
-
-    otp_hash = models.CharField(max_length=64)
-
-    enc_customer_half = models.TextField(null=True, blank=True)
-    enc_agent_half = models.TextField(null=True, blank=True)
-
-    expires_at = models.DateTimeField()
-
-    attempts = models.IntegerField(default=0)
-
+class DeliveryAgent(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
-    customer_verified = models.BooleanField(default=False)
-    agent_verified = models.BooleanField(default=False)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    def is_expired(self):
-        return timezone.now() > self.expires_at
-
-    def verify(self, raw_otp):
-        hashed = hashlib.sha256(raw_otp.encode()).hexdigest()
-        return hashed == self.otp_hash
-
     def __str__(self):
-        return f"OTP for Order {self.order.id}"
+        return f"{self.user.username}"
