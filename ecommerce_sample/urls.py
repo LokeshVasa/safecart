@@ -41,6 +41,9 @@ urlpatterns = [
     path("use-current-location/", views.use_current_location, name="use_current_location"),
     path('save-address-and-map/', views.save_address_and_map, name='save_address_and_map'),
     path('save-address-session/', views.save_address_session, name='save_address_session'),
+    path('delivery/generate-otp/<int:order_id>/', views.generate_order_otp, name='generate_order_otp'),
+    path('delivery/verify-otp/<int:order_id>/', views.verify_order_otp, name='verify_order_otp'),
+    path('delivery/get-otp/<int:order_id>/', views.get_order_otp_halves, name='get_order_otp'),
 ]
 
 # Serve media in development

@@ -75,9 +75,9 @@
                 </div>
             </div>
 
-            {% with otp_side="right" display_otp="3DR6" verify_otp="1234" %}
-            {% include "components/safe_handshake.html" %}
-            {% endwith %}
+            {% with otp_side="right" %}
+{% include "components/safe_handshake.html" %}
+{% endwith %}
 
             {% endfor %}
         </div>
@@ -98,14 +98,51 @@
  GLOBAL SAFE HANDSHAKE SCRIPT
 ============================= -->
 <script>
+
     /* =====================================================
        MODAL OPEN / CLOSE
     ===================================================== */
-    function openHandshake(orderId) {
+function openHandshake(orderId) {
+
+    fetch(`/delivery/get-otp/${orderId}/`)
+    .then(res => {
+
+        if (!res.ok) {
+            throw new Error("Server returned " + res.status);
+        }
+
+        return res.json();
+    })
+    .then(data => {
+
+        if (!data.success) {
+            alert("Unable to generate OTP");
+            return;
+        }
+
         const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
-        if (!modal) return;
+        if (!modal) {
+            alert("Handshake modal not found");
+            return;
+        }
+        console.log("Received OTP data:", data);
+        console.log("Modal element:", modal);
+
+        modal.dataset.displayOtp = data.agent_half;
+        modal.dataset.verifyOtp = data.customer_half + data.agent_half;
+        console.log("Set modal data attributes:", {
+            displayOtp: modal.dataset.displayOtp,
+            verifyOtp: modal.dataset.verifyOtp
+        });
         modal.classList.add('active');
-    }
+
+        initHandshake(orderId);
+    })
+    .catch(err => {
+        console.error("OTP error:", err);
+        alert("OTP generation failed. Check console.");
+    });
+}
 
     function closeHandshake(orderId) {
         const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
@@ -230,9 +267,9 @@
         setTimeout(() => {
             if (userOTP === config.verifyOTP) {
                 // ✅ SUCCESS
-                disableUserInputs(config);
+            disableUserInputs(config);
 
-                const btn = config.modal.querySelector('.neon-button');
+            const btn = config.modal.querySelector('.neon-button');
                 btn.textContent = 'Success';
                 btn.style.cursor = 'not-allowed';
                 btn.onclick = null;
@@ -242,7 +279,7 @@
                 stage.classList.remove('success');
                 // stage.classList.add('failure');
             }
-        }, 1500);
+}, 1500);
     }
 
     document.addEventListener('click', function (e) {

@@ -56,7 +56,7 @@
 </div>
 
 <!-- Safe Handshake Modal -->
-{% with otp_side="right" display_otp="3DR6" verify_otp="3DR6" %}
+{% with otp_side="right" %}
 {% include "components/safe_handshake.html" %}
 {% endwith %}
 
@@ -68,10 +68,40 @@
    MODAL OPEN / CLOSE
 ===================================================== */
 function openHandshake(orderId) {
-    const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
-    if (!modal) return;
-    modal.classList.add('active');
-    initHandshake(orderId);
+
+    fetch(`/delivery/generate-otp/${orderId}/`)
+    .then(res => {
+
+        if (!res.ok) {
+            throw new Error("Server returned " + res.status);
+        }
+
+        return res.json();
+    })
+    .then(data => {
+
+        if (!data.success) {
+            alert("Unable to generate OTP");
+            return;
+        }
+
+        const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+        if (!modal) {
+            alert("Handshake modal not found");
+            return;
+        }
+
+        modal.dataset.displayOtp = data.agent_half;
+        modal.dataset.verifyOtp = data.customer_half + data.agent_half;
+
+        modal.classList.add('active');
+
+        initHandshake(orderId);
+    })
+    .catch(err => {
+        console.error("OTP error:", err);
+        alert("OTP generation failed. Check console.");
+    });
 }
 
 function closeHandshake(orderId) {
@@ -193,13 +223,8 @@ function handshake(orderId) {
 
     setTimeout(() => {
        if (userOTP === config.verifyOTP) {
-        
-
     disableUserInputs(config);
-
-    // Select the handshake button inside THIS modal
     const btn = config.modal.querySelector('.neon-button');
-
     if (btn) {
         btn.textContent = "Success";
 
