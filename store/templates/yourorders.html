@@ -128,7 +128,7 @@ function openHandshake(orderId) {
         console.log("Received OTP data:", data);
         console.log("Modal element:", modal);
 
-        modal.dataset.displayOtp = data.agent_half;
+                modal.dataset.displayOtp = data.customer_half;
         modal.dataset.verifyOtp = data.customer_half + data.agent_half;
         console.log("Set modal data attributes:", {
             displayOtp: modal.dataset.displayOtp,
