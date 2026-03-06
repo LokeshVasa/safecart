@@ -27,6 +27,8 @@ from django.db import IntegrityError
 import random
 import hashlib
 from .models import OrderOTP
+from .utils import encrypt_value, decrypt_value
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -894,112 +896,128 @@ def get_order_by_token(request):
         return JsonResponse({'success': False, 'error': 'Order not found'})
 
 @login_required
+
 def generate_order_otp(request, order_id):
 
     order = get_object_or_404(Order, id=order_id)
 
-    # generate 8 digit OTP
+    # ❌ prevent OTP if already delivered
+    if order.status == "Delivered":
+        return JsonResponse({
+            "success": False,
+            "error": "Order already delivered"
+        })
+
+    # check existing OTP
+    otp_obj = OrderOTP.objects.filter(order=order).first()
+
+    if otp_obj and otp_obj.is_active and not otp_obj.is_expired():
+        return JsonResponse({
+    "success": True,
+    "agent_half": decrypt_value(otp_obj.enc_agent_half),
+    "customer_half": decrypt_value(otp_obj.enc_customer_half)
+})
+
+    # generate new OTP
     otp = str(random.randint(10000000, 99999999))
 
     customer_half = otp[:4]
     agent_half = otp[4:]
-    print(f"Generated OTP for order {order.id}: {otp} (Customer half: {customer_half}, Agent half: {agent_half})"   )
 
-    otp_hash = hashlib.sha256(otp.encode()).hexdigest()
+    hashed = hashlib.sha256(otp.encode()).hexdigest()
 
-    # remove old OTP if exists
-    OrderOTP.objects.filter(order=order).delete()
+    OrderOTP.objects.update_or_create(
+        order=order,
+        defaults={
+            "otp_hash": hashed,
+            "enc_customer_half": encrypt_value(customer_half),
+            "enc_agent_half": encrypt_value(agent_half),
+            "expires_at": timezone.now() + timedelta(minutes=10),
+            "is_active": True
+        }
+    )
 
-    OrderOTP.objects.create(
-    order=order,
-    otp_hash=otp_hash,
-    expires_at=timezone.now() + timedelta(minutes=10),
-    attempts=0,
-    is_active=True
-)
+    print(f"Generated OTP for order {order.id}: {otp}")
 
     return JsonResponse({
         "success": True,
-        "customer_half": customer_half,
-        "agent_half": agent_half
+        "agent_half": agent_half,
+        "customer_half": customer_half
     })
 
 @login_required
 @require_POST
-def verify_order_otp(request, order_id):
+def verify_otp(request, order_id):
 
     order = get_object_or_404(Order, id=order_id)
-    otp_record = get_object_or_404(OrderOTP, order=order)
 
-    entered_otp = request.POST.get("otp")
+    try:
+        otp_obj = order.otp
+    except OrderOTP.DoesNotExist:
+        return JsonResponse({"success": False, "error": "OTP not found"})
 
-    if not entered_otp:
-        return JsonResponse({"success": False, "error": "OTP required"})
-
-    # check if OTP active
-    if not otp_record.is_active:
-        return JsonResponse({"success": False, "error": "OTP not active"})
-
-    # check expiry
-    if timezone.now() > otp_record.expires_at:
-        otp_record.is_active = False
-        otp_record.save(update_fields=["is_active"])
+    if otp_obj.is_expired():
+        otp_obj.is_active = False
+        otp_obj.save(update_fields=["is_active"])
         return JsonResponse({"success": False, "error": "OTP expired"})
 
-    # check attempts
-    if otp_record.attempts >= 10:
-        otp_record.is_active = False
-        otp_record.save(update_fields=["is_active"])
-        return JsonResponse({
-            "success": False,
-            "error": "Maximum attempts exceeded"
-        })
+    data = json.loads(request.body)
 
-    # verify hash
-    entered_hash = hashlib.sha256(entered_otp.encode()).hexdigest()
+    customer_half = data.get("customer_half")
+    agent_half = data.get("agent_half")
 
-    if entered_hash == otp_record.otp_hash:
+    if not customer_half or not agent_half:
+        return JsonResponse({"success": False, "error": "Invalid OTP format"})
 
-        # success
+    full_otp = customer_half + agent_half
+    hashed = hashlib.sha256(full_otp.encode()).hexdigest()
+
+    if hashed != otp_obj.otp_hash:
+        otp_obj.attempts += 1
+        otp_obj.save(update_fields=["attempts"])
+        return JsonResponse({"success": False})
+
+    # OTP correct
+    user = request.user
+
+    # Detect who verified
+    if user.groups.filter(name="DeliveryAgent").exists():
+        otp_obj.agent_verified = True
+    else:
+        otp_obj.customer_verified = True
+
+    otp_obj.save(update_fields=["agent_verified", "customer_verified"])
+
+    # If BOTH verified → delivery complete
+    if otp_obj.agent_verified and otp_obj.customer_verified:
+
+        otp_obj.is_active = False
+        otp_obj.save(update_fields=["is_active"])
+
         order.status = "Delivered"
         order.save(update_fields=["status"])
 
-        otp_record.is_active = False
-        otp_record.save(update_fields=["is_active"])
-
-        return JsonResponse({
-            "success": True,
-            "message": "Handshake successful. Order delivered."
-        })
-
-    else:
-
-        otp_record.attempts += 1
-        otp_record.save(update_fields=["attempts"])
-
-        remaining = 10 - otp_record.attempts
-
-        return JsonResponse({
-            "success": False,
-            "error": "Invalid OTP",
-            "remaining_attempts": remaining
-        })
-    
+    return JsonResponse({"success": True})
 @login_required
 def get_order_otp_halves(request, order_id):
 
     order = get_object_or_404(Order, id=order_id)
 
-    try:
-        otp = OrderOTP.objects.get(order=order, is_active=True)
-    except OrderOTP.DoesNotExist:
+    otp_obj = OrderOTP.objects.filter(order=order).first()
+
+    if not otp_obj:
         return JsonResponse({
             "success": False,
             "error": "OTP not generated"
         })
 
+    customer_half = decrypt_value(otp_obj.enc_customer_half)
+    agent_half = decrypt_value(otp_obj.enc_agent_half)
+
     return JsonResponse({
         "success": True,
-        "customer_half": 1234,
-        "agent_half": 5678
+        "customer_half": customer_half,
+        "agent_half": agent_half,
+        "customer_verified": otp_obj.customer_verified,
+        "agent_verified": otp_obj.agent_verified
     })

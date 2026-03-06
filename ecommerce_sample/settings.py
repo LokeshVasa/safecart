@@ -164,3 +164,4 @@ EMAIL_HOST_PASSWORD = 'dito aesz hmir urbd'
 # Optional
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
+OTP_ENCRYPTION_KEY = b'8fziHyCMElKqvHkLsvsWm7rEkSB3RuTlTA93KxpdHug='

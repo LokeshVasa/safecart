@@ -11,323 +11,374 @@
 
 <body class="bg-light">
 
-<div class="container py-4">
-    <h2 class="mb-4">Order Details (ID: {{ order.id }})</h2>
+    <div class="container py-4">
+        <h2 class="mb-4">Order Details (ID: {{ order.id }})</h2>
 
-    <div class="card mb-4">
-        <div class="card-body position-relative">
+        <div class="card mb-4">
+            <div class="card-body position-relative">
 
-            <!-- Generate OTP Button -->
-            <button class="btn btn-primary position-absolute"
-                    style="top: 15px; right: 15px;"
+                <!-- Generate OTP Button -->
+                {% if order.status == "Delivered" %}
+                <button class="btn btn-secondary position-absolute" style="top: 15px; right: 15px;" disabled>
+                    Delivered
+                </button>
+                {% else %}
+                <button class="btn btn-primary position-absolute" style="top: 15px; right: 15px;"
                     onclick="openHandshake('{{ order.id }}')">
-                Generate OTP
-            </button>
+                    Generate OTP
+                </button>
+                {% endif %}
 
-            <p><strong>User:</strong> {{ order.user.username }}</p>
-            <p><strong>Address:</strong>
-                {{ order.address.street }},
-                {{ order.address.city }},
-                {{ order.address.state }} -
-                {{ order.address.pincode }}
-            </p>
-            <p><strong>Payment Type:</strong> {{ order.payment_type }}</p>
-            <p><strong>Status:</strong> {{ order.status }}</p>
+                <p><strong>User:</strong> {{ order.user.username }}</p>
+                <p><strong>Address:</strong>
+                    {{ order.address.street }},
+                    {{ order.address.city }},
+                    {{ order.address.state }} -
+                    {{ order.address.pincode }}
+                </p>
+                <p><strong>Payment Type:</strong> {{ order.payment_type }}</p>
+                <p><strong>Status:</strong> {{ order.status }}</p>
 
-            <div class="mt-3">
-                <a href="{% url 'mark_order_delivered' order.id %}" class="btn btn-success me-2">
-                    Mark as Delivered
-                </a>
-                <a href="{% url 'delivery_dashboard' %}" class="btn btn-secondary">
-                    Back to Dashboard
-                </a>
+                <div class="mt-3">
+                    <a href="{% url 'delivery_dashboard' %}" class="btn btn-secondary">
+                        Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Card -->
+        <div class="card mb-4 border border-dark">
+            <div class="card-body p-0">
+                <div class="ratio ratio-16x9">
+                    <div id="map"></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Map Card -->
-    <div class="card mb-4 border border-dark">
-        <div class="card-body p-0">
-            <div class="ratio ratio-16x9">
-                <div id="map"></div>
-            </div>
-        </div>
-    </div>
-</div>
+    <!-- Safe Handshake Modal -->
+    {% with otp_side="right" %}
+    {% include "components/safe_handshake.html" %}
+    {% endwith %}
 
-<!-- Safe Handshake Modal -->
-{% with otp_side="right" %}
-{% include "components/safe_handshake.html" %}
-{% endwith %}
+    <!-- ============================= -->
+    <!-- FULL HANDSHAKE SCRIPT -->
+    <!-- ============================= -->
+    <script>
+        /* =====================================================
+           MODAL OPEN / CLOSE
+        ===================================================== */
+        function openHandshake(orderId) {
 
-<!-- ============================= -->
-<!-- FULL HANDSHAKE SCRIPT -->
-<!-- ============================= -->
-<script>
-/* =====================================================
-   MODAL OPEN / CLOSE
-===================================================== */
-function openHandshake(orderId) {
+            fetch(`/delivery/generate-otp/${orderId}/`)
+                .then(res => {
 
-    fetch(`/delivery/generate-otp/${orderId}/`)
-    .then(res => {
+                    if (!res.ok) {
+                        throw new Error("Server returned " + res.status);
+                    }
 
-        if (!res.ok) {
-            throw new Error("Server returned " + res.status);
+                    return res.json();
+                })
+                .then(data => {
+
+                    if (!data.success) {
+                        alert(data.error || "OTP cannot be generated");
+                        return;
+                    }
+
+                    const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+                    if (!modal) {
+                        alert("Handshake modal not found");
+                        return;
+                    }
+
+                    modal.dataset.displayOtp = data.agent_half;
+                    // modal.dataset.verifyOtp = data.customer_half + data.agent_half;  do verification server side
+
+                    modal.classList.add('active');
+
+                    initHandshake(orderId);
+                })
+                .catch(err => {
+                    console.error("OTP error:", err);
+                    alert("OTP generation failed. Check console.");
+                });
+            document.querySelector('[onclick*="' + orderId + '"]').disabled = true;
         }
 
-        return res.json();
-    })
-    .then(data => {
-
-        if (!data.success) {
-            alert("Unable to generate OTP");
-            return;
+        function closeHandshake(orderId) {
+            const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+            if (!modal) return;
+            modal.classList.remove('active');
         }
 
-        const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
-        if (!modal) {
-            alert("Handshake modal not found");
-            return;
+        /* =====================================================
+           READ CONFIG FROM DATA ATTRIBUTES
+        ===================================================== */
+        function getHandshakeConfig(orderId) {
+            const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+            if (!modal) return null;
+
+            const userSide = modal.dataset.autoSide;
+
+            return {
+                modal,
+                userInputSide: userSide === 'right' ? 'left' : 'right',
+                autoFillSide: userSide,
+                displayOTP: modal.dataset.displayOtp || '',
+                // verifyOTP: modal.dataset.verifyOtp || ''
+            };
         }
 
-        modal.dataset.displayOtp = data.agent_half;
-        modal.dataset.verifyOtp = data.customer_half + data.agent_half;
+        /* =====================================================
+           INITIALIZE OTP INPUTS
+        ===================================================== */
+        function initHandshake(orderId) {
+            const config = getHandshakeConfig(orderId);
+            if (!config) return;
 
-        modal.classList.add('active');
+            const displayChars = config.displayOTP.split('');
 
-        initHandshake(orderId);
-    })
-    .catch(err => {
-        console.error("OTP error:", err);
-        alert("OTP generation failed. Check console.");
-    });
-}
+            const autoContainer = config.modal.querySelector(
+                `.hand.${config.autoFillSide} .otp-container`
+            );
+            const userContainer = config.modal.querySelector(
+                `.hand.${config.userInputSide} .otp-container`
+            );
 
-function closeHandshake(orderId) {
-    const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
-    if (!modal) return;
-    modal.classList.remove('active');
-}
+            // Auto-fill side (Right)
+            autoContainer.querySelectorAll('.otp-box').forEach((input, i) => {
+                input.value = displayChars[i] || '';
+                input.disabled = true;
+            });
 
-/* =====================================================
-   READ CONFIG FROM DATA ATTRIBUTES
-===================================================== */
-function getHandshakeConfig(orderId) {
-    const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
-    if (!modal) return null;
+            // User input side (Left)
+            const userInputs = userContainer.querySelectorAll('.otp-box');
 
-    const userSide = modal.dataset.autoSide;
+            userInputs.forEach((input, index) => {
+                input.value = '';
+                input.disabled = false;
 
-    return {
-        modal,
-        userInputSide: userSide === 'right' ? 'left' : 'right',
-        autoFillSide: userSide,
-        displayOTP: modal.dataset.displayOtp || '',
-        verifyOTP: modal.dataset.verifyOtp || ''
-    };
-}
+                input.oninput = function () {
+                    this.value = this.value.toUpperCase();
 
-/* =====================================================
-   INITIALIZE OTP INPUTS
-===================================================== */
-function initHandshake(orderId) {
-    const config = getHandshakeConfig(orderId);
-    if (!config) return;
+                    if (this.value.length > 1) {
+                        this.value = this.value[0];
+                    }
 
-    const displayChars = config.displayOTP.split('');
+                    if (this.value && index < userInputs.length - 1) {
+                        userInputs[index + 1].focus();
+                    }
+                };
 
-    const autoContainer = config.modal.querySelector(
-        `.hand.${config.autoFillSide} .otp-container`
-    );
-    const userContainer = config.modal.querySelector(
-        `.hand.${config.userInputSide} .otp-container`
-    );
+                input.onkeydown = function (e) {
+                    if (e.key === "Backspace" && !this.value && index > 0) {
+                        userInputs[index - 1].focus();
+                    }
+                };
+            });
 
-    // Auto-fill side (Right)
-    autoContainer.querySelectorAll('.otp-box').forEach((input, i) => {
-        input.value = displayChars[i] || '';
-        input.disabled = true;
-    });
+            if (userInputs.length > 0) {
+                userInputs[0].focus();
+            }
+        }
 
-    // User input side (Left)
-    const userInputs = userContainer.querySelectorAll('.otp-box');
+        /* =====================================================
+           READ USER ENTERED OTP
+        ===================================================== */
+        function getUserOTP(config) {
+            const inputs = config.modal.querySelectorAll(
+                `.hand.${config.userInputSide} .otp-box`
+            );
 
-    userInputs.forEach((input, index) => {
-        input.value = '';
-        input.disabled = false;
+            return Array.from(inputs)
+                .map(i => i.value || '')
+                .join('');
+        }
 
-        input.oninput = function () {
-            this.value = this.value.toUpperCase();
+        /* =====================================================
+           DISABLE USER INPUTS
+        ===================================================== */
+        function disableUserInputs(config) {
+            config.modal
+                .querySelectorAll(`.hand.${config.userInputSide} .otp-box`)
+                .forEach(i => i.disabled = true);
+        }
 
-            if (this.value.length > 1) {
-                this.value = this.value[0];
+        /* =====================================================
+           HANDSHAKE ACTION
+        ===================================================== */
+        function getCSRFToken() {
+
+            const cookies = document.cookie.split(';');
+
+            for (let cookie of cookies) {
+
+                cookie = cookie.trim();
+
+                if (cookie.startsWith('csrftoken=')) {
+                    return cookie.substring('csrftoken='.length);
+                }
+
             }
 
-            if (this.value && index < userInputs.length - 1) {
-                userInputs[index + 1].focus();
-            }
-        };
+            return '';
 
-        input.onkeydown = function (e) {
-            if (e.key === "Backspace" && !this.value && index > 0) {
-                userInputs[index - 1].focus();
-            }
-        };
-    });
-
-    if (userInputs.length > 0) {
-        userInputs[0].focus();
-    }
-}
-
-/* =====================================================
-   READ USER ENTERED OTP
-===================================================== */
-function getUserOTP(config) {
-    const inputs = config.modal.querySelectorAll(
-        `.hand.${config.userInputSide} .otp-box`
-    );
-
-    return Array.from(inputs)
-        .map(i => i.value || '')
-        .join('');
-}
-
-/* =====================================================
-   DISABLE USER INPUTS
-===================================================== */
-function disableUserInputs(config) {
-    config.modal
-        .querySelectorAll(`.hand.${config.userInputSide} .otp-box`)
-        .forEach(i => i.disabled = true);
-}
-
-/* =====================================================
-   HANDSHAKE ACTION
-===================================================== */
-function handshake(orderId) {
-    const config = getHandshakeConfig(orderId);
-    if (!config) return;
-
-    const userOTP = getUserOTP(config);
-    if (userOTP.length < 4) {
-        alert('Please complete the OTP');
-        return;
-    }
-
-    const stage = config.modal.querySelector('.stage');
-    stage.classList.remove('success', 'failure');
-    void stage.offsetWidth;
-    stage.classList.add('success');
-
-    setTimeout(() => {
-       if (userOTP === config.verifyOTP) {
-    disableUserInputs(config);
-    const btn = config.modal.querySelector('.neon-button');
-    if (btn) {
-        btn.textContent = "Success";
-
-        // Fully disable
-        btn.disabled = true;
-        btn.style.pointerEvents = "none";
-        btn.style.opacity = "0.6";
-        btn.style.cursor = "not-allowed";
-    }
-}
-    }, 1500);
-}
-</script>
-
-<!-- ================= MAP JS ================= -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
-
-<script>
-    var deliveryAgentIcon = L.icon({
-        iconUrl: '/static/images/delivery-agent.png',
-        iconSize: [72, 72],
-        iconAnchor: [36, 50],
-        popupAnchor: [0, -50]
-    });
-
-    var destinationIcon = L.icon({
-        iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers/img/marker-icon-2x-blue.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34]
-    });
-
-    var map = L.map('map').fitWorld();
-
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: 'SafeCart ©',
-        maxZoom: 19
-    }).addTo(map);
-
-    L.control.scale({ position: 'bottomleft' }).addTo(map);
-
-    var destinationLat = {{ order.address.latitude|default:0 }};
-    var destinationLng = {{ order.address.longitude|default:0 }};
-
-    var routingControl;
-    var deliveryMarker = null;
-
-    if (destinationLat !== 0 && destinationLng !== 0) {
-        L.marker([destinationLat, destinationLng], { icon: destinationIcon })
-            .addTo(map)
-            .bindPopup("Customer Delivery Location")
-            .openPopup();
-    }
-
-    map.locate({ setView: true, maxZoom: 16, watch: true });
-
-    function updateRoute(e) {
-        if (destinationLat === 0 || destinationLng === 0) return;
-
-        var agentLocation = e.latlng;
-
-        if (!deliveryMarker) {
-            deliveryMarker = L.marker(agentLocation, { icon: deliveryAgentIcon })
-                .addTo(map)
-                .bindPopup("Delivery Agent");
-        } else {
-            deliveryMarker.setLatLng(agentLocation);
         }
+        function handshake(orderId) {
 
-        if (routingControl) {
-            map.removeControl(routingControl);
+            const config = getHandshakeConfig(orderId);
+            if (!config) return;
+
+            const userOTP = getUserOTP(config);
+
+            if (userOTP.length < 4) {
+                alert("Please complete the OTP");
+                return;
+            }
+
+            const stage = config.modal.querySelector('.stage');
+
+            stage.classList.remove('success', 'failure');
+            void stage.offsetWidth;
+
+            fetch(`/delivery/verifyotp/${orderId}/`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCSRFToken()
+                },
+                body: JSON.stringify({
+                    customer_half: userOTP,
+                    agent_half: config.displayOTP
+                })
+            })
+                .then(res => res.json())
+                .then(data => {
+
+                    if (data.success) {
+
+                        stage.classList.add('success');
+
+                        disableUserInputs(config);
+
+                        const btn = config.modal.querySelector('.neon-button');
+
+                        btn.textContent = "Success";
+                        btn.disabled = true;
+                        btn.style.pointerEvents = "none";
+                        btn.style.opacity = "0.6";
+
+                    } else {
+
+                        // failure animation
+                        stage.classList.add('success');
+
+                        setTimeout(() => {
+                            stage.classList.remove('success');
+                            stage.classList.add('failure');
+                        }, 1200);
+
+                    }
+
+                })
+                .catch(err => {
+                    console.error("Verification error:", err);
+                });
         }
+    </script>
 
-        routingControl = L.Routing.control({
-            waypoints: [
-                L.latLng(agentLocation.lat, agentLocation.lng),
-                L.latLng(destinationLat, destinationLng)
-            ],
-            createMarker: function () { return null; },
-            lineOptions: {
-                styles: [{
-                    color: 'black',
-                    weight: 6,
-                    opacity: 0.9
-                }]
-            },
-            addWaypoints: false,
-            draggableWaypoints: false,
-            routeWhileDragging: false,
-            fitSelectedRoutes: true,
-            show: false,
-            collapsible: false
+    <!-- ================= MAP JS ================= -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+
+    <script>
+        var deliveryAgentIcon = L.icon({
+            iconUrl: '/static/images/delivery-agent.png',
+            iconSize: [72, 72],
+            iconAnchor: [36, 50],
+            popupAnchor: [0, -50]
+        });
+
+        var destinationIcon = L.icon({
+            iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers/img/marker-icon-2x-blue.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34]
+        });
+
+        var map = L.map('map').fitWorld();
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: 'SafeCart ©',
+            maxZoom: 19
         }).addTo(map);
-    }
 
-    map.on('locationfound', updateRoute);
-    map.on('locationerror', function () {
-        alert("Cannot get your location.");
-    });
-</script>
+        L.control.scale({ position: 'bottomleft' }).addTo(map);
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        var destinationLat = {{ order.address.latitude|default_if_none:0 }};
+        var destinationLng = {{ order.address.longitude|default_if_none:0 }};
+
+        var routingControl;
+        var deliveryMarker = null;
+
+        if (destinationLat !== 0 && destinationLng !== 0) {
+            L.marker([destinationLat, destinationLng], { icon: destinationIcon })
+                .addTo(map)
+                .bindPopup("Customer Delivery Location")
+                .openPopup();
+        }
+
+        map.locate({ setView: true, maxZoom: 16, watch: true });
+
+        function updateRoute(e) {
+            if (destinationLat === 0 || destinationLng === 0) return;
+
+            var agentLocation = e.latlng;
+
+            if (!deliveryMarker) {
+                deliveryMarker = L.marker(agentLocation, { icon: deliveryAgentIcon })
+                    .addTo(map)
+                    .bindPopup("Delivery Agent");
+            } else {
+                deliveryMarker.setLatLng(agentLocation);
+            }
+
+            if (routingControl) {
+                map.removeControl(routingControl);
+            }
+
+            routingControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(agentLocation.lat, agentLocation.lng),
+                    L.latLng(destinationLat, destinationLng)
+                ],
+                createMarker: function () { return null; },
+                lineOptions: {
+                    styles: [{
+                        color: 'black',
+                        weight: 6,
+                        opacity: 0.9
+                    }]
+                },
+                addWaypoints: false,
+                draggableWaypoints: false,
+                routeWhileDragging: false,
+                fitSelectedRoutes: true,
+                show: false,
+                collapsible: false
+            }).addTo(map);
+        }
+
+        map.on('locationfound', updateRoute);
+        map.on('locationerror', function () {
+            alert("Cannot get your location.");
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
+
 </html>

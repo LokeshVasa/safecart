@@ -152,6 +152,7 @@ if not hasattr(User, 'profile_image'):
     User.add_to_class('profile_image', models.BinaryField(null=True, blank=True))
 
 class OrderOTP(models.Model):
+
     order = models.OneToOneField(
         Order,
         on_delete=models.CASCADE,
@@ -160,11 +161,19 @@ class OrderOTP(models.Model):
 
     otp_hash = models.CharField(max_length=64)
 
-    expires_at = models.DateTimeField()
-    attempts = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    enc_customer_half = models.TextField(null=True, blank=True)
+    enc_agent_half = models.TextField(null=True, blank=True)
 
+    expires_at = models.DateTimeField()
+
+    attempts = models.IntegerField(default=0)
+
+    is_active = models.BooleanField(default=True)
+
+    customer_verified = models.BooleanField(default=False)
+    agent_verified = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
     def is_expired(self):
         return timezone.now() > self.expires_at
 
