@@ -940,10 +940,12 @@ def generate_order_otp(request, order_id):
     print(f"Generated OTP for order {order.id}: {otp}")
 
     return JsonResponse({
-        "success": True,
-        "agent_half": agent_half,
-        "customer_half": customer_half
-    })
+    "success": True,
+    "agent_half": agent_half,
+    "customer_half": customer_half,
+    "customer_verified": otp_obj.customer_verified if otp_obj else False,
+    "agent_verified": otp_obj.agent_verified if otp_obj else False
+})
 
 @login_required
 @require_POST
