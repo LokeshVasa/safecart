@@ -299,7 +299,10 @@
 
                     } else {
 
-                        // failure animation
+                        if (data.error) {
+                            alert(data.error);
+                        }
+
                         stage.classList.add('success');
 
                         setTimeout(() => {

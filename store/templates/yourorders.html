@@ -355,6 +355,10 @@
 
                 } else {
 
+                    if (data.error) {
+                        alert(data.error);
+                    }
+
                     // Step 1 → move hands forward
                     stage.classList.remove('success', 'failure');
                     void stage.offsetWidth;

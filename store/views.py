@@ -927,15 +927,18 @@ def generate_order_otp(request, order_id):
     hashed = hashlib.sha256(otp.encode()).hexdigest()
 
     OrderOTP.objects.update_or_create(
-        order=order,
-        defaults={
-            "otp_hash": hashed,
-            "enc_customer_half": encrypt_value(customer_half),
-            "enc_agent_half": encrypt_value(agent_half),
-            "expires_at": timezone.now() + timedelta(minutes=10),
-            "is_active": True
-        }
-    )
+    order=order,
+    defaults={
+        "otp_hash": hashed,
+        "enc_customer_half": encrypt_value(customer_half),
+        "enc_agent_half": encrypt_value(agent_half),
+        "expires_at": timezone.now() + timedelta(minutes=10),
+        "is_active": True,
+        "attempts": 0,
+        "customer_verified": False,
+        "agent_verified": False
+    }
+)
 
     print(f"Generated OTP for order {order.id}: {otp}")
 
@@ -951,6 +954,8 @@ def generate_order_otp(request, order_id):
 @require_POST
 def verify_otp(request, order_id):
 
+    MAX_ATTEMPTS = 5
+
     order = get_object_or_404(Order, id=order_id)
 
     try:
@@ -958,10 +963,20 @@ def verify_otp(request, order_id):
     except OrderOTP.DoesNotExist:
         return JsonResponse({"success": False, "error": "OTP not found"})
 
+    # OTP expired
     if otp_obj.is_expired():
         otp_obj.is_active = False
         otp_obj.save(update_fields=["is_active"])
         return JsonResponse({"success": False, "error": "OTP expired"})
+
+    # Too many attempts
+    if otp_obj.attempts >= MAX_ATTEMPTS:
+        otp_obj.is_active = False
+        otp_obj.save(update_fields=["is_active"])
+        return JsonResponse({
+            "success": False,
+            "error": "Maximum attempts exceeded. Generate a new OTP."
+        })
 
     data = json.loads(request.body)
 
@@ -974,15 +989,22 @@ def verify_otp(request, order_id):
     full_otp = customer_half + agent_half
     hashed = hashlib.sha256(full_otp.encode()).hexdigest()
 
+    # WRONG OTP
     if hashed != otp_obj.otp_hash:
+
         otp_obj.attempts += 1
         otp_obj.save(update_fields=["attempts"])
-        return JsonResponse({"success": False})
 
-    # OTP correct
+        remaining = MAX_ATTEMPTS - otp_obj.attempts
+
+        return JsonResponse({
+            "success": False,
+            "remaining_attempts": remaining
+        })
+
+    # CORRECT OTP
     user = request.user
 
-    # Detect who verified
     if user.groups.filter(name="DeliveryAgent").exists():
         otp_obj.agent_verified = True
     else:
@@ -990,7 +1012,7 @@ def verify_otp(request, order_id):
 
     otp_obj.save(update_fields=["agent_verified", "customer_verified"])
 
-    # If BOTH verified → delivery complete
+    # BOTH VERIFIED
     if otp_obj.agent_verified and otp_obj.customer_verified:
 
         otp_obj.is_active = False
@@ -1000,6 +1022,7 @@ def verify_otp(request, order_id):
         order.save(update_fields=["status"])
 
     return JsonResponse({"success": True})
+
 @login_required
 def get_order_otp_halves(request, order_id):
 
