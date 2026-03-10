@@ -41,6 +41,15 @@ urlpatterns = [
     path("use-current-location/", views.use_current_location, name="use_current_location"),
     path('save-address-and-map/', views.save_address_and_map, name='save_address_and_map'),
     path('save-address-session/', views.save_address_session, name='save_address_session'),
+    path('order/<int:order_id>/call/', views.join_order_call, name='join_order_call'),
+    path('order/<int:order_id>/call/start/', views.start_order_call, name='start_order_call'),
+    path('order/<int:order_id>/call/signal/', views.send_order_call_signal, name='send_order_call_signal'),
+    path('order/<int:order_id>/call/poll/', views.poll_order_call_signals, name='poll_order_call_signals'),
+    path('order/<int:order_id>/call/end/', views.end_order_call, name='end_order_call'),
+    path('order/call/incoming/', views.get_incoming_order_calls, name='get_incoming_order_calls'),
+    path('order/<int:order_id>/call/accept/', views.accept_order_call, name='accept_order_call'),
+    path('order/<int:order_id>/call/reject/', views.reject_order_call, name='reject_order_call'),
+    path('order/<int:order_id>/call/debug/', views.debug_order_call_state, name='debug_order_call_state'),
 ]
 
 # Serve media in development

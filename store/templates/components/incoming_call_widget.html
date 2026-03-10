@@ -1,0 +1,104 @@
+<style>
+    .incoming-call-container {
+        position: fixed;
+        top: 5.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1200;
+        width: calc(100% - 2rem);
+        max-width: 520px;
+    }
+</style>
+
+<div id="globalIncomingCallContainer" class="incoming-call-container"></div>
+
+<script>
+    (function () {
+        if (window.__incomingCallPoller) return;
+        window.__incomingCallPoller = true;
+
+        const incomingUrl = "{% url 'get_incoming_order_calls' %}";
+        const container = document.getElementById('globalIncomingCallContainer');
+        if (!container) return;
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        async function postJson(url) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') }
+            });
+            return response.json();
+        }
+
+        function renderIncomingCall(call) {
+            container.innerHTML = `
+                <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>Incoming call</strong> for Order #${call.order_id} from ${call.from_name}
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-success btn-sm" data-action="accept" data-order-id="${call.order_id}">Accept</button>
+                        <button class="btn btn-outline-danger btn-sm" data-action="reject" data-order-id="${call.order_id}">Reject</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function clearIncomingCall() {
+            container.innerHTML = '';
+        }
+
+        async function pollIncoming() {
+            try {
+                const response = await fetch(incomingUrl);
+                const data = await response.json();
+                if (data.status !== 'success' || !Array.isArray(data.calls) || data.calls.length === 0) {
+                    clearIncomingCall();
+                    return;
+                }
+                renderIncomingCall(data.calls[0]);
+            } catch (error) {
+                // Ignore transient errors and keep polling.
+            }
+        }
+
+        container.addEventListener('click', async function (event) {
+            const button = event.target.closest('button[data-action]');
+            if (!button) return;
+
+            const orderId = button.dataset.orderId;
+            const action = button.dataset.action;
+            const endpoint = action === 'accept'
+                ? `/order/${orderId}/call/accept/`
+                : `/order/${orderId}/call/reject/`;
+
+            const result = await postJson(endpoint);
+            if (result.status !== 'success') {
+                alert(result.message || 'Unable to process call action.');
+                return;
+            }
+
+            if (action === 'accept') {
+                window.open(`/order/${orderId}/call/?autostart=1`, '_blank');
+            }
+            clearIncomingCall();
+        });
+
+        pollIncoming();
+        setInterval(pollIncoming, 2500);
+    })();
+</script>

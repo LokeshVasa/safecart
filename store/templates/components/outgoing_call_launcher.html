@@ -1,0 +1,44 @@
+<script>
+    (function () {
+        if (window.__outgoingCallLauncher) return;
+        window.__outgoingCallLauncher = true;
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        async function preStartCall(orderId) {
+            try {
+                await fetch(`/order/${orderId}/call/start/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') }
+                });
+            } catch (error) {
+                // If pre-start fails, the call room will still attempt start.
+            }
+        }
+
+        document.addEventListener('click', async function (event) {
+            const link = event.target.closest('a[data-call-order-id]');
+            if (!link) return;
+
+            event.preventDefault();
+            const orderId = link.getAttribute('data-call-order-id');
+            if (!orderId) return;
+
+            await preStartCall(orderId);
+            window.open(`/order/${orderId}/call/?autostart=1`, '_blank');
+        });
+    })();
+</script>

@@ -27,18 +27,26 @@
 </head>
 <body class="{% block body_class %}default-body{% endblock %} d-flex flex-column min-vh-100">
 
+    <form style="display:none">{% csrf_token %}</form>
+
     <!-- Navbar -->
-    {% include "navbar.html" %}
+    {% if not hide_navbar %}
+        {% include "navbar.html" %}
+    {% endif %}
 
     <!-- Flash Messages -->
     <div id="flash-messages" class="flash-container">
         {% include "flash_messages.html" %}
     </div>
 
+    {% include "components/incoming_call_widget.html" %}
+    {% include "components/outgoing_call_launcher.html" %}
+
     <!-- Page Content -->
     <main class="flex-grow-1">
         {% block content %}{% endblock %}
     </main>
+
     <script src="https://unpkg.com/htmx.org@1.9.3"></script>
     <!-- Footer -->
     <footer class="bg-dark text-white py-3 mt-auto">

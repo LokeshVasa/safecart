@@ -1,0 +1,339 @@
+{% extends "root.html" %}
+{% load static %}
+
+{% block title %}Order Call - SafeCart{% endblock %}
+
+{% block content %}
+<section class="py-4">
+    <div class="container" style="max-width: 900px;">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h3 class="mb-1">Order Call</h3>
+                        <p class="text-muted mb-0">Order #{{ order.id }} | Role: {{ role|title }}</p>
+                    </div>
+                    <a href="{% if role == 'agent' %}{% url 'delivery_order_detail' %}?order-id={{ order.id }}{% else %}{% url 'yourorders' %}{% endif %}" class="btn btn-outline-secondary btn-sm">
+                        Back
+                    </a>
+                </div>
+
+                {% if request.GET.debug %}
+                <div class="alert alert-warning py-2">
+                    <strong>Debug:</strong>
+                    user={{ request.user.username }} (id={{ request.user.id }}),
+                    order.user_id={{ order.user_id }},
+                    delivery_agent_user_id={% if order.delivery_agent %}{{ order.delivery_agent.user_id }}{% else %}None{% endif %},
+                    role={{ role }}
+                </div>
+                {% endif %}
+
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-secondary" id="callStateBadge">Idle</span>
+                        <span class="text-muted small" id="callStatus">Preparing call...</span>
+                    </div>
+                    <div class="text-muted small">
+                        Role: <strong>{{ role|title }}</strong>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 h-100">
+                            <h6>Your Mic</h6>
+                            <audio id="localAudio" autoplay muted></audio>
+                            <small class="text-muted">Local audio is captured from your microphone.</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 h-100">
+                            <h6>Other Person</h6>
+                            <audio id="remoteAudio" autoplay></audio>
+                            <small class="text-muted">Remote audio plays when call connects.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <button id="muteBtn" class="btn btn-outline-dark btn-sm" disabled>Mute</button>
+                    <button id="endBtn" class="btn btn-danger btn-sm" disabled>End Call</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    const urls = {
+        start: "{% url 'start_order_call' order.id %}",
+        signal: "{% url 'send_order_call_signal' order.id %}",
+        poll: "{% url 'poll_order_call_signals' order.id %}",
+        end: "{% url 'end_order_call' order.id %}"
+    };
+
+    const statusEl = document.getElementById('callStatus');
+    const badgeEl = document.getElementById('callStateBadge');
+    const muteBtn = document.getElementById('muteBtn');
+    const endBtn = document.getElementById('endBtn');
+    const localAudio = document.getElementById('localAudio');
+    const remoteAudio = document.getElementById('remoteAudio');
+
+    let localStream = null;
+    let peerConnection = null;
+    let pollTimer = null;
+    let lastSignalId = 0;
+    let isMuted = false;
+    let started = false;
+    let isCaller = false;
+    let idlePollTimer = null;
+    const pendingIce = [];
+
+    function setStatus(message, type = 'info') {
+        statusEl.textContent = message;
+        if (type === 'success') badgeEl.className = 'badge bg-success';
+        else if (type === 'warning') badgeEl.className = 'badge bg-warning text-dark';
+        else if (type === 'danger') badgeEl.className = 'badge bg-danger';
+        else if (type === 'secondary') badgeEl.className = 'badge bg-secondary';
+        else badgeEl.className = 'badge bg-info';
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function postJson(url, data) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(data || {})
+        });
+        return response.json();
+    }
+
+    async function createPeerConnection() {
+        peerConnection = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        peerConnection.ontrack = (event) => {
+            const [stream] = event.streams;
+            if (stream) {
+                remoteAudio.srcObject = stream;
+                setStatus('Connected. Voice channel is live.', 'success');
+            }
+        };
+
+        peerConnection.onicecandidate = async (event) => {
+            if (!event.candidate) return;
+            await postJson(urls.signal, {
+                type: 'ice',
+                payload: event.candidate.toJSON()
+            });
+        };
+
+        peerConnection.onconnectionstatechange = () => {
+            const state = peerConnection.connectionState;
+            if (state === 'failed' || state === 'disconnected') {
+                setStatus('Connection lost. Try starting call again.', 'warning');
+            }
+        };
+    }
+
+    async function processSignal(signal) {
+        if (signal.type === 'bye') {
+            setStatus('Other participant ended the call.', 'warning');
+            teardown(false);
+            return;
+        }
+
+        if (!peerConnection) return;
+
+        if (signal.type === 'offer') {
+            const desc = new RTCSessionDescription(signal.payload);
+            await peerConnection.setRemoteDescription(desc);
+
+            while (pendingIce.length > 0) {
+                const candidate = pendingIce.shift();
+                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            await postJson(urls.signal, { type: 'answer', payload: answer });
+            setStatus('Offer received. Answer sent.', 'info');
+        }
+
+        if (signal.type === 'answer') {
+            if (peerConnection.currentRemoteDescription) return;
+            const desc = new RTCSessionDescription(signal.payload);
+            await peerConnection.setRemoteDescription(desc);
+
+            while (pendingIce.length > 0) {
+                const candidate = pendingIce.shift();
+                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+            setStatus('Answer received. Connecting...', 'info');
+        }
+
+        if (signal.type === 'ice') {
+            if (peerConnection.remoteDescription) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(signal.payload));
+            } else {
+                pendingIce.push(signal.payload);
+            }
+        }
+
+    }
+
+    async function pollSignals() {
+        try {
+            const response = await fetch(`${urls.poll}?after_id=${lastSignalId}`);
+            const data = await response.json();
+            if (data.status !== 'success') return;
+
+            if (!data.session_active) {
+                if (started) {
+                    if (data.call_status === 'rejected') {
+                        setStatus('Call was rejected by the other participant.', 'warning');
+                    } else {
+                        setStatus('Call is inactive.', 'warning');
+                    }
+                }
+                return;
+            }
+
+            for (const signal of data.signals) {
+                if (!peerConnection && signal.type !== 'bye') {
+                    continue;
+                }
+                await processSignal(signal);
+                lastSignalId = Math.max(lastSignalId, signal.id);
+            }
+        } catch (error) {
+            setStatus('Polling failed. Retrying...', 'warning');
+        }
+    }
+
+    async function startCall() {
+        if (started) return;
+
+        try {
+            const startResponse = await postJson(urls.start, {});
+            if (startResponse.status !== 'success') {
+                setStatus(startResponse.message || 'Unable to start call.', 'danger');
+                return;
+            }
+
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            localAudio.srcObject = localStream;
+
+            await createPeerConnection();
+
+            started = true;
+            isCaller = !!startResponse.is_caller;
+            muteBtn.disabled = false;
+            endBtn.disabled = false;
+
+            if (idlePollTimer) {
+                clearInterval(idlePollTimer);
+                idlePollTimer = null;
+            }
+            pollTimer = setInterval(pollSignals, 1200);
+            await pollSignals();
+
+            if (isCaller) {
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                await postJson(urls.signal, { type: 'offer', payload: offer });
+                setStatus('Calling... waiting for other person to answer.', 'info');
+            } else {
+                setStatus('Joined call. Waiting for caller offer...', 'info');
+            }
+        } catch (error) {
+            setStatus('Microphone permission denied or call setup failed.', 'danger');
+            teardown(false);
+        }
+    }
+
+    function teardown(clearStatus = true) {
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+
+        if (peerConnection) {
+            peerConnection.ontrack = null;
+            peerConnection.onicecandidate = null;
+            peerConnection.close();
+            peerConnection = null;
+        }
+
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+
+        remoteAudio.srcObject = null;
+        localAudio.srcObject = null;
+        started = false;
+
+        muteBtn.disabled = true;
+        endBtn.disabled = true;
+        muteBtn.textContent = 'Mute';
+        isMuted = false;
+
+        if (clearStatus) {
+            setStatus('Call ended.', 'secondary');
+        }
+    }
+
+    async function endCall(sendSignal = true) {
+        if (sendSignal) {
+            try {
+                await postJson(urls.end, {});
+            } catch (error) {
+                // noop
+            }
+        }
+        teardown(true);
+    }
+
+    muteBtn.addEventListener('click', () => {
+        if (!localStream) return;
+        isMuted = !isMuted;
+        localStream.getAudioTracks().forEach(track => {
+            track.enabled = !isMuted;
+        });
+        muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
+    });
+
+    endBtn.addEventListener('click', () => endCall(true));
+
+    idlePollTimer = setInterval(pollSignals, 1500);
+    pollSignals();
+
+    startCall();
+
+})();
+</script>
+{% endblock %}
