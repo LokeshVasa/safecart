@@ -75,7 +75,7 @@
                 </div>
             </div>
 
-            {% with otp_side="right" display_otp="3DR6" verify_otp="1234" %}
+            {% with otp_side="right" %}
             {% include "components/safe_handshake.html" %}
             {% endwith %}
 
@@ -98,13 +98,53 @@
  GLOBAL SAFE HANDSHAKE SCRIPT
 ============================= -->
 <script>
+
     /* =====================================================
        MODAL OPEN / CLOSE
     ===================================================== */
     function openHandshake(orderId) {
-        const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
-        if (!modal) return;
-        modal.classList.add('active');
+
+        fetch(`/delivery/get-otp/${orderId}/`)
+            .then(res => {
+
+                if (!res.ok) {
+                    throw new Error("Server returned " + res.status);
+                }
+
+                return res.json();
+            })
+            .then(data => {
+
+                if (!data.success) {
+                    alert("Unable to generate OTP");
+                    return;
+                }
+
+                const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+                if (!modal) {
+                    alert("Handshake modal not found");
+                    return;
+                }
+                console.log("Received OTP data:", data);
+                console.log("Modal element:", modal);
+
+                modal.dataset.displayOtp = data.customer_half;
+                modal.dataset.verifyOtp = data.customer_half + data.agent_half;
+
+                modal.dataset.customerVerified = data.customer_verified;
+                modal.dataset.agentVerified = data.agent_verified;
+                console.log("Set modal data attributes:", {
+                    displayOtp: modal.dataset.displayOtp,
+                    verifyOtp: modal.dataset.verifyOtp
+                });
+                modal.classList.add('active');
+
+                initHandshake(orderId);
+            })
+            .catch(err => {
+                console.error("OTP error:", err);
+                alert("OTP generation failed. Check console.");
+            });
     }
 
     function closeHandshake(orderId) {
@@ -136,51 +176,95 @@
        INITIALIZE OTP INPUTS (RUN ON OPEN)
     ===================================================== */
     function initHandshake(orderId) {
+
         const config = getHandshakeConfig(orderId);
         if (!config) return;
-
-        // Prevent re-initializing if already done
-        if (config.modal.dataset.initialized === 'true') return;
 
         const displayChars = config.displayOTP.split('');
 
         const autoContainer = config.modal.querySelector(
             `.hand.${config.autoFillSide} .otp-container`
         );
+
         const userContainer = config.modal.querySelector(
             `.hand.${config.userInputSide} .otp-container`
         );
 
-        // Auto-filled side
+        /* -----------------------------
+           AUTO FILLED SIDE
+        ----------------------------- */
+
         autoContainer.querySelectorAll('.otp-box').forEach((input, i) => {
             input.value = displayChars[i] || '';
             input.disabled = true;
         });
 
-        // User input side
+        /* -----------------------------
+           USER INPUT SIDE
+        ----------------------------- */
+
         const userInputs = userContainer.querySelectorAll('.otp-box');
-        userInputs.forEach(input => {
+
+        userInputs.forEach((input, index) => {
+
             input.value = '';
             input.disabled = false;
 
             input.oninput = function () {
+
                 this.value = this.value.toUpperCase();
-                if (this.value && this.nextElementSibling) {
-                    this.nextElementSibling.focus();
+
+                if (this.value.length > 1) {
+                    this.value = this.value[0];
+                }
+
+                if (this.value && index < userInputs.length - 1) {
+                    userInputs[index + 1].focus();
                 }
             };
 
             input.onkeydown = function (e) {
-                if (
-                    !/[a-zA-Z0-9]/.test(e.key) &&
-                    !['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'].includes(e.key)
-                ) {
-                    e.preventDefault();
+
+                if (e.key === "Backspace") {
+
+                    if (this.value === "" && index > 0) {
+
+                        userInputs[index - 1].focus();
+                        userInputs[index - 1].value = "";
+
+                    }
+
                 }
+
             };
+
         });
 
-        config.modal.dataset.initialized = 'true';
+        /* -----------------------------
+           PERSIST SUCCESS AFTER REFRESH
+        ----------------------------- */
+
+        const customerVerified = config.modal.dataset.customerVerified === "true";
+        const agentVerified = config.modal.dataset.agentVerified === "true";
+
+        if (customerVerified) {
+
+            const stage = config.modal.querySelector('.stage');
+
+            stage.classList.remove('failure');
+            stage.classList.add('success');
+
+            disableUserInputs(config);
+
+            const btn = config.modal.querySelector('.neon-button');
+
+            btn.textContent = "Success";
+            btn.disabled = true;
+            btn.style.pointerEvents = "none";
+            btn.style.opacity = "0.6";
+
+        }
+
     }
 
     /* =====================================================
@@ -208,12 +292,24 @@
     /* =====================================================
        HANDSHAKE ACTION
     ===================================================== */
+    function getCSRFToken() {
+
+        const cookies = document.cookie.split(';');
+
+        for (let cookie of cookies) {
+            cookie = cookie.trim();
+
+            if (cookie.startsWith('csrftoken=')) {
+                return cookie.substring('csrftoken='.length);
+            }
+        }
+
+        return '';
+    }
     function handshake(orderId) {
         const config = getHandshakeConfig(orderId);
+
         if (!config) return;
-
-        initHandshake(orderId);
-
         const userOTP = getUserOTP(config);
         if (userOTP.length < 4) {
             alert('Please complete the OTP');
@@ -221,28 +317,65 @@
         }
 
         const stage = config.modal.querySelector('.stage');
+        console.log("Stage element:", stage);
         if (!stage) return;
 
+        // 🔹 Reset animation state before starting new verification
         stage.classList.remove('success', 'failure');
         void stage.offsetWidth;
-        stage.classList.add('success');
+        if (!stage) return;
 
-        setTimeout(() => {
-            if (userOTP === config.verifyOTP) {
-                // ✅ SUCCESS
-                disableUserInputs(config);
+        fetch(`/delivery/verifyotp/${orderId}/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCSRFToken()
+            },
+            body: JSON.stringify({
+                customer_half: config.displayOTP,
+                agent_half: userOTP
+            })
+        })
+            .then(res => res.json())
+            .then(data => {
 
-                const btn = config.modal.querySelector('.neon-button');
-                btn.textContent = 'Success';
-                btn.style.cursor = 'not-allowed';
-                btn.onclick = null;
+                if (data.success) {
 
-            } else {
-                // ❌ FAILURE
-                stage.classList.remove('success');
-                // stage.classList.add('failure');
-            }
-        }, 1500);
+                    // ✅ SUCCESS animation only here
+                    stage.classList.remove('failure');
+                    void stage.offsetWidth;
+                    stage.classList.add('success');
+
+                    disableUserInputs(config);
+
+                    const btn = config.modal.querySelector('.neon-button');
+                    btn.textContent = 'Success';
+                    btn.style.cursor = 'not-allowed';
+                    btn.onclick = null;
+
+                } else {
+
+                    if (data.error) {
+                        alert(data.error);
+                    }
+
+                    // Step 1 → move hands forward
+                    stage.classList.remove('success', 'failure');
+                    void stage.offsetWidth;
+                    stage.classList.add('success');
+
+                    // Step 2 → return after handshake animation
+                    setTimeout(() => {
+                        stage.classList.remove('success');
+                        stage.classList.add('failure');
+                    }, 1200);
+
+                }
+
+            })
+            .catch(err => {
+                console.error("Verification error:", err);
+            });
     }
 
     document.addEventListener('click', function (e) {

@@ -35,12 +35,15 @@ urlpatterns = [
     path('dashboard/admin/promote/<int:user_id>/', views.make_delivery_agent, name='promote_user'),
     path('delivery/dashboard/', views.delivery_dashboard, name='delivery_dashboard'),
     path('delivery/order/', views.delivery_order_detail, name='delivery_order_detail'),
-    path('delivery/mark-delivered/<int:order_id>/', views.mark_order_delivered, name='mark_order_delivered'), 
+    path('delivery/mark-delivered/<int:order_id>/', views.mark_order_delivered, name='mark_order_delivered'),
     path('api/get_order_by_token/', views.get_order_by_token, name='get_order_by_token'),
     path("confirm-address/<int:address_id>/",views.confirm_address_location,name="confirm_address_location"),
     path("use-current-location/", views.use_current_location, name="use_current_location"),
     path('save-address-and-map/', views.save_address_and_map, name='save_address_and_map'),
     path('save-address-session/', views.save_address_session, name='save_address_session'),
+    path('delivery/generate-otp/<int:order_id>/', views.generate_order_otp, name='generate_order_otp'),
+    path('delivery/get-otp/<int:order_id>/', views.get_order_otp_halves, name='get_order_otp'),
+    path("delivery/verifyotp/<int:order_id>/", views.verify_otp, name="verify_otp")
 ]
 
 # Serve media in development

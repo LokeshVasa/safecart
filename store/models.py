@@ -1,3 +1,6 @@
+import hashlib
+from django.utils import timezone
+from datetime import timedelta
 from django.db import models
 import uuid
 
@@ -148,3 +151,35 @@ class OrderUpdate(models.Model):
 if not hasattr(User, 'profile_image'):
     User.add_to_class('profile_image', models.BinaryField(null=True, blank=True))
 
+class OrderOTP(models.Model):
+
+    order = models.OneToOneField(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='otp'
+    )
+
+    otp_hash = models.CharField(max_length=64)
+
+    enc_customer_half = models.TextField(null=True, blank=True)
+    enc_agent_half = models.TextField(null=True, blank=True)
+
+    expires_at = models.DateTimeField()
+
+    attempts = models.IntegerField(default=0)
+
+    is_active = models.BooleanField(default=True)
+
+    customer_verified = models.BooleanField(default=False)
+    agent_verified = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    def verify(self, raw_otp):
+        hashed = hashlib.sha256(raw_otp.encode()).hexdigest()
+        return hashed == self.otp_hash
+
+    def __str__(self):
+        return f"OTP for Order {self.order.id}"
