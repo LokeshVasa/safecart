@@ -62,17 +62,37 @@
             container.innerHTML = '';
         }
 
+        let pollTimer = null;
+        let pollDelayMs = 2500;
+        const minDelayMs = 2500;
+        const maxDelayMs = 15000;
+
+        function scheduleNextPoll() {
+            if (pollTimer) clearTimeout(pollTimer);
+            pollTimer = setTimeout(pollIncoming, pollDelayMs);
+        }
+
         async function pollIncoming() {
+            if (document.hidden) {
+                scheduleNextPoll();
+                return;
+            }
             try {
                 const response = await fetch(incomingUrl);
                 const data = await response.json();
                 if (data.status !== 'success' || !Array.isArray(data.calls) || data.calls.length === 0) {
                     clearIncomingCall();
+                    pollDelayMs = Math.min(maxDelayMs, pollDelayMs + 1000);
+                    scheduleNextPoll();
                     return;
                 }
                 renderIncomingCall(data.calls[0]);
+                pollDelayMs = minDelayMs;
+                scheduleNextPoll();
             } catch (error) {
                 // Ignore transient errors and keep polling.
+                pollDelayMs = Math.min(maxDelayMs, pollDelayMs + 1500);
+                scheduleNextPoll();
             }
         }
 
@@ -98,7 +118,13 @@
             clearIncomingCall();
         });
 
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                pollDelayMs = minDelayMs;
+                scheduleNextPoll();
+            }
+        });
+
         pollIncoming();
-        setInterval(pollIncoming, 2500);
     })();
 </script>
