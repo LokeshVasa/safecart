@@ -1,0 +1,481 @@
+{% extends "root.html" %}
+{% load static %}
+
+{% block title %}Order Call - SafeCart{% endblock %}
+
+{% block content %}
+<style>
+    .call-screen {
+        min-height: calc(100vh - 140px);
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at top, #22304a 0%, #0f1724 55%, #0a0f18 100%);
+        color: #f8fafc;
+    }
+    .call-card {
+        width: min(420px, 92vw);
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 28px;
+        box-shadow: 0 24px 60px rgba(2, 6, 23, 0.6);
+        padding: 28px 26px 30px;
+        backdrop-filter: blur(12px);
+    }
+    .call-avatar {
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #60a5fa, #38bdf8);
+        display: grid;
+        place-items: center;
+        font-size: 36px;
+        font-weight: 700;
+        color: #0b1120;
+        margin: 8px auto 18px;
+        box-shadow: 0 12px 26px rgba(14, 116, 144, 0.45);
+    }
+    .call-title {
+        text-align: center;
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    .call-subtitle {
+        text-align: center;
+        color: #cbd5f5;
+        font-size: 13px;
+        margin-bottom: 18px;
+    }
+    .call-status {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        color: #e2e8f0;
+    }
+    .call-status .badge {
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        padding: 6px 10px;
+        border-radius: 999px;
+    }
+    .call-controls {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+    }
+    .call-btn {
+        border: none;
+        border-radius: 14px;
+        padding: 10px 0;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+    }
+    .call-btn i {
+        font-size: 16px;
+    }
+    .call-btn-muted {
+        background: rgba(148, 163, 184, 0.15);
+        color: #e2e8f0;
+    }
+    .call-btn-danger {
+        background: #ef4444;
+        color: #fff;
+    }
+    .call-btn-secondary {
+        background: rgba(59, 130, 246, 0.18);
+        color: #dbeafe;
+    }
+    .call-back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #cbd5f5;
+        text-decoration: none;
+        font-size: 12px;
+        margin-top: 18px;
+    }
+    .call-back-link:hover {
+        color: #fff;
+    }
+</style>
+
+<section class="call-screen">
+    <div class="call-card">
+        <div class="call-avatar">
+            {{ role|title|slice:":1" }}
+        </div>
+        <div class="call-title">Order Call</div>
+        <div class="call-subtitle">Order #{{ order.id }} • {{ role|title }}</div>
+
+        {% if request.GET.debug %}
+        <div class="alert alert-warning py-2">
+            <strong>Debug:</strong>
+            user={{ request.user.username }} (id={{ request.user.id }}),
+            order.user_id={{ order.user_id }},
+            delivery_agent_user_id={% if order.delivery_agent %}{{ order.delivery_agent.user_id }}{% else %}None{% endif %},
+            role={{ role }}
+        </div>
+        {% endif %}
+
+        <div class="call-status">
+            <span class="badge bg-secondary" id="callStateBadge">Idle</span>
+            <span id="callStatus">Preparing call...</span>
+        </div>
+
+        <audio id="localAudio" autoplay muted></audio>
+        <audio id="remoteAudio" autoplay></audio>
+
+        <div class="call-controls">
+            <button id="muteBtn" class="call-btn call-btn-muted" disabled>
+                <i class="bi bi-mic-mute-fill"></i>
+                <span>Mute</span>
+            </button>
+            <button id="endBtn" class="call-btn call-btn-danger" disabled>
+                <i class="bi bi-telephone-x-fill"></i>
+                <span>End</span>
+            </button>
+            <button id="callAgainBtn" class="call-btn call-btn-secondary" disabled>
+                <i class="bi bi-arrow-repeat"></i>
+                <span>Call Again</span>
+            </button>
+        </div>
+
+        <a class="call-back-link" href="{% if role == 'agent' %}{% url 'delivery_order_detail' %}?order-id={{ order.id }}{% else %}{% url 'yourorders' %}{% endif %}">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+    </div>
+</section>
+
+<script>
+(function () {
+    const urls = {
+        start: "{% url 'start_order_call' order.id %}",
+        signal: "{% url 'send_order_call_signal' order.id %}",
+        poll: "{% url 'poll_order_call_signals' order.id %}",
+        end: "{% url 'end_order_call' order.id %}"
+    };
+
+    const statusEl = document.getElementById('callStatus');
+    const badgeEl = document.getElementById('callStateBadge');
+    const muteBtn = document.getElementById('muteBtn');
+    const endBtn = document.getElementById('endBtn');
+    const callAgainBtn = document.getElementById('callAgainBtn');
+    const localAudio = document.getElementById('localAudio');
+    const remoteAudio = document.getElementById('remoteAudio');
+
+    let localStream = null;
+    let peerConnection = null;
+    let pollTimer = null;
+    let lastSignalId = 0;
+    let isMuted = false;
+    let started = false;
+    let isCaller = false;
+    let currentCallStatus = null;
+    let ringTimer = null;
+    let ringSecondsLeft = 0;
+    let idlePollTimer = null;
+    const pendingIce = [];
+
+    function setStatus(message, type = 'info') {
+        statusEl.textContent = message;
+        if (type === 'success') badgeEl.className = 'badge bg-success';
+        else if (type === 'warning') badgeEl.className = 'badge bg-warning text-dark';
+        else if (type === 'danger') badgeEl.className = 'badge bg-danger';
+        else if (type === 'secondary') badgeEl.className = 'badge bg-secondary';
+        else badgeEl.className = 'badge bg-info';
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function postJson(url, data) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(data || {})
+        });
+        return response.json();
+    }
+
+    async function createPeerConnection() {
+        peerConnection = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        peerConnection.ontrack = (event) => {
+            const [stream] = event.streams;
+            if (stream) {
+                remoteAudio.srcObject = stream;
+                setStatus('Connected. Voice channel is live.', 'success');
+            }
+        };
+
+        peerConnection.onicecandidate = async (event) => {
+            if (!event.candidate) return;
+            await postJson(urls.signal, {
+                type: 'ice',
+                payload: event.candidate.toJSON()
+            });
+        };
+
+        peerConnection.onconnectionstatechange = () => {
+            const state = peerConnection.connectionState;
+            if (state === 'failed' || state === 'disconnected') {
+                setStatus('Connection lost. Try starting call again.', 'warning');
+            }
+        };
+    }
+
+    async function processSignal(signal) {
+        if (signal.type === 'bye') {
+            setStatus('Other participant ended the call.', 'warning');
+            teardown(false);
+            return;
+        }
+
+        if (!peerConnection) return;
+
+        if (signal.type === 'offer') {
+            const desc = new RTCSessionDescription(signal.payload);
+            await peerConnection.setRemoteDescription(desc);
+
+            while (pendingIce.length > 0) {
+                const candidate = pendingIce.shift();
+                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            await postJson(urls.signal, { type: 'answer', payload: answer });
+            setStatus('Offer received. Answer sent.', 'info');
+        }
+
+        if (signal.type === 'answer') {
+            if (peerConnection.currentRemoteDescription) return;
+            const desc = new RTCSessionDescription(signal.payload);
+            await peerConnection.setRemoteDescription(desc);
+
+            while (pendingIce.length > 0) {
+                const candidate = pendingIce.shift();
+                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+            setStatus('Answer received. Connecting...', 'info');
+        }
+
+        if (signal.type === 'ice') {
+            if (peerConnection.remoteDescription) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(signal.payload));
+            } else {
+                pendingIce.push(signal.payload);
+            }
+        }
+
+    }
+
+    async function pollSignals() {
+        try {
+            const response = await fetch(`${urls.poll}?after_id=${lastSignalId}`);
+            const data = await response.json();
+            if (data.status !== 'success') return;
+            currentCallStatus = data.call_status || null;
+            if (currentCallStatus === 'ongoing') {
+                stopRingTimeout();
+            }
+
+            if (!data.session_active) {
+                if (started) {
+                    if (data.call_status === 'rejected') {
+                        setStatus('Call was rejected by the other participant.', 'warning');
+                        stopRingTimeout();
+                        await endCall(false, false);
+                        callAgainBtn.disabled = false;
+                        return;
+                    } else {
+                        setStatus('Call is inactive.', 'warning');
+                        stopRingTimeout();
+                        await endCall(false, false);
+                        callAgainBtn.disabled = false;
+                        return;
+                    }
+                }
+                return;
+            }
+
+            for (const signal of data.signals) {
+                if (!peerConnection && signal.type !== 'bye') {
+                    continue;
+                }
+                await processSignal(signal);
+                lastSignalId = Math.max(lastSignalId, signal.id);
+            }
+        } catch (error) {
+            setStatus('Polling failed. Retrying...', 'warning');
+        }
+    }
+
+    async function startCall() {
+        if (started) return;
+
+        try {
+            const startResponse = await postJson(urls.start, {});
+            if (startResponse.status !== 'success') {
+                setStatus(startResponse.message || 'Unable to start call.', 'danger');
+                return;
+            }
+
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            localAudio.srcObject = localStream;
+
+            await createPeerConnection();
+
+            started = true;
+            isCaller = !!startResponse.is_caller;
+            muteBtn.disabled = false;
+            endBtn.disabled = false;
+            callAgainBtn.disabled = true;
+
+            if (idlePollTimer) {
+                clearInterval(idlePollTimer);
+                idlePollTimer = null;
+            }
+            pollTimer = setInterval(pollSignals, 1200);
+            await pollSignals();
+
+            if (isCaller) {
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                await postJson(urls.signal, { type: 'offer', payload: offer });
+                startRingTimeout(30);
+                setStatus('Calling... waiting for other person to answer.', 'info');
+            } else {
+                setStatus('Joined call. Waiting for caller offer...', 'info');
+            }
+        } catch (error) {
+            setStatus('Microphone permission denied or call setup failed.', 'danger');
+            teardown(false);
+        }
+    }
+
+    function startRingTimeout(seconds) {
+        stopRingTimeout();
+        ringSecondsLeft = seconds;
+        ringTimer = setInterval(async () => {
+            ringSecondsLeft -= 1;
+            if (ringSecondsLeft <= 0) {
+                stopRingTimeout();
+                if (isCaller && started && currentCallStatus !== 'ongoing') {
+                    await endCall(true, false);
+                    setStatus('No answer. Call ended.', 'warning');
+                }
+                return;
+            }
+            if (isCaller && started && currentCallStatus !== 'ongoing') {
+                setStatus(`Ringing... ${ringSecondsLeft}s`, 'info');
+            }
+        }, 1000);
+    }
+
+    function stopRingTimeout() {
+        if (ringTimer) {
+            clearInterval(ringTimer);
+            ringTimer = null;
+        }
+    }
+
+    function teardown(clearStatus = true) {
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+        stopRingTimeout();
+
+        if (peerConnection) {
+            peerConnection.ontrack = null;
+            peerConnection.onicecandidate = null;
+            peerConnection.close();
+            peerConnection = null;
+        }
+
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+
+        remoteAudio.srcObject = null;
+        localAudio.srcObject = null;
+        started = false;
+
+        muteBtn.disabled = true;
+        endBtn.disabled = true;
+        callAgainBtn.disabled = false;
+        muteBtn.textContent = 'Mute';
+        isMuted = false;
+
+        if (clearStatus) {
+            setStatus('Call ended.', 'secondary');
+        }
+    }
+
+    async function endCall(sendSignal = true, clearStatus = true) {
+        if (sendSignal) {
+            try {
+                await postJson(urls.end, {});
+            } catch (error) {
+                // noop
+            }
+        }
+        teardown(clearStatus);
+    }
+
+    muteBtn.addEventListener('click', () => {
+        if (!localStream) return;
+        isMuted = !isMuted;
+        localStream.getAudioTracks().forEach(track => {
+            track.enabled = !isMuted;
+        });
+        muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
+    });
+
+    endBtn.addEventListener('click', () => endCall(true));
+
+    callAgainBtn.addEventListener('click', () => {
+        callAgainBtn.disabled = true;
+        startCall();
+    });
+
+    idlePollTimer = setInterval(pollSignals, 1500);
+    pollSignals();
+
+    startCall();
+
+})();
+</script>
+{% endblock %}
