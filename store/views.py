@@ -10,13 +10,13 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import JsonResponse, HttpResponseForbidden
 from django.template.loader import render_to_string
 from decimal import Decimal, ROUND_HALF_UP
 from .models import Address
 from .forms import AddressForm
-from .models import Order, OrderItem, DeliveryAgent
+from .models import Order, OrderItem, DeliveryAgent, OrderCallSession, OrderCallSignal
 import uuid
 from datetime import timedelta
 from django.views.decorators.http import require_POST
@@ -29,6 +29,7 @@ import hashlib
 from .models import OrderOTP
 from .utils import encrypt_value, decrypt_value
 import json
+from django.views.decorators.http import require_GET
 
 logger = logging.getLogger(__name__)
 
@@ -758,6 +759,10 @@ def yourorders(request):
                 order.status in ['Packed', 'Shipped']
                 and order.delivery_agent_id is not None
             ),
+            'can_call': (
+                order.status in ['Packed', 'Shipped']
+                and order.delivery_agent_id is not None
+            ),
         })
 
     return render(request, 'yourorders.html', {'orders': orders_with_details})
@@ -1150,3 +1155,337 @@ def update_agent_location(request, order_id):
         order.save(update_fields=["status"])
 
     return JsonResponse({"status": "success", "latitude": lat, "longitude": lng})
+
+@login_required
+def join_order_call(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    allowed, role, error_message = _can_access_order_call(order, request.user)
+    if not allowed:
+        messages.error(request, error_message)
+        if role == "agent":
+            return redirect(f"{reverse('delivery_order_detail')}?order-id={order.id}")
+        return redirect("yourorders")
+
+    return render(request, "order_call_room.html", {
+        "order": order,
+        "role": role,
+        "hide_navbar": role == "agent",
+    })
+
+
+def _can_access_order_call(order, user):
+    if order.status in ["Delivered", "Cancelled"]:
+        return False, None, "Call is unavailable for delivered or cancelled orders."
+
+    if order.delivery_agent_id is None:
+        return False, None, "Delivery agent is not assigned yet."
+
+    if order.user_id == user.id and order.delivery_agent and order.delivery_agent.user_id == user.id:
+        return False, None, "This account is both customer and delivery agent. Use two different accounts."
+
+    if order.user_id == user.id:
+        if order.status not in ["Packed", "Shipped"]:
+            return False, "customer", "Call is available only when order is packed or shipped."
+        return True, "customer", None
+
+    if order.delivery_agent and order.delivery_agent.user_id == user.id:
+        if order.status not in ["Packed", "Shipped"]:
+            return False, "agent", "Call is available only for packed or shipped orders."
+        return True, "agent", None
+
+    return False, None, "You are not allowed to join this order call."
+
+
+def _mark_session_closed(session, status_value):
+    session.is_active = False
+    session.status = status_value
+    session.ended_at = timezone.now()
+    session.save(update_fields=["is_active", "status", "ended_at", "updated_at"])
+
+
+@login_required
+@require_POST
+def start_order_call(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    allowed, role, error_message = _can_access_order_call(order, request.user)
+    if not allowed:
+        logger.warning("start_order_call denied order=%s user=%s role=%s error=%s", order.id, request.user.id, role, error_message)
+        return JsonResponse({"status": "error", "message": error_message}, status=403)
+
+    session, created = OrderCallSession.objects.get_or_create(
+        order=order,
+        defaults={
+            "started_by": request.user,
+            "is_active": True,
+            "status": "ringing",
+            "ended_at": None,
+            "accepted_at": None,
+        }
+    )
+    if not created:
+        if session.is_active and session.status == "ringing":
+            if session.started_by_id != request.user.id:
+                session.status = "ongoing"
+                session.accepted_at = timezone.now()
+                session.save(update_fields=["status", "accepted_at", "updated_at"])
+        elif not session.is_active or session.status in ["ended", "rejected", "missed"]:
+            session.is_active = True
+            session.status = "ringing"
+            session.started_by = request.user
+            session.accepted_at = None
+            session.ended_at = None
+            session.save(update_fields=[
+                "is_active",
+                "status",
+                "started_by",
+                "accepted_at",
+                "ended_at",
+                "updated_at",
+            ])
+            session.signals.all().delete()
+
+    logger.info(
+        "start_order_call ok order=%s user=%s role=%s session=%s created=%s status=%s active=%s",
+        order.id, request.user.id, role, session.id, created, session.status, session.is_active
+    )
+
+    return JsonResponse({
+        "status": "success",
+        "session_id": session.id,
+        "role": role,
+        "order_status": order.status,
+        "call_status": session.status,
+        "is_caller": session.started_by_id == request.user.id,
+    })
+
+
+@login_required
+@require_POST
+def send_order_call_signal(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    allowed, _, error_message = _can_access_order_call(order, request.user)
+    if not allowed:
+        return JsonResponse({"status": "error", "message": error_message}, status=403)
+
+    session = getattr(order, "call_session", None)
+    if not session or not session.is_active:
+        return JsonResponse({"status": "error", "message": "No active call session."}, status=400)
+
+    try:
+        payload = json.loads(request.body)
+    except (TypeError, json.JSONDecodeError):
+        return JsonResponse({"status": "error", "message": "Invalid JSON body."}, status=400)
+
+    signal_type = payload.get("type")
+    signal_payload = payload.get("payload", {})
+
+    if signal_type not in {"offer", "answer", "ice", "bye"}:
+        return JsonResponse({"status": "error", "message": "Invalid signal type."}, status=400)
+    if not isinstance(signal_payload, dict):
+        return JsonResponse({"status": "error", "message": "Signal payload must be an object."}, status=400)
+
+    signal = OrderCallSignal.objects.create(
+        session=session,
+        sender=request.user,
+        signal_type=signal_type,
+        payload=signal_payload,
+    )
+
+    if signal_type == "bye":
+        _mark_session_closed(session, "ended")
+
+    return JsonResponse({"status": "success", "signal_id": signal.id})
+
+
+@login_required
+def poll_order_call_signals(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    allowed, _, error_message = _can_access_order_call(order, request.user)
+    if not allowed:
+        return JsonResponse({"status": "error", "message": error_message}, status=403)
+
+    session = getattr(order, "call_session", None)
+    if not session:
+        return JsonResponse({
+            "status": "success",
+            "session_active": False,
+            "signals": [],
+            "last_id": 0,
+        })
+
+    try:
+        after_id = int(request.GET.get("after_id", "0"))
+    except ValueError:
+        after_id = 0
+
+    signals = (
+        session.signals
+        .filter(id__gt=after_id)
+        .exclude(sender=request.user)
+        .order_by("id")
+    )
+
+    serialized_signals = [
+        {
+            "id": s.id,
+            "type": s.signal_type,
+            "payload": s.payload,
+            "created_at": s.created_at.isoformat(),
+        }
+        for s in signals
+    ]
+    last_id = serialized_signals[-1]["id"] if serialized_signals else after_id
+
+    return JsonResponse({
+        "status": "success",
+        "session_active": session.is_active,
+        "call_status": session.status,
+        "started_by_user_id": session.started_by_id,
+        "signals": serialized_signals,
+        "last_id": last_id,
+    })
+
+
+@login_required
+def get_incoming_order_calls(request):
+    logger.info("get_incoming_order_calls user=%s", request.user.id)
+    incoming_sessions = (
+        OrderCallSession.objects
+        .filter(is_active=True, status="ringing")
+        .exclude(started_by=request.user)
+        .filter(
+            Q(order__user=request.user)
+            | Q(order__delivery_agent__user=request.user)
+        )
+        .select_related("order", "started_by")
+        .order_by("-updated_at")
+    )
+
+    calls = [
+        {
+            "order_id": session.order_id,
+            "from_name": (
+                session.started_by.get_full_name().strip()
+                if session.started_by else "Unknown"
+            ) or (session.started_by.username if session.started_by else "Unknown"),
+            "role": "customer" if session.order.user_id == request.user.id else "agent",
+            "started_at": session.started_at.isoformat(),
+        }
+        for session in incoming_sessions
+    ]
+    logger.info("get_incoming_order_calls result user=%s count=%s orders=%s",
+                request.user.id, len(calls), [c["order_id"] for c in calls])
+    return JsonResponse({"status": "success", "calls": calls})
+
+
+@login_required
+@require_POST
+def accept_order_call(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    allowed, _, error_message = _can_access_order_call(order, request.user)
+    if not allowed:
+        return JsonResponse({"status": "error", "message": error_message}, status=403)
+
+    session = getattr(order, "call_session", None)
+    if not session or not session.is_active:
+        return JsonResponse({"status": "error", "message": "No active incoming call."}, status=400)
+    if session.started_by_id == request.user.id:
+        return JsonResponse({"status": "error", "message": "Caller cannot accept own call."}, status=400)
+
+    session.status = "ongoing"
+    session.accepted_at = timezone.now()
+    session.save(update_fields=["status", "accepted_at", "updated_at"])
+    return JsonResponse({"status": "success", "message": "Call accepted."})
+
+
+@login_required
+@require_POST
+def reject_order_call(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    allowed, _, error_message = _can_access_order_call(order, request.user)
+    if not allowed:
+        return JsonResponse({"status": "error", "message": error_message}, status=403)
+
+    session = getattr(order, "call_session", None)
+    if not session or not session.is_active:
+        return JsonResponse({"status": "success", "message": "No active incoming call."})
+    if session.started_by_id == request.user.id:
+        return JsonResponse({"status": "error", "message": "Caller cannot reject own call."}, status=400)
+
+    OrderCallSignal.objects.create(
+        session=session,
+        sender=request.user,
+        signal_type="bye",
+        payload={"reason": "rejected"},
+    )
+    _mark_session_closed(session, "rejected")
+    return JsonResponse({"status": "success", "message": "Call rejected."})
+
+
+@login_required
+@require_POST
+def end_order_call(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    allowed, _, error_message = _can_access_order_call(order, request.user)
+    if not allowed:
+        return JsonResponse({"status": "error", "message": error_message}, status=403)
+
+    session = getattr(order, "call_session", None)
+    if not session or not session.is_active:
+        return JsonResponse({"status": "success", "message": "No active session to end."})
+
+    OrderCallSignal.objects.create(
+        session=session,
+        sender=request.user,
+        signal_type="bye",
+        payload={"reason": "ended"},
+    )
+    _mark_session_closed(session, "ended")
+
+    return JsonResponse({"status": "success", "message": "Call ended."})
+
+@login_required
+@require_GET
+def debug_order_call_state(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    session = OrderCallSession.objects.filter(order=order).first()
+
+    payload = {
+        "order_id": order.id,
+        "order_status": order.status,
+        "order_user_id": order.user_id,
+        "delivery_agent_id": order.delivery_agent_id,
+        "delivery_agent_user_id": order.delivery_agent.user_id if order.delivery_agent else None,
+        "current_user_id": request.user.id,
+        "allowed": None,
+        "role": None,
+        "error": None,
+        "session": None,
+        "recent_signals": [],
+    }
+
+    allowed, role, error_message = _can_access_order_call(order, request.user)
+    payload.update({"allowed": allowed, "role": role, "error": error_message})
+
+    if session:
+        payload["session"] = {
+            "id": session.id,
+            "is_active": session.is_active,
+            "status": session.status,
+            "started_by_id": session.started_by_id,
+            "started_at": session.started_at.isoformat(),
+            "accepted_at": session.accepted_at.isoformat() if session.accepted_at else None,
+            "ended_at": session.ended_at.isoformat() if session.ended_at else None,
+            "updated_at": session.updated_at.isoformat(),
+        }
+        payload["recent_signals"] = [
+            {
+                "id": s.id,
+                "type": s.signal_type,
+                "sender_id": s.sender_id,
+                "created_at": s.created_at.isoformat(),
+            }
+            for s in session.signals.order_by("-id")[:10]
+        ]
+
+    return JsonResponse(payload)
