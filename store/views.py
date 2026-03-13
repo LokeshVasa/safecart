@@ -11,12 +11,12 @@ from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
 from django.db.models import Count
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseForbidden
 from django.template.loader import render_to_string
 from decimal import Decimal, ROUND_HALF_UP
 from .models import Address
 from .forms import AddressForm
-from .models import Order, OrderItem
+from .models import Order, OrderItem, DeliveryAgent
 import uuid
 from datetime import timedelta
 from django.views.decorators.http import require_POST
@@ -754,6 +754,10 @@ def yourorders(request):
             'total_amount': total_amount,
             'expected_delivery': expected_delivery,
             'address': order.address,
+            'can_track': (
+                order.status in ['Packed', 'Shipped']
+                and order.delivery_agent_id is not None
+            ),
         })
 
     return render(request, 'yourorders.html', {'orders': orders_with_details})
@@ -879,9 +883,24 @@ def manage_users(request):
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
+@login_required
+@permission_required('store.can_deliver_order', raise_exception=True)
 def delivery_order_detail(request):
     order_id = request.GET.get('order-id')
     order = get_object_or_404(Order, id=order_id)
+    delivery_agent, _ = DeliveryAgent.objects.get_or_create(user=request.user)
+    if order.delivery_agent_id is None:
+        order.delivery_agent = delivery_agent
+        if order.status in ['Pending', 'Packed']:
+            order.status = 'Shipped'
+            order.save(update_fields=['delivery_agent', 'status'])
+        else:
+            order.save(update_fields=['delivery_agent'])
+    elif order.delivery_agent_id != delivery_agent.id:
+        return HttpResponseForbidden("This order is assigned to another delivery agent.")
+    elif order.status in ['Pending', 'Packed']:
+        order.status = 'Shipped'
+        order.save(update_fields=['status'])
     return render(request, 'dashboard/delivery_order_detail.html', {'order': order})
 
 def get_order_by_token(request):
@@ -1046,3 +1065,88 @@ def get_order_otp_halves(request, order_id):
         "customer_verified": otp_obj.customer_verified,
         "agent_verified": otp_obj.agent_verified
     })
+
+# Render customer tracking map
+@login_required
+def customer_track_order(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    return render(request, 'customer_track_order.html', {'order': order})
+
+# API: Return delivery agent's current coordinates
+@login_required
+def get_agent_location(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    if order.status in ['Delivered', 'Cancelled']:
+        return JsonResponse({
+            'latitude': 0,
+            'longitude': 0,
+            'status': order.status,
+            'trackable': False,
+            'message': 'Order is no longer trackable.'
+        })
+
+    agent = order.delivery_agent
+    if agent and agent.latitude is not None and agent.longitude is not None:
+        return JsonResponse({
+            'latitude': agent.latitude,
+            'longitude': agent.longitude,
+            'status': order.status,
+            'trackable': True
+        })
+    return JsonResponse({
+        'latitude': 0,
+        'longitude': 0,
+        'status': order.status,
+        'trackable': True,
+        'message': 'Waiting for delivery agent location.'
+    })
+
+import json
+
+@login_required
+@permission_required('store.can_deliver_order', raise_exception=True)
+@require_POST
+def update_agent_location(request, order_id):
+    """
+    Endpoint for delivery agent to send their latest latitude/longitude
+    Expects POST: { "latitude": 28.6139, "longitude": 77.2090 }
+    """
+    try:
+        data = json.loads(request.body)
+        lat = data.get("latitude")
+        lng = data.get("longitude")
+    except (TypeError, json.JSONDecodeError):
+        return JsonResponse({"status": "error", "message": "Invalid JSON"}, status=400)
+
+    if lat is None or lng is None:
+        return JsonResponse({"status": "error", "message": "Latitude and longitude are required"}, status=400)
+
+    try:
+        lat = float(lat)
+        lng = float(lng)
+    except (TypeError, ValueError):
+        return JsonResponse({"status": "error", "message": "Latitude/longitude must be numeric"}, status=400)
+
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return JsonResponse({"status": "error", "message": "Latitude/longitude out of range"}, status=400)
+
+    order = get_object_or_404(Order, id=order_id)
+    agent = DeliveryAgent.objects.filter(user=request.user).first()
+    if not agent:
+        return JsonResponse({"status": "error", "message": "Delivery agent profile not found"}, status=404)
+
+    if order.delivery_agent_id is None:
+        order.delivery_agent = agent
+        order.save(update_fields=["delivery_agent"])
+    elif order.delivery_agent_id != agent.id:
+        return JsonResponse({"status": "error", "message": "Order is assigned to another delivery agent"}, status=403)
+
+    agent.latitude = lat
+    agent.longitude = lng
+    agent.save(update_fields=["latitude", "longitude"])
+
+    if order.status in ["Pending", "Packed"]:
+        order.status = "Shipped"
+        order.save(update_fields=["status"])
+
+    return JsonResponse({"status": "success", "latitude": lat, "longitude": lng})

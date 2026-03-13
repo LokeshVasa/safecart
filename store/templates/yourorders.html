@@ -67,10 +67,22 @@
                         </p>
                         {% endif %}
 
-                        <!-- SAFE HANDSHAKE BUTTON -->
-                        <button class="btn btn-outline-primary btn-sm mt-3" onclick="openHandshake('{{ order.id }}')">
-                            Safe Handshake
-                        </button>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-outline-primary btn-sm" onclick="openHandshake('{{ order.id }}')">
+                                Safe Handshake
+                            </button>
+
+                            {% if order.can_track %}
+                            <a href="{% url 'customer_track_order' order.id %}" class="btn btn-primary btn-sm" target="_blank">
+                                Track Order
+                            </a>
+                            {% else %}
+                            <button class="btn btn-secondary btn-sm" disabled>
+                                Tracking Unavailable
+                            </button>
+                            {% endif %}
+                        </div>
+                        
                     </div>
                 </div>
             </div>

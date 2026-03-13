@@ -43,7 +43,10 @@ urlpatterns = [
     path('save-address-session/', views.save_address_session, name='save_address_session'),
     path('delivery/generate-otp/<int:order_id>/', views.generate_order_otp, name='generate_order_otp'),
     path('delivery/get-otp/<int:order_id>/', views.get_order_otp_halves, name='get_order_otp'),
-    path("delivery/verifyotp/<int:order_id>/", views.verify_otp, name="verify_otp")
+    path("delivery/verifyotp/<int:order_id>/", views.verify_otp, name="verify_otp"),
+    path('order/<int:order_id>/track/', views.customer_track_order, name='customer_track_order'),
+    path('order/<int:order_id>/agent-location/', views.get_agent_location, name='get_agent_location'),
+    path('order/<int:order_id>/agent/update-location/', views.update_agent_location, name='update_agent_location')
 ]
 
 # Serve media in development
