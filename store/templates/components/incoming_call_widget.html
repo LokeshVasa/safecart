@@ -45,10 +45,11 @@
         }
 
         function renderIncomingCall(call) {
+            const callerLabel = call.role === 'customer' ? 'Delivery agent' : 'Customer';
             container.innerHTML = `
                 <div class="alert alert-warning d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>Incoming call</strong> for Order #${call.order_id} from ${call.from_name}
+                        <strong>Incoming call</strong> for Order #${call.order_id} from ${callerLabel}
                     </div>
                     <div class="d-flex gap-2">
                         <button class="btn btn-success btn-sm" data-action="accept" data-order-id="${call.order_id}">Accept</button>

@@ -354,7 +354,34 @@
         var destinationLng = {{ order.address.longitude|default_if_none:0 }};
         var updateLocationUrl = "{% url 'update_agent_location' order.id %}";
 
-        var routingControl;
+        var routingControl = null;
+        var quickLine = null;
+        var cachedLine = null;
+        var hasRoute = false;
+        var lastRouteAt = 0;
+        var minRouteMs = 15000;
+        var lastRoutedLatLng = null;
+        var minRouteMeters = 75;
+        var cacheRouteKey = "route_cache_order_{{ order.id }}";
+        var cacheRouteTsKey = cacheRouteKey + "_ts";
+        var cacheRouteStartKey = cacheRouteKey + "_start";
+        var cacheTtlMs = 30 * 60 * 1000;
+        var orderStatus = "{{ order.status|default:''|escapejs }}";
+        var cacheMaxStartShiftMeters = 2000;
+
+        function distanceMeters(aLat, aLng, bLat, bLng) {
+            var R = 6371000;
+            var dLat = ((bLat - aLat) * Math.PI) / 180;
+            var dLng = ((bLng - aLng) * Math.PI) / 180;
+            var lat1 = (aLat * Math.PI) / 180;
+            var lat2 = (bLat * Math.PI) / 180;
+            var sinDLat = Math.sin(dLat / 2);
+            var sinDLng = Math.sin(dLng / 2);
+            var h =
+                sinDLat * sinDLat +
+                Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+            return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+        }
         var deliveryMarker = null;
 
         if (destinationLat !== 0 && destinationLng !== 0) {
@@ -402,6 +429,61 @@
 
             var agentLocation = e.latlng;
 
+            if (orderStatus === "Delivered") {
+                localStorage.removeItem(cacheRouteKey);
+                localStorage.removeItem(cacheRouteTsKey);
+            }
+
+            if (!cachedLine) {
+                var cached = localStorage.getItem(cacheRouteKey);
+                var cachedTs = parseInt(localStorage.getItem(cacheRouteTsKey) || "0", 10);
+                var cachedStart = null;
+                var cachedStartRaw = localStorage.getItem(cacheRouteStartKey);
+                if (cachedStartRaw) {
+                    try {
+                        cachedStart = JSON.parse(cachedStartRaw);
+                    } catch (e) {
+                        cachedStart = null;
+                    }
+                }
+
+                var cacheValidByTime = cached && cachedTs && Date.now() - cachedTs <= cacheTtlMs;
+                var cacheValidByStart = true;
+                if (
+                    cachedStart &&
+                    typeof cachedStart.lat === "number" &&
+                    typeof cachedStart.lng === "number"
+                ) {
+                    var movedFromCache = distanceMeters(
+                        cachedStart.lat,
+                        cachedStart.lng,
+                        agentLocation.lat,
+                        agentLocation.lng
+                    );
+                    cacheValidByStart = movedFromCache <= cacheMaxStartShiftMeters;
+                }
+
+                if (cacheValidByTime && cacheValidByStart) {
+                    try {
+                        var points = JSON.parse(cached);
+                        if (Array.isArray(points) && points.length > 1) {
+                            cachedLine = L.polyline(points, {
+                                color: "black",
+                                weight: 6,
+                                opacity: 0.9
+                            }).addTo(map);
+                            hasRoute = true;
+                        }
+                    } catch (e) {
+                        // ignore invalid cache
+                    }
+                } else if (cached) {
+                    localStorage.removeItem(cacheRouteKey);
+                    localStorage.removeItem(cacheRouteTsKey);
+                    localStorage.removeItem(cacheRouteStartKey);
+                }
+            }
+
             if (!deliveryMarker) {
                 deliveryMarker = L.marker(agentLocation, { icon: deliveryAgentIcon })
                     .addTo(map)
@@ -410,30 +492,103 @@
                 deliveryMarker.setLatLng(agentLocation);
             }
 
-            if (routingControl) {
-                map.removeControl(routingControl);
+            if (!hasRoute && !quickLine) {
+                quickLine = L.polyline(
+                    [
+                        [agentLocation.lat, agentLocation.lng],
+                        [destinationLat, destinationLng]
+                    ],
+                    { color: "#666", weight: 3, opacity: 0.7, dashArray: "6 8" }
+                ).addTo(map);
+            } else if (!hasRoute && quickLine) {
+                quickLine.setLatLngs([
+                    [agentLocation.lat, agentLocation.lng],
+                    [destinationLat, destinationLng]
+                ]);
             }
 
-            routingControl = L.Routing.control({
-                waypoints: [
+            if (!routingControl) {
+                routingControl = L.Routing.control({
+                    waypoints: [
+                        L.latLng(agentLocation.lat, agentLocation.lng),
+                        L.latLng(destinationLat, destinationLng)
+                    ],
+                    router: L.Routing.osrmv1({
+                        serviceUrl: "https://router.project-osrm.org/route/v1"
+                    }),
+                    createMarker: function () { return null; },
+                    lineOptions: {
+                        styles: [{
+                            color: 'black',
+                            weight: 6,
+                            opacity: 0.9
+                        }]
+                    },
+                    addWaypoints: false,
+                    draggableWaypoints: false,
+                    routeWhileDragging: false,
+                    fitSelectedRoutes: true,
+                    show: false,
+                    collapsible: false,
+                    autoRoute: false
+                }).addTo(map);
+                routingControl.on('routingerror', function () {
+                    console.warn("Routing failed. Check coordinates or OSRM service.");
+                    hasRoute = false;
+                });
+                routingControl.on('routesfound', function (e) {
+                    hasRoute = true;
+                    if (quickLine) {
+                        map.removeLayer(quickLine);
+                        quickLine = null;
+                    }
+                    if (e && e.routes && e.routes[0] && e.routes[0].coordinates) {
+                        var coords = e.routes[0].coordinates.map(function (c) {
+                            return [c.lat, c.lng];
+                        });
+                        try {
+                            localStorage.setItem(cacheRouteKey, JSON.stringify(coords));
+                            localStorage.setItem(cacheRouteTsKey, String(Date.now()));
+                            localStorage.setItem(
+                                cacheRouteStartKey,
+                                JSON.stringify({
+                                    lat: agentLocation.lat,
+                                    lng: agentLocation.lng
+                                })
+                            );
+                        } catch (err) {
+                            // storage full or blocked; ignore
+                        }
+                    }
+                });
+            } else {
+                routingControl.setWaypoints([
                     L.latLng(agentLocation.lat, agentLocation.lng),
                     L.latLng(destinationLat, destinationLng)
-                ],
-                createMarker: function () { return null; },
-                lineOptions: {
-                    styles: [{
-                        color: 'black',
-                        weight: 6,
-                        opacity: 0.9
-                    }]
-                },
-                addWaypoints: false,
-                draggableWaypoints: false,
-                routeWhileDragging: false,
-                fitSelectedRoutes: true,
-                show: false,
-                collapsible: false
-            }).addTo(map);
+                ]);
+            }
+
+            var now = Date.now();
+            var shouldRouteByTime = now - lastRouteAt >= minRouteMs;
+            var shouldRouteByMove = true;
+            if (lastRoutedLatLng) {
+                var moved = distanceMeters(
+                    lastRoutedLatLng.lat,
+                    lastRoutedLatLng.lng,
+                    agentLocation.lat,
+                    agentLocation.lng
+                );
+                shouldRouteByMove = moved >= minRouteMeters;
+            }
+
+            if (shouldRouteByTime && shouldRouteByMove) {
+                routingControl.route();
+                lastRouteAt = now;
+                lastRoutedLatLng = {
+                    lat: agentLocation.lat,
+                    lng: agentLocation.lng
+                };
+            }
         }
 
         map.on('locationfound', function (e) {
