@@ -32,9 +32,8 @@
         </li>
 
         {% if user.is_authenticated %}
-        <li class="nav-item dropdown">
-          <a class="nav-link d-flex align-items-center p-0" href="#" id="profileDropdown" role="button"
-             data-bs-toggle="dropdown" aria-expanded="false">
+        <li class="nav-item">
+          <a class="nav-link d-flex align-items-center p-0" href="{% url 'profile' %}" aria-label="Open profile" title="Profile">
             <span class="position-relative d-inline-flex align-items-center justify-content-center rounded-circle border border-2 border-primary bg-primary-subtle text-primary fw-bold overflow-hidden"
                   style="width:40px; height:40px;">
               {% if user_avatar_data_uri %}
@@ -48,18 +47,11 @@
               </span>
             </span>
           </a>
-          <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="profileDropdown">
-            <li>
-              <a class="dropdown-item" href="{% url 'profile' %}">
-                <i class="bi bi-gear-fill"></i> Settings
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit(); return false;">
-                <i class="bi bi-box-arrow-right"></i> Logout
-              </a>
-            </li>
-          </ul>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-danger" href="#" onclick="document.getElementById('logout-form').submit(); return false;">
+            <i class="bi bi-box-arrow-right"></i> Logout
+          </a>
         </li>
         <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: none;">
           {% csrf_token %}

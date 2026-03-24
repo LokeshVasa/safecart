@@ -62,6 +62,22 @@ def home(request):
 
 @login_required
 def profile(request):
+    if request.method == "POST":
+        uploaded_photo = request.FILES.get("profile_photo")
+
+        if not uploaded_photo:
+            messages.error(request, "Please choose an image before uploading.")
+            return redirect("profile")
+
+        if not uploaded_photo.content_type or not uploaded_photo.content_type.startswith("image/"):
+            messages.error(request, "Only image files are allowed for profile photos.")
+            return redirect("profile")
+
+        request.user.profile_image = uploaded_photo.read()
+        request.user.save(update_fields=["profile_image"])
+        messages.success(request, "Profile photo updated successfully.")
+        return redirect("profile")
+
     return render(request, 'profile.html')
 
 @login_required
@@ -769,6 +785,13 @@ def proceed_to_checkout(request):
 @login_required
 def yourorders(request):
     orders = Order.objects.filter(user=request.user).order_by('-created_at')
+    status_priority = {
+        'Pending': 0,
+        'Packed': 1,
+        'Shipped': 2,
+        'Delivered': 3,
+        'Cancelled': 4,
+    }
 
     # Prepare orders with items
     orders_with_details = []
@@ -804,7 +827,15 @@ def yourorders(request):
                 and order.delivery_agent_id is not None
             ),
             'can_cancel': order.status in ['Pending', 'Packed'],
+            'created_at': order.created_at,
         })
+
+    orders_with_details.sort(
+        key=lambda order: (
+            status_priority.get(order['status'], 99),
+            -order['created_at'].timestamp()
+        )
+    )
 
     return render(request, 'yourorders.html', {'orders': orders_with_details})
 
@@ -828,6 +859,13 @@ def cancel_order(request, order_id):
 def sellerorders(request):
     # Adjust the filtering below for what a "seller" should see (e.g., all orders or only for their products)
     orders = Order.objects.all().order_by('-created_at')
+    status_priority = {
+        'Pending': 0,
+        'Packed': 1,
+        'Shipped': 2,
+        'Delivered': 3,
+        'Cancelled': 4,
+    }
     orders_with_details = []
     for order in orders:
         items = []
@@ -850,7 +888,16 @@ def sellerorders(request):
             'pincode': order.address.pincode,
             'token_': order.token_value,  # Ensure your Order model has token_value
             'can_print_qr': order.status != 'Cancelled',
+            'created_at': order.created_at,
         })
+
+    orders_with_details.sort(
+        key=lambda order: (
+            status_priority.get(order['status'], 99),
+            -order['created_at'].timestamp()
+        )
+    )
+
     return render(request, 'sellerorders.html', {'orders': orders_with_details})
 
 @login_required

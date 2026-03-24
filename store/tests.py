@@ -73,15 +73,17 @@ class DeliveryQrScanTests(TestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.qr_scan_count, 2)
 
-    def test_expired_qr_is_blocked_after_first_scan_window(self):
+    def test_second_scan_renews_expired_qr_window(self):
         self.client.get(reverse('get_order_by_token'), {'token': self.order.token_value})
         self.order.expires_at = timezone.now() - timedelta(minutes=1)
         self.order.save(update_fields=['expires_at'])
 
         response = self.client.get(reverse('get_order_by_token'), {'token': self.order.token_value})
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()['error'], 'This QR code has expired.')
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.qr_scan_count, 2)
+        self.assertGreater(self.order.expires_at, timezone.now())
 
     def test_open_delivered_order_redirects_to_dashboard(self):
         self.order.delivery_agent = self.delivery_agent

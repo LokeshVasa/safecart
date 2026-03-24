@@ -138,8 +138,6 @@ class Order(models.Model):
     def get_delivery_qr_block_reason(self):
         if self.status in ['Delivered', 'Cancelled']:
             return f"QR scanning is unavailable for {self.status.lower()} orders."
-        if self.delivery_qr_is_expired():
-            return "This QR code has expired."
         if not self.delivery_qr_has_remaining_scans():
             return f"This QR code can only be scanned {self.DELIVERY_QR_MAX_SCANS} times."
         return None
@@ -149,7 +147,7 @@ class Order(models.Model):
         if error_message:
             raise ValueError(error_message)
 
-        if self.qr_scan_count == 0:
+        if self.qr_scan_count == 0 or self.delivery_qr_is_expired():
             self.expires_at = timezone.now() + timedelta(hours=self.DELIVERY_QR_EXPIRY_HOURS)
 
         self.qr_scan_count += 1
