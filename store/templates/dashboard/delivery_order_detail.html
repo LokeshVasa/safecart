@@ -12,11 +12,13 @@
 
 <body class="bg-light">
 
+    <div class="toast-container position-fixed top-0 end-0 p-3" id="detailPopupContainer"></div>
+
     <div class="container py-4">
         <form style="display:none">{% csrf_token %}</form>
         {% include "components/incoming_call_widget.html" %}
         {% include "components/outgoing_call_launcher.html" %}
-        <h2 class="mb-4">Order Details (ID: {{ order.id }})</h2>
+        <h2 class="mb-4">{{ page_heading|default:"Order Details" }} (ID: {{ order.id }})</h2>
 
         <div class="card mb-4">
             <div class="card-body position-relative">
@@ -26,16 +28,40 @@
                 <button class="btn btn-secondary position-absolute" style="top: 15px; right: 15px;" disabled>
                     Delivered
                 </button>
-                {% else %}
+                {% elif allow_request_new_otp %}
+                <button class="btn btn-warning position-absolute" style="top: 15px; right: 15px;"
+                    onclick="openHandshake('{{ order.id }}')">
+                    Request New OTP
+                </button>
+                {% elif allow_handoff_actions %}
                 <button class="btn btn-primary position-absolute" style="top: 15px; right: 15px;"
                     onclick="openHandshake('{{ order.id }}')">
                     Generate OTP
+                </button>
+                {% else %}
+                <button class="btn btn-secondary position-absolute" style="top: 15px; right: 15px;" disabled>
+                    Route Only
                 </button>
                 {% endif %}
 
                 <p><strong>User:</strong> {{ order.user.username }}</p>
                 <p><strong>Payment Type:</strong> {{ order.payment_type }}</p>
                 <p><strong>Status:</strong> {{ order.status }}</p>
+                {% if status_note %}
+                <div class="alert alert-warning py-2 px-3 small">
+                    {{ status_note }}
+                </div>
+                {% endif %}
+                {% if order.expires_at %}
+                <p class="mb-0">
+                    <strong>QR Validity:</strong>
+                    <span id="qrExpiryCountdown"
+                          class="badge rounded-pill text-bg-warning"
+                          data-expires-at="{{ order.expires_at|date:'c' }}">
+                        Calculating...
+                    </span>
+                </p>
+                {% endif %}
 
                 <div class="mt-3">
                     <a href="{% url 'delivery_dashboard' %}" class="btn btn-secondary">
@@ -69,6 +95,119 @@
     <!-- FULL HANDSHAKE SCRIPT -->
     <!-- ============================= -->
     <script>
+        const deliveryDashboardUrl = "{% url 'delivery_dashboard' %}";
+        const deliveryRouteUrl = "{% url 'delivery_route_detail' %}?order-id={{ order.id }}";
+        const routeOnlyMode = {% if route_only %}true{% else %}false{% endif %};
+        const handshakeButtonLabel = routeOnlyMode ? "Request New OTP" : "Verify OTP";
+        const handshakeCompletionDelayMs = 1800;
+        let handshakeStatusPoll = null;
+
+        function showDetailPopup(message, variant = "danger") {
+            const popupContainer = document.getElementById("detailPopupContainer");
+            if (!popupContainer) return;
+
+            const toastEl = document.createElement("div");
+            toastEl.className = `toast align-items-center text-bg-${variant} border-0`;
+            toastEl.setAttribute("role", "alert");
+            toastEl.setAttribute("aria-live", "assertive");
+            toastEl.setAttribute("aria-atomic", "true");
+            toastEl.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+
+            popupContainer.appendChild(toastEl);
+            const toast = new bootstrap.Toast(toastEl, { delay: 2800 });
+            toast.show();
+            toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
+        }
+
+        function stopHandshakeStatusPolling() {
+            if (handshakeStatusPoll) {
+                clearInterval(handshakeStatusPoll);
+                handshakeStatusPoll = null;
+            }
+        }
+
+        function exitToDashboard(message, variant = "warning", nextUrl = deliveryDashboardUrl) {
+            stopHandshakeStatusPolling();
+            setTimeout(() => {
+                closeHandshake('{{ order.id }}');
+                showDetailPopup(message, variant);
+            }, handshakeCompletionDelayMs);
+            setTimeout(() => {
+                window.location.href = nextUrl;
+            }, handshakeCompletionDelayMs + 1200);
+        }
+
+        function formatRemainingTime(totalSeconds) {
+            if (totalSeconds <= 0) {
+                return "Expired";
+            }
+
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+            if (hours > 0) {
+                return `${hours}h ${minutes}m remaining`;
+            }
+
+            if (minutes > 0) {
+                return `${minutes}m remaining`;
+            }
+
+            return "Less than 1m remaining";
+        }
+
+        function startQrExpiryCountdown() {
+            const countdownEl = document.getElementById("qrExpiryCountdown");
+            if (!countdownEl) return;
+
+            const expiresAtRaw = countdownEl.dataset.expiresAt;
+            const expiresAt = new Date(expiresAtRaw);
+
+            if (Number.isNaN(expiresAt.getTime())) {
+                countdownEl.textContent = "Unavailable";
+                countdownEl.className = "badge rounded-pill text-bg-secondary";
+                return;
+            }
+
+            function updateCountdown() {
+                const now = new Date();
+                const remainingSeconds = Math.floor((expiresAt.getTime() - now.getTime()) / 1000);
+
+                countdownEl.textContent = formatRemainingTime(remainingSeconds);
+
+                if (remainingSeconds <= 0) {
+                    countdownEl.className = "badge rounded-pill text-bg-danger";
+                    if (!routeOnlyMode) {
+                        exitToDashboard("This QR has expired. Switching to route view.", "warning", deliveryRouteUrl);
+                    }
+                    return false;
+                }
+
+                countdownEl.className = remainingSeconds <= 900
+                    ? "badge rounded-pill text-bg-danger"
+                    : "badge rounded-pill text-bg-warning";
+                return true;
+            }
+
+            if (!updateCountdown() && !routeOnlyMode) return;
+
+            const timer = setInterval(() => {
+                if (!updateCountdown()) {
+                    clearInterval(timer);
+                    if (routeOnlyMode) {
+                        countdownEl.textContent = "Expired";
+                    }
+                }
+            }, 1000);
+        }
+
+        startQrExpiryCountdown();
+
         /* =====================================================
            MODAL OPEN / CLOSE
         ===================================================== */
@@ -86,13 +225,13 @@
                 .then(data => {
 
                     if (!data.success) {
-                        alert(data.error || "OTP cannot be generated");
+                        showDetailPopup(data.error || "OTP cannot be generated");
                         return;
                     }
 
                     const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
                     if (!modal) {
-                        alert("Handshake modal not found");
+                        showDetailPopup("Handshake modal not found");
                         return;
                     }
 
@@ -102,6 +241,7 @@
                     /* Persist verification status */
                     modal.dataset.customerVerified = data.customer_verified;
                     modal.dataset.agentVerified = data.agent_verified;
+                    modal.dataset.orderDelivered = data.order_delivered || false;
 
                     modal.classList.add('active');
 
@@ -109,13 +249,14 @@
                 })
                 .catch(err => {
                     console.error("OTP error:", err);
-                    alert("OTP generation failed. Check console.");
+                    showDetailPopup("OTP generation failed. Please try again.");
                 });
         }
 
         function closeHandshake(orderId) {
             const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
             if (!modal) return;
+            stopHandshakeStatusPolling();
             modal.classList.remove('active');
         }
 
@@ -137,6 +278,34 @@
             };
         }
 
+        function startHandshakeStatusPolling(orderId) {
+            stopHandshakeStatusPolling();
+
+            handshakeStatusPoll = setInterval(() => {
+                fetch(`/delivery/get-otp/${orderId}/`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data.success) return;
+
+                        const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+                        if (!modal || !modal.classList.contains('active')) {
+                            stopHandshakeStatusPolling();
+                            return;
+                        }
+
+                        modal.dataset.customerVerified = String(Boolean(data.customer_verified));
+                        modal.dataset.agentVerified = String(Boolean(data.agent_verified));
+                        modal.dataset.orderDelivered = String(Boolean(data.order_delivered));
+
+                        if (data.order_delivered || (data.customer_verified && data.agent_verified)) {
+                            stopHandshakeStatusPolling();
+                            exitToDashboard("Order delivered successfully. Returning to dashboard.", "success");
+                        }
+                    })
+                    .catch(() => {});
+            }, 2000);
+        }
+
         /* =====================================================
            INITIALIZE OTP INPUTS
         ===================================================== */
@@ -145,6 +314,15 @@
             if (!config) return;
 
             const displayChars = config.displayOTP.split('');
+            const stage = config.modal.querySelector('.stage');
+            const btn = config.modal.querySelector('.neon-button');
+
+            stage.classList.remove('success', 'failure');
+            btn.textContent = handshakeButtonLabel;
+            btn.disabled = false;
+            btn.style.pointerEvents = "auto";
+            btn.style.opacity = "1";
+            btn.onclick = () => handshake(orderId);
 
             const autoContainer = config.modal.querySelector(
                 `.hand.${config.autoFillSide} .otp-container`
@@ -194,23 +372,31 @@
 
             const customerVerified = config.modal.dataset.customerVerified === "true";
             const agentVerified = config.modal.dataset.agentVerified === "true";
+            const orderDelivered = config.modal.dataset.orderDelivered === "true";
+
+            if (orderDelivered || (customerVerified && agentVerified)) {
+                stage.classList.add('success');
+                disableUserInputs(config);
+                btn.textContent = "Done";
+                btn.disabled = false;
+                btn.style.pointerEvents = "auto";
+                btn.style.opacity = "1";
+                btn.onclick = () => exitToDashboard("Order delivered successfully. Returning to dashboard.", "success");
+                return;
+            }
 
             /* If agent already verified before refresh */
             if (agentVerified) {
-
-                const stage = config.modal.querySelector('.stage');
-
                 stage.classList.remove('failure');
                 stage.classList.add('success');
 
                 disableUserInputs(config);
 
-                const btn = config.modal.querySelector('.neon-button');
-
-                btn.textContent = "Success";
+                btn.textContent = "Waiting for customer";
                 btn.disabled = true;
                 btn.style.pointerEvents = "none";
                 btn.style.opacity = "0.6";
+                startHandshakeStatusPolling(orderId);
             }
         }
 
@@ -264,7 +450,7 @@
             const userOTP = getUserOTP(config);
 
             if (userOTP.length < 4) {
-                alert("Please complete the OTP");
+                showDetailPopup("Please complete the OTP", "warning");
                 return;
             }
 
@@ -295,15 +481,21 @@
 
                         const btn = config.modal.querySelector('.neon-button');
 
-                        btn.textContent = "Success";
+                        btn.textContent = "Waiting for customer";
                         btn.disabled = true;
                         btn.style.pointerEvents = "none";
                         btn.style.opacity = "0.6";
 
+                        if (data.order_delivered) {
+                            exitToDashboard("Order delivered successfully. Returning to dashboard.", "success");
+                        } else {
+                            startHandshakeStatusPolling(orderId);
+                        }
+
                     } else {
 
                         if (data.error) {
-                            alert(data.error);
+                            showDetailPopup(data.error);
                         }
 
                         stage.classList.add('success');

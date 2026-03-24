@@ -36,6 +36,7 @@ urlpatterns = [
     path('dashboard/admin/promote-seller/<int:user_id>/', views.make_seller, name='promote_seller'),
     path('delivery/dashboard/', views.delivery_dashboard, name='delivery_dashboard'),
     path('delivery/order/', views.delivery_order_detail, name='delivery_order_detail'),
+    path('delivery/route/', views.delivery_route_detail, name='delivery_route_detail'),
     path('delivery/mark-delivered/<int:order_id>/', views.mark_order_delivered, name='mark_order_delivered'),
     path('api/get_order_by_token/', views.get_order_by_token, name='get_order_by_token'),
     path("confirm-address/<int:address_id>/",views.confirm_address_location,name="confirm_address_location"),

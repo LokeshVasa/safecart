@@ -24,6 +24,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from .utils import geocode_address
 from geopy.geocoders import Nominatim
 from django.db import IntegrityError
+from django.db import transaction
 import random
 import hashlib
 from .models import OrderOTP
@@ -713,7 +714,7 @@ def proceed_to_checkout(request):
         address=address,
         payment_type="COD",
         token_value=str(uuid.uuid4()),
-        expires_at=timezone.now() + timezone.timedelta(hours=1),
+        expires_at=None,
         status="Pending"
     )
 
@@ -887,8 +888,55 @@ def admin_dashboard(request):
 @login_required
 @permission_required('store.can_deliver_order', raise_exception=True)
 def delivery_dashboard(request):
-    orders = Order.objects.all()
-    return render(request, 'dashboard/delivery_dashboard.html', {'orders': orders})
+    assigned_orders_qs = (
+        Order.objects.filter(delivery_agent__user=request.user)
+        .select_related('user', 'address')
+        .order_by('-created_at')
+    )
+
+    assigned_orders = []
+    for order in assigned_orders_qs:
+        remaining_seconds = None
+        if order.expires_at and order.qr_scan_count > 0:
+            remaining_seconds = max(
+                0,
+                int((order.expires_at - timezone.now()).total_seconds())
+            )
+
+        assigned_orders.append({
+            'id': order.id,
+            'customer_name': order.user.username,
+            'status': order.status,
+            'pincode': order.address.pincode,
+            'created_at': order.created_at,
+            'qr_scan_count': order.qr_scan_count,
+            'remaining_scans': max(0, Order.DELIVERY_QR_MAX_SCANS - order.qr_scan_count),
+            'expires_at': order.expires_at,
+            'remaining_seconds': remaining_seconds,
+            'is_expired': order.delivery_qr_is_expired(),
+            'can_open_order': order.status not in ['Delivered', 'Cancelled'] and not order.delivery_qr_is_expired(),
+            'can_view_route': order.status not in ['Delivered', 'Cancelled'] and order.delivery_qr_is_expired(),
+        })
+
+    stats = {
+        'assigned_count': len(assigned_orders),
+        'active_count': sum(1 for order in assigned_orders if order['status'] not in ['Delivered', 'Cancelled']),
+        'delivered_count': sum(1 for order in assigned_orders if order['status'] == 'Delivered'),
+        'available_count': Order.objects.filter(delivery_agent__isnull=True).exclude(
+            status__in=['Delivered', 'Cancelled']
+        ).count(),
+        'qr_expiry_hours': Order.DELIVERY_QR_EXPIRY_HOURS,
+        'qr_max_scans': Order.DELIVERY_QR_MAX_SCANS,
+    }
+
+    return render(
+        request,
+        'dashboard/delivery_dashboard.html',
+        {
+            'assigned_orders': assigned_orders[:8],
+            'stats': stats,
+        }
+    )
 
 
 @login_required
@@ -899,6 +947,35 @@ def mark_order_delivered(request, order_id):
     order.save()
     messages.success(request, f"Order {order.id} marked as delivered.")
     return redirect('delivery_dashboard')
+
+
+def _get_delivery_agent_for_request(user):
+    return get_object_or_404(DeliveryAgent, user=user)
+
+
+def _validate_agent_order_access(request, order):
+    delivery_agent = _get_delivery_agent_for_request(request.user)
+    if order.delivery_agent_id != delivery_agent.id:
+        messages.error(request, "This order is assigned to another delivery agent.")
+        return None, redirect('delivery_dashboard')
+    if order.status in ['Delivered', 'Cancelled']:
+        messages.warning(request, f"This order is already {order.status.lower()}.")
+        return None, redirect('delivery_dashboard')
+    return delivery_agent, None
+
+
+def _render_delivery_order_page(request, order, *, route_only=False):
+    return render(request, 'dashboard/delivery_order_detail.html', {
+        'order': order,
+        'route_only': route_only,
+        'allow_handoff_actions': not route_only,
+        'allow_request_new_otp': route_only and order.status not in ['Delivered', 'Cancelled'],
+        'page_heading': 'Route View' if route_only else 'Order Details',
+        'status_note': (
+            "QR expired. Route is still available and you can request a fresh OTP to complete delivery."
+            if route_only else None
+        ),
+    })
 
 
 def dashboard_redirect(request):
@@ -949,28 +1026,64 @@ def manage_users(request):
 def delivery_order_detail(request):
     order_id = request.GET.get('order-id')
     order = get_object_or_404(Order, id=order_id)
-    delivery_agent, _ = DeliveryAgent.objects.get_or_create(user=request.user)
-    if order.delivery_agent_id is None:
-        order.delivery_agent = delivery_agent
-        if order.status in ['Pending', 'Packed']:
-            order.status = 'Shipped'
-            order.save(update_fields=['delivery_agent', 'status'])
-        else:
-            order.save(update_fields=['delivery_agent'])
-    elif order.delivery_agent_id != delivery_agent.id:
-        return HttpResponseForbidden("This order is assigned to another delivery agent.")
-    elif order.status in ['Pending', 'Packed']:
-        order.status = 'Shipped'
-        order.save(update_fields=['status'])
-    return render(request, 'dashboard/delivery_order_detail.html', {'order': order})
+    _, failure_response = _validate_agent_order_access(request, order)
+    if failure_response:
+        return failure_response
+    if order.delivery_qr_is_expired():
+        messages.warning(request, "This QR code has expired. Route view is still available.")
+        return redirect(f"{reverse('delivery_route_detail')}?order-id={order.id}")
 
+    return _render_delivery_order_page(request, order, route_only=False)
+
+
+@login_required
+@permission_required('store.can_deliver_order', raise_exception=True)
+def delivery_route_detail(request):
+    order_id = request.GET.get('order-id')
+    order = get_object_or_404(Order, id=order_id)
+    _, failure_response = _validate_agent_order_access(request, order)
+    if failure_response:
+        return failure_response
+    if not order.delivery_qr_is_expired():
+        messages.info(request, "This order still has an active QR window. Opening the full order view.")
+        return redirect(f"{reverse('delivery_order_detail')}?order-id={order.id}")
+
+    return _render_delivery_order_page(request, order, route_only=True)
+
+@login_required
+@permission_required('store.can_deliver_order', raise_exception=True)
+@require_GET
 def get_order_by_token(request):
-    token = request.GET.get('token')
+    token = (request.GET.get('token') or '').strip()
     if not token:
         return JsonResponse({'success': False, 'error': 'No token provided'})
 
     try:
-        order = Order.objects.get(token_value=token)
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(token_value=token)
+            delivery_agent, _ = DeliveryAgent.objects.get_or_create(user=request.user)
+
+            if order.delivery_agent_id is not None and order.delivery_agent_id != delivery_agent.id:
+                return JsonResponse({'success': False, 'error': 'This order is assigned to another delivery agent.'}, status=403)
+
+            qr_error = order.get_delivery_qr_block_reason()
+            if qr_error:
+                return JsonResponse({'success': False, 'error': qr_error}, status=400)
+
+            order.register_delivery_qr_scan()
+
+            update_fields = ['qr_scan_count', 'expires_at']
+
+            if order.delivery_agent_id is None:
+                order.delivery_agent = delivery_agent
+                update_fields.append('delivery_agent')
+
+            if order.status in ['Pending', 'Packed']:
+                order.status = 'Shipped'
+                update_fields.append('status')
+
+            order.save(update_fields=update_fields)
+
         return JsonResponse({'success': True, 'order_id': order.id})
     except Order.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Order not found'})
@@ -980,6 +1093,19 @@ def get_order_by_token(request):
 def generate_order_otp(request, order_id):
 
     order = get_object_or_404(Order, id=order_id)
+
+    if request.user.groups.filter(name="DeliveryAgent").exists():
+        delivery_agent = DeliveryAgent.objects.filter(user=request.user).first()
+        if not delivery_agent or order.delivery_agent_id != delivery_agent.id:
+            return JsonResponse({
+                "success": False,
+                "error": "You can only request OTP for your assigned order."
+            }, status=403)
+    elif order.user_id != request.user.id:
+        return JsonResponse({
+            "success": False,
+            "error": "You are not allowed to request OTP for this order."
+        }, status=403)
 
     # ❌ prevent OTP if already delivered
     if order.status == "Delivered":
@@ -993,10 +1119,12 @@ def generate_order_otp(request, order_id):
 
     if otp_obj and otp_obj.is_active and not otp_obj.is_expired():
         return JsonResponse({
-    "success": True,
-    "agent_half": decrypt_value(otp_obj.enc_agent_half),
-    "customer_half": decrypt_value(otp_obj.enc_customer_half)
-})
+            "success": True,
+            "agent_half": decrypt_value(otp_obj.enc_agent_half),
+            "customer_half": decrypt_value(otp_obj.enc_customer_half),
+            "customer_verified": otp_obj.customer_verified,
+            "agent_verified": otp_obj.agent_verified
+        })
 
     # generate new OTP
     otp = str(random.randint(10000000, 99999999))
@@ -1093,6 +1221,8 @@ def verify_otp(request, order_id):
     otp_obj.save(update_fields=["agent_verified", "customer_verified"])
 
     # BOTH VERIFIED
+    order_delivered = False
+
     if otp_obj.agent_verified and otp_obj.customer_verified:
 
         otp_obj.is_active = False
@@ -1100,8 +1230,13 @@ def verify_otp(request, order_id):
 
         order.status = "Delivered"
         order.save(update_fields=["status"])
+        order_delivered = True
 
-    return JsonResponse({"success": True})
+    return JsonResponse({
+        "success": True,
+        "order_status": order.status,
+        "order_delivered": order_delivered,
+    })
 
 @login_required
 def get_order_otp_halves(request, order_id):
@@ -1124,7 +1259,9 @@ def get_order_otp_halves(request, order_id):
         "customer_half": customer_half,
         "agent_half": agent_half,
         "customer_verified": otp_obj.customer_verified,
-        "agent_verified": otp_obj.agent_verified
+        "agent_verified": otp_obj.agent_verified,
+        "order_status": order.status,
+        "order_delivered": order.status == "Delivered",
     })
 
 # Render customer tracking map

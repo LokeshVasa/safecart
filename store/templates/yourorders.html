@@ -121,6 +121,25 @@
  GLOBAL SAFE HANDSHAKE SCRIPT
 ============================= -->
 <script>
+    const customerHandshakeCompletionDelayMs = 1800;
+    let customerHandshakeStatusPoll = null;
+
+    function stopCustomerHandshakeStatusPolling() {
+        if (customerHandshakeStatusPoll) {
+            clearInterval(customerHandshakeStatusPoll);
+            customerHandshakeStatusPoll = null;
+        }
+    }
+
+    function finishCustomerHandshake(orderId) {
+        stopCustomerHandshakeStatusPolling();
+        setTimeout(() => {
+            closeHandshake(orderId);
+        }, customerHandshakeCompletionDelayMs);
+        setTimeout(() => {
+            window.location.reload();
+        }, customerHandshakeCompletionDelayMs + 300);
+    }
 
     /* =====================================================
        MODAL OPEN / CLOSE
@@ -156,6 +175,7 @@
 
                 modal.dataset.customerVerified = data.customer_verified;
                 modal.dataset.agentVerified = data.agent_verified;
+                modal.dataset.orderDelivered = data.order_delivered || false;
                 console.log("Set modal data attributes:", {
                     displayOtp: modal.dataset.displayOtp,
                     verifyOtp: modal.dataset.verifyOtp
@@ -173,6 +193,7 @@
     function closeHandshake(orderId) {
         const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
         if (!modal) return;
+        stopCustomerHandshakeStatusPolling();
         modal.classList.remove('active');
     }
 
@@ -192,6 +213,33 @@
             displayOTP: modal.dataset.displayOtp || '',
             verifyOTP: modal.dataset.verifyOtp || ''
         };
+    }
+
+    function startCustomerHandshakeStatusPolling(orderId) {
+        stopCustomerHandshakeStatusPolling();
+
+        customerHandshakeStatusPoll = setInterval(() => {
+            fetch(`/delivery/get-otp/${orderId}/`)
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.success) return;
+
+                    const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+                    if (!modal || !modal.classList.contains('active')) {
+                        stopCustomerHandshakeStatusPolling();
+                        return;
+                    }
+
+                    modal.dataset.customerVerified = String(Boolean(data.customer_verified));
+                    modal.dataset.agentVerified = String(Boolean(data.agent_verified));
+                    modal.dataset.orderDelivered = String(Boolean(data.order_delivered));
+
+                    if (data.order_delivered || (data.customer_verified && data.agent_verified)) {
+                        finishCustomerHandshake(orderId);
+                    }
+                })
+                .catch(() => {});
+        }, 2000);
     }
 
 
@@ -269,6 +317,19 @@
 
         const customerVerified = config.modal.dataset.customerVerified === "true";
         const agentVerified = config.modal.dataset.agentVerified === "true";
+        const orderDelivered = config.modal.dataset.orderDelivered === "true";
+
+        const btn = config.modal.querySelector('.neon-button');
+        btn.textContent = "Verify OTP";
+        btn.disabled = false;
+        btn.style.pointerEvents = "auto";
+        btn.style.opacity = "1";
+        btn.onclick = () => handshake(orderId);
+
+        if (orderDelivered || (customerVerified && agentVerified)) {
+            finishCustomerHandshake(orderId);
+            return;
+        }
 
         if (customerVerified) {
 
@@ -279,12 +340,11 @@
 
             disableUserInputs(config);
 
-            const btn = config.modal.querySelector('.neon-button');
-
-            btn.textContent = "Success";
+            btn.textContent = "Waiting for agent";
             btn.disabled = true;
             btn.style.pointerEvents = "none";
             btn.style.opacity = "0.6";
+            startCustomerHandshakeStatusPolling(orderId);
 
         }
 
@@ -372,9 +432,16 @@
                     disableUserInputs(config);
 
                     const btn = config.modal.querySelector('.neon-button');
-                    btn.textContent = 'Success';
-                    btn.style.cursor = 'not-allowed';
-                    btn.onclick = null;
+                    btn.textContent = 'Waiting for agent';
+                    btn.disabled = true;
+                    btn.style.pointerEvents = 'none';
+                    btn.style.opacity = '0.6';
+
+                    if (data.order_delivered) {
+                        finishCustomerHandshake(orderId);
+                    } else {
+                        startCustomerHandshakeStatusPolling(orderId);
+                    }
 
                 } else {
 

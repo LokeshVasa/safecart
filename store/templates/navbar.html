@@ -14,6 +14,13 @@
         <li class="nav-item">
           <a class="nav-link text-primary" href="{% url 'home' %}"><i class="bi bi-house-door-fill"></i> Home</a>
         </li>
+        {% if user.is_authenticated and user.is_superuser or perms.store.can_perform_admin_actions or perms.store.can_view_seller_orders or perms.store.can_deliver_order %}
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="{% url 'dashboard_redirect' %}">
+            <i class="bi bi-grid-1x2-fill"></i> Dashboard
+          </a>
+        </li>
+        {% endif %}
         <li class="nav-item">
           <a class="nav-link text-primary" href="{% url 'cart' %}"><i class="bi bi-cart-fill"></i> Cart (<span id="cart-count">{{ cart_count }}</span>)</a>
         </li>

@@ -101,6 +101,9 @@ class Address(models.Model):
 
 
 class Order(models.Model):
+    DELIVERY_QR_EXPIRY_HOURS = 1
+    DELIVERY_QR_MAX_SCANS = 2
+
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
         ('Packed', 'Packed'),
@@ -113,13 +116,43 @@ class Order(models.Model):
     address = models.ForeignKey(Address, on_delete=models.CASCADE)
     payment_type = models.CharField(max_length=20, default='COD')
     token_value = models.CharField(max_length=255, unique=True)
-    expires_at = models.DateTimeField()
+    expires_at = models.DateTimeField(null=True, blank=True)
+    qr_scan_count = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pending')
     created_at = models.DateTimeField(auto_now_add=True)
     delivery_agent = models.ForeignKey('DeliveryAgent',on_delete=models.SET_NULL,null=True,blank=True,related_name='orders')
 
     def __str__(self):
         return f"Order {self.order_id} - {self.status}"
+
+    def delivery_qr_is_expired(self):
+        return (
+            self.qr_scan_count > 0
+            and self.expires_at is not None
+            and timezone.now() > self.expires_at
+        )
+
+    def delivery_qr_has_remaining_scans(self):
+        return self.qr_scan_count < self.DELIVERY_QR_MAX_SCANS
+
+    def get_delivery_qr_block_reason(self):
+        if self.status in ['Delivered', 'Cancelled']:
+            return f"QR scanning is unavailable for {self.status.lower()} orders."
+        if self.delivery_qr_is_expired():
+            return "This QR code has expired."
+        if not self.delivery_qr_has_remaining_scans():
+            return f"This QR code can only be scanned {self.DELIVERY_QR_MAX_SCANS} times."
+        return None
+
+    def register_delivery_qr_scan(self):
+        error_message = self.get_delivery_qr_block_reason()
+        if error_message:
+            raise ValueError(error_message)
+
+        if self.qr_scan_count == 0:
+            self.expires_at = timezone.now() + timedelta(hours=self.DELIVERY_QR_EXPIRY_HOURS)
+
+        self.qr_scan_count += 1
 
     class Meta:
         db_table = 'orders'
