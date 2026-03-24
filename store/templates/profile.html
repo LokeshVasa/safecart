@@ -39,6 +39,15 @@
                             <i class="bi bi-upload"></i> Change Photo
                         </button>
                     </form>
+                    {% if user_avatar_data_uri %}
+                    <form method="post" action="{% url 'profile' %}" class="mt-2">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove_photo">
+                        <button type="submit" class="btn btn-outline-danger w-100">
+                            <i class="bi bi-trash"></i> Remove Photo
+                        </button>
+                    </form>
+                    {% endif %}
                 </div>
 
                 <!-- Change Password Form -->
@@ -72,6 +81,12 @@
         photoInput?.addEventListener("change", function () {
             const file = this.files && this.files[0];
             if (!file || !file.type.startsWith("image/")) {
+                if (!file && profilePhoto && !profilePhoto.getAttribute("src")) {
+                    profilePhoto.style.display = "none";
+                }
+                if (!file && profilePhotoFallback) {
+                    profilePhotoFallback.style.display = "flex";
+                }
                 return;
             }
 

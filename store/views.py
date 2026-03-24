@@ -25,12 +25,14 @@ from .utils import geocode_address
 from geopy.geocoders import Nominatim
 from django.db import IntegrityError
 from django.db import transaction
+from django.templatetags.static import static
 import random
 import hashlib
 from .models import OrderOTP
 from .utils import encrypt_value, decrypt_value
 import json
 from django.views.decorators.http import require_GET
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +53,30 @@ def home(request):
     categories = list(Category.objects.all())
     featured_products = Product.objects.order_by('-created_at')[:8]
     hero_categories = categories[:3]
+    static_images_dir = Path(settings.BASE_DIR) / "static" / "images"
+    hero_slides = []
+
+    for category in hero_categories:
+        category_slug = category.category.strip().lower().replace(" ", "-")
+        static_image_src = None
+
+        for extension in ("webp", "jpg", "jpeg", "png"):
+            candidate_name = f"hero-{category_slug}.{extension}"
+            candidate_path = static_images_dir / candidate_name
+            if candidate_path.exists():
+                static_image_src = static(f"images/{candidate_name}")
+                break
+
+        hero_slides.append({
+            "category": category.category,
+            "heading": category.heading,
+            "description": category.description,
+            "image_src": static_image_src or category.image.url,
+        })
 
     return render(request, 'home.html', {
         "categories": categories,
-        "hero_categories": hero_categories,
+        "hero_categories": hero_slides,
         "featured_products": featured_products,
     })
 
@@ -63,6 +85,12 @@ def home(request):
 @login_required
 def profile(request):
     if request.method == "POST":
+        if request.POST.get("action") == "remove_photo":
+            request.user.profile_image = None
+            request.user.save(update_fields=["profile_image"])
+            messages.success(request, "Profile photo removed.")
+            return redirect("profile")
+
         uploaded_photo = request.FILES.get("profile_photo")
 
         if not uploaded_photo:

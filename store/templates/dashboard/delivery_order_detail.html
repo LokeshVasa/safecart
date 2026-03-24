@@ -146,7 +146,7 @@
             `;
 
             popupContainer.appendChild(toastEl);
-            const toast = new bootstrap.Toast(toastEl, { delay: 2800 });
+            const toast = new bootstrap.Toast(toastEl, { delay: 2500 });
             toast.show();
             toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
         }

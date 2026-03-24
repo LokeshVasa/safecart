@@ -4,6 +4,44 @@
 {% block title %}Your Orders - SafeCart{% endblock %}
 {% block body_class %}d-flex flex-column min-vh-100{% endblock %}
 
+{% block extra_head %}
+<style>
+    .order-card {
+        min-height: 33rem;
+    }
+
+    .order-card-body {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .order-items-list {
+        max-height: 9.25rem;
+        overflow-y: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .order-items-list::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
+    }
+
+    .order-item-thumb {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        flex: 0 0 60px;
+    }
+
+    .order-summary-block {
+        margin-top: auto;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 
 <!-- PAGE HEADER -->
@@ -24,7 +62,7 @@
 
             {% for order in orders %}
             <div class="col-md-6 col-lg-4">
-                <div class="card shadow-sm border-0 h-100">
+                <div class="card shadow-sm border-0 h-100 order-card">
 
                     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                         <div>
@@ -36,11 +74,11 @@
                         </span>
                     </div>
 
-                    <div class="card-body">
+                    <div class="card-body order-card-body">
+                        <div class="order-items-list">
                         {% for item in order.items %}
                         <div class="d-flex align-items-center mb-3">
-                            <img src="{{ item.image.url }}" class="img-fluid rounded me-3"
-                                style="width:60px;height:60px;object-fit:cover;">
+                            <img src="{{ item.image.url }}" class="img-fluid rounded me-3 order-item-thumb">
                             <div>
                                 <h6 class="mb-1">{{ item.name }}</h6>
                                 <small class="text-muted">
@@ -50,7 +88,9 @@
                             </div>
                         </div>
                         {% endfor %}
+                        </div>
 
+                        <div class="order-summary-block">
                         <hr>
                         <p><strong>Total Paid:</strong>
                             ₹{{ order.total_amount|floatformat:2 }}</p>
@@ -113,7 +153,8 @@
                             </button>
                             {% endif %}
                         </div>
-                        
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -161,7 +202,7 @@
         `;
 
         popupContainer.appendChild(toastEl);
-        const toast = new bootstrap.Toast(toastEl, { delay: 3200 });
+        const toast = new bootstrap.Toast(toastEl, { delay: 2500 });
         toast.show();
         toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
     }

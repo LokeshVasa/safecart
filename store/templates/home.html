@@ -98,6 +98,7 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
+        object-position: center top;
     }
 
     .hero-media-card::after {
@@ -320,7 +321,7 @@
     <section class="home-hero text-white pb-5">
         <div id="heroCarousel" class="carousel slide" data-bs-ride="carousel" data-bs-interval="3500">
             <div class="carousel-indicators mb-4">
-                {% for category in hero_categories %}
+                {% for slide in hero_categories %}
                 <button type="button"
                         data-bs-target="#heroCarousel"
                         data-bs-slide-to="{{ forloop.counter0 }}"
@@ -331,24 +332,24 @@
             </div>
 
             <div class="carousel-inner">
-                {% for category in hero_categories %}
+                {% for slide in hero_categories %}
                 <div class="carousel-item {% if forloop.first %}active{% endif %}">
                     <div class="container py-5">
                         <div class="hero-slide">
                             <div class="hero-media-card">
-                                <img src="{{ category.image.url }}" alt="{{ category.category }}">
+                                <img src="{{ slide.image_src }}" alt="{{ slide.category }}">
                                 <div class="hero-overlay">
                                     <div class="hero-copy-panel">
                                         <span class="hero-pill">
                                             <i class="bi bi-stars"></i>
                                             Curated for everyday shopping
                                         </span>
-                                        <div class="hero-category-kicker mt-3">{{ category.category|title }}</div>
-                                        <h1 class="hero-heading fw-bold">{{ category.heading }}</h1>
-                                        <p class="hero-description">{{ category.description }}</p>
+                                        <div class="hero-category-kicker mt-3">{{ slide.category|title }}</div>
+                                        <h1 class="hero-heading fw-bold">{{ slide.heading }}</h1>
+                                        <p class="hero-description">{{ slide.description }}</p>
                                         <div class="d-flex flex-wrap gap-2 hero-actions">
-                                            <a href="{% url 'product' %}?category={{ category.category }}" class="btn btn-light btn-lg fw-semibold">
-                                                Shop {{ category.category|title }}
+                                            <a href="{% url 'product' %}?category={{ slide.category }}" class="btn btn-light btn-lg fw-semibold">
+                                                Shop {{ slide.category|title }}
                                             </a>
                                             <a href="#category-grid" class="btn btn-outline-light btn-lg">
                                                 Browse Categories
@@ -359,7 +360,7 @@
                                     <div class="hero-media-badge">
                                         <div>
                                             <div class="small text-white-50">Featured category</div>
-                                            <div class="fw-semibold">{{ category.category|title }}</div>
+                                            <div class="fw-semibold">{{ slide.category|title }}</div>
                                         </div>
                                         <div class="d-flex gap-2">
                                             <div class="hero-stat">
