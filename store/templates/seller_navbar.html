@@ -17,6 +17,14 @@
           </a>
         </li>
 
+        {% if user.is_superuser or perms.store.can_perform_admin_actions %}
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="{% url 'admin_dashboard' %}">
+            <i class="bi bi-grid-1x2-fill"></i> Admin Dashboard
+          </a>
+        </li>
+        {% endif %}
+
         {% if user.is_authenticated %}
         <li class="nav-item ms-lg-3">
           <form action="{% url 'logout' %}" method="post" class="m-0">

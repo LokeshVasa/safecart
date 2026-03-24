@@ -13,6 +13,12 @@
     height: 500px;
     margin-top: 20px;
   }
+
+  .delivery-agent-marker {
+    transition: transform 0.45s ease;
+    transform-origin: 50% 58%;
+    will-change: transform;
+  }
 </style>
 {% endblock %}
 
@@ -39,6 +45,7 @@
   // Initialize map centered on customer location
   var customerLat = {{ order.address.latitude|default:0 }};
   var customerLng = {{ order.address.longitude|default:0 }};
+  {% now "U" as delivery_agent_icon_version %}
 
   var map = L.map("map").setView(
     [customerLat || 0, customerLng || 0],
@@ -59,27 +66,31 @@
 
   // Delivery agent icon
   var deliveryAgentIcon = L.icon({
-    iconUrl: "/static/images/delivery-agent.png",
-    iconSize: [72, 72],
-    iconAnchor: [36, 50],
-    popupAnchor: [0, -50],
+    iconUrl: "{% static 'images/delivery-agent.png' %}?v={{ delivery_agent_icon_version }}",
+    iconSize: [64, 64],
+    iconAnchor: [32, 32],
+    popupAnchor: [0, -32],
+    className: "delivery-agent-marker",
   });
 
   var deliveryMarker = null;
   var routingControl = null;
   var quickLine = null;
   var cachedLine = null;
+  var remainingRouteLine = null;
   var hasRoute = false;
   var lastRouteAt = 0;
-  var minRouteMs = 15000;
-  var lastRoutedLatLng = null;
-  var minRouteMeters = 75;
+  var minRouteMs = 12000;
+  var rerouteDistanceThresholdMeters = 45;
   var cacheRouteKey = "route_cache_order_{{ order.id }}";
   var cacheRouteTsKey = cacheRouteKey + "_ts";
   var cacheRouteStartKey = cacheRouteKey + "_start";
   var cacheTtlMs = 30 * 60 * 1000;
   var orderStatus = "{{ order.status|default:''|escapejs }}";
   var cacheMaxStartShiftMeters = 2000;
+  var currentRouteCoords = [];
+  var lastMarkerHeading = null;
+  var markerHeadingOffset = 90;
 
   function distanceMeters(aLat, aLng, bLat, bLng) {
     var R = 6371000;
@@ -94,6 +105,105 @@
       Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
     return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
   }
+
+  function bearingDegrees(fromLat, fromLng, toLat, toLng) {
+    var lat1 = (fromLat * Math.PI) / 180;
+    var lat2 = (toLat * Math.PI) / 180;
+    var dLng = ((toLng - fromLng) * Math.PI) / 180;
+
+    var y = Math.sin(dLng) * Math.cos(lat2);
+    var x =
+      Math.cos(lat1) * Math.sin(lat2) -
+      Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+
+    return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  }
+
+  function applyMarkerHeading(marker, heading) {
+    if (!marker) return;
+    var markerEl = marker.getElement();
+    if (!markerEl) return;
+
+    var normalizedHeading = heading + markerHeadingOffset;
+    var baseTransform = markerEl.style.transform || "";
+    baseTransform = baseTransform.replace(/\srotate\([^)]*\)/g, "");
+    markerEl.style.transform = `${baseTransform} rotate(${normalizedHeading}deg)`;
+    lastMarkerHeading = heading;
+  }
+
+  function getNearestRouteIndex(latLng, routeCoords) {
+    if (!latLng || !Array.isArray(routeCoords) || routeCoords.length === 0) {
+      return 0;
+    }
+
+    var nearestIndex = 0;
+    var nearestDistance = Infinity;
+
+    for (var i = 0; i < routeCoords.length; i++) {
+      var routePoint = routeCoords[i];
+      var pointLat = Array.isArray(routePoint) ? routePoint[0] : routePoint.lat;
+      var pointLng = Array.isArray(routePoint) ? routePoint[1] : routePoint.lng;
+      var pointDistance = distanceMeters(latLng.lat, latLng.lng, pointLat, pointLng);
+      if (pointDistance < nearestDistance) {
+        nearestDistance = pointDistance;
+        nearestIndex = i;
+      }
+    }
+
+    return nearestIndex;
+  }
+
+  function getNearestRouteDistance(latLng, routeCoords) {
+    if (!latLng || !Array.isArray(routeCoords) || routeCoords.length === 0) {
+      return Infinity;
+    }
+
+    var nearestDistance = Infinity;
+
+    for (var i = 0; i < routeCoords.length; i++) {
+      var routePoint = routeCoords[i];
+      var pointLat = Array.isArray(routePoint) ? routePoint[0] : routePoint.lat;
+      var pointLng = Array.isArray(routePoint) ? routePoint[1] : routePoint.lng;
+      var pointDistance = distanceMeters(latLng.lat, latLng.lng, pointLat, pointLng);
+      if (pointDistance < nearestDistance) {
+        nearestDistance = pointDistance;
+      }
+    }
+
+    return nearestDistance;
+  }
+
+  function renderRemainingRoute(latLng) {
+    if (!latLng || !Array.isArray(currentRouteCoords) || currentRouteCoords.length < 2) {
+      if (remainingRouteLine) {
+        map.removeLayer(remainingRouteLine);
+        remainingRouteLine = null;
+      }
+      return;
+    }
+
+    var nearestIndex = getNearestRouteIndex(latLng, currentRouteCoords);
+    var remainingCoords = currentRouteCoords.slice(nearestIndex);
+
+    if (remainingCoords.length < 2) {
+      remainingCoords = [
+        [latLng.lat, latLng.lng],
+        [customerLat, customerLng],
+      ];
+    } else {
+      remainingCoords[0] = [latLng.lat, latLng.lng];
+    }
+
+    if (!remainingRouteLine) {
+      remainingRouteLine = L.polyline(remainingCoords, {
+        color: "black",
+        weight: 6,
+        opacity: 0.9,
+      }).addTo(map);
+    } else {
+      remainingRouteLine.setLatLngs(remainingCoords);
+    }
+  }
   var pollTimer = null;
   var statusEl = document.getElementById("tracking-status");
 
@@ -106,6 +216,9 @@
       setStatus("Customer location not available for routing.");
       return;
     }
+
+    var heading = null;
+    var agentLatLng = L.latLng(lat, lng);
 
     if (orderStatus === "Delivered") {
       localStorage.removeItem(cacheRouteKey);
@@ -145,11 +258,9 @@
         try {
           var points = JSON.parse(cached);
           if (Array.isArray(points) && points.length > 1) {
-            cachedLine = L.polyline(points, {
-              color: "black",
-              weight: 6,
-              opacity: 0.9,
-            }).addTo(map);
+            cachedLine = true;
+            currentRouteCoords = points;
+            renderRemainingRoute(agentLatLng);
             hasRoute = true;
           }
         } catch (e) {
@@ -162,12 +273,38 @@
       }
     }
     if (!deliveryMarker) {
-      deliveryMarker = L.marker([lat, lng], { icon: deliveryAgentIcon })
+      deliveryMarker = L.marker(agentLatLng, { icon: deliveryAgentIcon })
         .addTo(map)
         .bindPopup("Delivery Agent");
+      heading = bearingDegrees(lat, lng, customerLat, customerLng);
     } else {
-      deliveryMarker.setLatLng([lat, lng]);
+      var currentLatLng = deliveryMarker.getLatLng();
+      if (currentLatLng) {
+        var moved = distanceMeters(
+          currentLatLng.lat,
+          currentLatLng.lng,
+          lat,
+          lng
+        );
+        if (moved >= 3) {
+          heading = bearingDegrees(
+            currentLatLng.lat,
+            currentLatLng.lng,
+            lat,
+            lng
+          );
+        }
+      }
+      deliveryMarker.setLatLng(agentLatLng);
     }
+
+    if (heading !== null) {
+      applyMarkerHeading(deliveryMarker, heading);
+    } else if (lastMarkerHeading !== null) {
+      applyMarkerHeading(deliveryMarker, lastMarkerHeading);
+    }
+
+    renderRemainingRoute(agentLatLng);
 
     if (!hasRoute && !quickLine) {
       quickLine = L.polyline(
@@ -193,7 +330,7 @@
         createMarker: function () {
           return null;
         },
-        lineOptions: { styles: [{ color: "black", weight: 6, opacity: 0.9 }] },
+        lineOptions: { styles: [{ color: "transparent", weight: 1, opacity: 0 }] },
         addWaypoints: false,
         draggableWaypoints: false,
         routeWhileDragging: false,
@@ -215,6 +352,8 @@
           var coords = e.routes[0].coordinates.map(function (c) {
             return [c.lat, c.lng];
           });
+          currentRouteCoords = coords;
+          renderRemainingRoute(agentLatLng);
           try {
             localStorage.setItem(cacheRouteKey, JSON.stringify(coords));
             localStorage.setItem(cacheRouteTsKey, String(Date.now()));
@@ -235,22 +374,13 @@
     }
 
     var now = Date.now();
-    var shouldRouteByTime = now - lastRouteAt >= minRouteMs;
-    var shouldRouteByMove = true;
-    if (lastRoutedLatLng) {
-      var moved = distanceMeters(
-        lastRoutedLatLng.lat,
-        lastRoutedLatLng.lng,
-        lat,
-        lng
-      );
-      shouldRouteByMove = moved >= minRouteMeters;
-    }
+    var nearestRouteDistance = getNearestRouteDistance(agentLatLng, currentRouteCoords);
+    var shouldRoute = !currentRouteCoords.length || nearestRouteDistance > rerouteDistanceThresholdMeters;
+    var cooldownFinished = now - lastRouteAt >= minRouteMs;
 
-    if (shouldRouteByTime && shouldRouteByMove) {
+    if (shouldRoute && cooldownFinished) {
       routingControl.route();
       lastRouteAt = now;
-      lastRoutedLatLng = { lat: lat, lng: lng };
     }
   }
 
