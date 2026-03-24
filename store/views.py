@@ -149,6 +149,8 @@ def RegisterView(request):
         form = RegisterForm(request.POST)
         if form.is_valid():
             user = form.save()
+            buyer_group, _ = Group.objects.get_or_create(name='Buyer')
+            user.groups.add(buyer_group)
             login(request, user)
             messages.success(request, f"Welcome, {user.first_name}! Your account is ready.")
             return redirect('home')
@@ -176,6 +178,8 @@ def LoginView(request):
                 # Role-based redirect
             if user.is_superuser or user.groups.filter(name='Admin').exists():
                 return redirect('admin_dashboard')
+            elif user.groups.filter(name='Seller').exists():
+                return redirect('sellerorders')
             elif user.groups.filter(name='DeliveryAgent').exists():
                 return redirect('delivery_dashboard')
             else:  # Buyer or new user
@@ -768,6 +772,7 @@ def yourorders(request):
     return render(request, 'yourorders.html', {'orders': orders_with_details})
 
 @login_required
+@permission_required('store.can_view_seller_orders', raise_exception=True)
 def sellerorders(request):
     # Adjust the filtering below for what a "seller" should see (e.g., all orders or only for their products)
     orders = Order.objects.all().order_by('-created_at')
@@ -800,16 +805,41 @@ def sellerorders(request):
 def make_delivery_agent(request, user_id):
     user = get_object_or_404(User, id=user_id)
     delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
+    seller_group, _ = Group.objects.get_or_create(name='Seller')
     buyer_group, _ = Group.objects.get_or_create(name='Buyer')
 
     if delivery_group in user.groups.all():
+        user.groups.remove(delivery_group)
+        user.groups.remove(seller_group)
+        user.groups.add(buyer_group)
+        messages.success(request, f"{user.username} is now a Buyer.")
+    else:
+        user.groups.remove(buyer_group)
+        user.groups.remove(seller_group)
+        user.groups.add(delivery_group)
+        messages.success(request, f"{user.username} is now a Delivery Agent.")
+
+    return redirect('admin_dashboard')
+
+
+@login_required
+@permission_required('store.can_perform_admin_actions', raise_exception=True)
+def make_seller(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    seller_group, _ = Group.objects.get_or_create(name='Seller')
+    delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
+    buyer_group, _ = Group.objects.get_or_create(name='Buyer')
+
+    if seller_group in user.groups.all():
+        user.groups.remove(seller_group)
         user.groups.remove(delivery_group)
         user.groups.add(buyer_group)
         messages.success(request, f"{user.username} is now a Buyer.")
     else:
         user.groups.remove(buyer_group)
-        user.groups.add(delivery_group)
-        messages.success(request, f"{user.username} is now a Delivery Agent.")
+        user.groups.remove(delivery_group)
+        user.groups.add(seller_group)
+        messages.success(request, f"{user.username} is now a Seller.")
 
     return redirect('admin_dashboard')
 
@@ -819,20 +849,33 @@ def make_delivery_agent(request, user_id):
 def admin_dashboard(request):
     total_users = User.objects.filter(is_superuser=False).count()
     buyer_group, _ = Group.objects.get_or_create(name='Buyer')
+    seller_group, _ = Group.objects.get_or_create(name='Seller')
     delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
     total_buyers = buyer_group.user_set.count()
+    total_sellers = seller_group.user_set.count()
     total_delivery_agents = delivery_group.user_set.count()
     total_products = Product.objects.count()
     total_orders = Order.objects.count()
 
     users = User.objects.filter(is_superuser=False).order_by('id')
     users_info = [
-        {'user': u, 'is_delivery': delivery_group in u.groups.all()} for u in users
+        {
+            'user': u,
+            'is_delivery': delivery_group in u.groups.all(),
+            'is_seller': seller_group in u.groups.all(),
+            'role': (
+                'Delivery Agent' if delivery_group in u.groups.all()
+                else 'Seller' if seller_group in u.groups.all()
+                else 'Buyer'
+            ),
+        }
+        for u in users
     ]
 
     context = {
         'total_users': total_users,
         'total_buyers': total_buyers,
+        'total_sellers': total_sellers,
         'total_delivery_agents': total_delivery_agents,
         'total_products': total_products,
         'total_orders': total_orders,
@@ -862,6 +905,8 @@ def dashboard_redirect(request):
     user = request.user
     if user.is_superuser or user.groups.filter(name='Admin').exists():
         return redirect('admin_dashboard')
+    elif user.groups.filter(name='Seller').exists():
+        return redirect('sellerorders')
     elif user.groups.filter(name='DeliveryAgent').exists():
         return redirect('delivery_dashboard')
     else:
@@ -871,10 +916,20 @@ def dashboard_redirect(request):
 def manage_users(request):
     users = User.objects.filter(is_superuser=False)
     delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
+    seller_group, _ = Group.objects.get_or_create(name='Seller')
     buyer_group, _ = Group.objects.get_or_create(name='Buyer')
 
     users_info = [
-        {'user': u, 'is_delivery': delivery_group in u.groups.all()}
+        {
+            'user': u,
+            'is_delivery': delivery_group in u.groups.all(),
+            'is_seller': seller_group in u.groups.all(),
+            'role': (
+                'Delivery Agent' if delivery_group in u.groups.all()
+                else 'Seller' if seller_group in u.groups.all()
+                else 'Buyer'
+            ),
+        }
         for u in users
     ]
 
@@ -882,6 +937,7 @@ def manage_users(request):
         'users_info': users_info,
         'total_users': users.count(),
         'total_buyers': buyer_group.user_set.count(),
+        'total_sellers': seller_group.user_set.count(),
         'total_delivery_agents': delivery_group.user_set.count(),
         'total_products': Product.objects.count(),
         'total_orders': Order.objects.count(),

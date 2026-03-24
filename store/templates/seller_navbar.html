@@ -1,0 +1,55 @@
+{% load static %}
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-2 border-bottom">
+  <div class="container">
+    <a class="navbar-brand fw-semibold fs-4 text-primary d-flex align-items-center gap-2" href="{% url 'sellerorders' %}">
+      <span><i class="bi bi-bag-check-fill"></i> SafeCart</span>
+      <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Seller</span>
+    </a>
+
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sellerNavbar" aria-controls="sellerNavbar" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="sellerNavbar">
+      <ul class="navbar-nav ms-auto fw-semibold align-items-lg-center">
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="{% url 'sellerorders' %}">
+            <i class="bi bi-receipt"></i> Seller Orders
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="{% url 'home' %}">
+            <i class="bi bi-house-door-fill"></i> Customer Store
+          </a>
+        </li>
+
+        {% if user.is_authenticated %}
+        <li class="nav-item dropdown">
+          <a class="nav-link d-flex align-items-center p-0 ms-lg-3" href="#" id="sellerProfileDropdown" role="button"
+             data-bs-toggle="dropdown" aria-expanded="false">
+            <img src="{% static 'images/default-profile.png' %}"
+                 alt="Profile"
+                 class="rounded-circle border border-2 border-primary"
+                 style="width:40px; height:40px;">
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="sellerProfileDropdown">
+            <li>
+              <a class="dropdown-item" href="{% url 'profile' %}">
+                <i class="bi bi-gear-fill"></i> Settings
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="#" onclick="document.getElementById('seller-logout-form').submit(); return false;">
+                <i class="bi bi-box-arrow-right"></i> Logout
+              </a>
+            </li>
+          </ul>
+        </li>
+        <form id="seller-logout-form" action="{% url 'logout' %}" method="post" style="display:none;">
+          {% csrf_token %}
+        </form>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
