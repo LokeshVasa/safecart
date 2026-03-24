@@ -155,7 +155,7 @@
                                                 <div class="fw-semibold">Order #{{ order.id }}</div>
                                                 <div class="text-muted small">Customer: {{ order.customer_name }}</div>
                                             </div>
-                                            <span class="badge {% if order.status == 'Delivered' %}text-bg-success{% elif order.status == 'Cancelled' %}text-bg-danger{% else %}text-bg-primary{% endif %}">
+                                            <span class="badge {% if order.status == 'Delivered' %}text-bg-success{% elif order.status == 'Cancelled' %}text-bg-danger{% elif order.status == 'Shipped' %}text-bg-info{% elif order.status == 'Packed' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">
                                                 {{ order.status }}
                                             </span>
                                         </div>

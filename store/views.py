@@ -129,7 +129,16 @@ def cart(request):
     # all addresses for modal
     all_addresses = Address.objects.filter(user=request.user).order_by("-id")
 
-    has_confirmed_address = all_addresses.filter(is_confirmed=True).exists()
+    selected_address_confirmed = False
+    if new_address_data:
+        selected_address = Address.objects.filter(
+            user=request.user,
+            street=new_address_data.get("street", ""),
+            city=new_address_data.get("city", ""),
+            state=new_address_data.get("state", ""),
+            pincode=new_address_data.get("pincode", "")
+        ).first()
+        selected_address_confirmed = bool(selected_address and selected_address.is_confirmed)
 
     return render(request,"cart.html", {
         "cart_items": cart_items,
@@ -140,7 +149,7 @@ def cart(request):
         "form": form,
         "all_addresses": all_addresses,
         "hide_confirm_button": hide_confirm_button,
-        "has_confirmed_address": has_confirmed_address,
+        "has_confirmed_address": selected_address_confirmed,
     })
 
 # -------------------- AUTH --------------------
@@ -670,13 +679,24 @@ def save_address_session(request):
     if not all([street, city, state, pincode]):
         return JsonResponse({"success": False})
 
+    address = Address.objects.filter(
+        user=request.user,
+        street=street,
+        city=city,
+        state=state,
+        pincode=pincode
+    ).first()
+
     request.session["new_address_data"] = {
         "street": street,
         "city": city,
         "state": state,
         "pincode": pincode
     }
-    return JsonResponse({"success": True})
+    return JsonResponse({
+        "success": True,
+        "is_confirmed": bool(address and address.is_confirmed)
+    })
 
 @login_required
 def proceed_to_checkout(request):
@@ -705,6 +725,10 @@ def proceed_to_checkout(request):
         messages.info(request, "Please confirm a valid address before proceeding to checkout.")
         return redirect("cart")
     
+    if not address.is_confirmed:
+        messages.info(request, "Please confirm your selected address on the map before proceeding to checkout.")
+        return redirect("cart")
+
     if not all([address.street, address.city, address.state, address.pincode]):
         messages.info(request, "Please ensure your address has all required fields before checkout.")
         return redirect("cart")
@@ -768,9 +792,29 @@ def yourorders(request):
                 order.status in ['Packed', 'Shipped']
                 and order.delivery_agent_id is not None
             ),
+            'can_handshake': (
+                order.status in ['Pending', 'Packed', 'Shipped']
+                and order.delivery_agent_id is not None
+            ),
+            'can_cancel': order.status in ['Pending', 'Packed'],
         })
 
     return render(request, 'yourorders.html', {'orders': orders_with_details})
+
+
+@login_required
+@require_POST
+def cancel_order(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+
+    if order.status not in ['Pending', 'Packed']:
+        messages.warning(request, "Only pending or packed orders can be cancelled.")
+        return redirect('yourorders')
+
+    order.status = 'Cancelled'
+    order.save(update_fields=['status'])
+    messages.success(request, f"Order #{order.id} has been cancelled.")
+    return redirect('yourorders')
 
 @login_required
 @permission_required('store.can_view_seller_orders', raise_exception=True)
@@ -798,6 +842,7 @@ def sellerorders(request):
             'expected_delivery': expected_delivery,
             'pincode': order.address.pincode,
             'token_': order.token_value,  # Ensure your Order model has token_value
+            'can_print_qr': order.status != 'Cancelled',
         })
     return render(request, 'sellerorders.html', {'orders': orders_with_details})
 
@@ -1240,8 +1285,24 @@ def verify_otp(request, order_id):
 
 @login_required
 def get_order_otp_halves(request, order_id):
-
     order = get_object_or_404(Order, id=order_id)
+
+    is_customer = order.user_id == request.user.id
+    is_assigned_agent = (
+        order.delivery_agent is not None
+        and order.delivery_agent.user_id == request.user.id
+    )
+    if not (is_customer or is_assigned_agent):
+        return JsonResponse({
+            "success": False,
+            "error": "You are not allowed to access this order OTP."
+        }, status=403)
+
+    if order.status == 'Cancelled':
+        return JsonResponse({
+            "success": False,
+            "error": "Safe Handshake is unavailable for cancelled orders."
+        }, status=400)
 
     otp_obj = OrderOTP.objects.filter(order=order).first()
 

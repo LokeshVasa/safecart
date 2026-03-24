@@ -25,7 +25,7 @@
                                     <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
                                     <strong>#{{ order.id }}</strong>
                                 </div>
-                                <span class="badge bg-success">{{ order.status|default:"Confirmed" }}</span>
+                                <span class="badge {% if order.status == 'Delivered' %}bg-success{% elif order.status == 'Cancelled' %}bg-danger{% elif order.status == 'Shipped' %}bg-info text-dark{% elif order.status == 'Packed' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ order.status|default:"Confirmed" }}</span>
                             </div>
                             <div class="card-body">
                                 {% for item in order.items %}
@@ -55,7 +55,11 @@
                                     {% qr_from_text order.token_ size="M" %}
                                 </div>
 
+                                {% if order.can_print_qr %}
                                 <button class="btn btn-outline-secondary" onclick="printLabel({{ order.id }})">Print QR</button>
+                                {% else %}
+                                <button class="btn btn-outline-secondary" disabled>Print QR</button>
+                                {% endif %}
                             </div>
                         </div>
                     </div>

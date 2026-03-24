@@ -5,7 +5,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Address, DeliveryAgent, Order
+from .models import Address, DeliveryAgent, Order, OrderOTP
+from .utils import encrypt_value
 
 
 class DeliveryQrScanTests(TestCase):
@@ -124,3 +125,65 @@ class DeliveryQrScanTests(TestCase):
         payload = response.json()
         self.assertTrue(payload['success'])
         self.assertIn('agent_half', payload)
+
+    def test_assigned_agent_can_poll_otp_status(self):
+        self.order.delivery_agent = self.delivery_agent
+        self.order.status = 'Shipped'
+        self.order.save(update_fields=['delivery_agent', 'status'])
+        OrderOTP.objects.create(
+            order=self.order,
+            otp_hash='hash',
+            enc_customer_half=encrypt_value('1234'),
+            enc_agent_half=encrypt_value('5678'),
+            expires_at=timezone.now() + timedelta(minutes=10),
+            customer_verified=False,
+            agent_verified=True,
+        )
+
+        response = self.client.get(reverse('get_order_otp', args=[self.order.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['success'])
+
+    def test_delivered_order_still_returns_otp_completion_status(self):
+        self.order.delivery_agent = self.delivery_agent
+        self.order.status = 'Delivered'
+        self.order.save(update_fields=['delivery_agent', 'status'])
+        OrderOTP.objects.create(
+            order=self.order,
+            otp_hash='hash',
+            enc_customer_half=encrypt_value('1234'),
+            enc_agent_half=encrypt_value('5678'),
+            expires_at=timezone.now() + timedelta(minutes=10),
+            customer_verified=True,
+            agent_verified=True,
+            is_active=False,
+        )
+
+        response = self.client.get(reverse('get_order_otp', args=[self.order.id]))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload['success'])
+        self.assertTrue(payload['order_delivered'])
+
+    def test_customer_can_cancel_pending_order(self):
+        self.client.logout()
+        self.client.login(username='buyer', password='testpass123')
+        response = self.client.post(reverse('cancel_order', args=[self.order.id]), follow=True)
+
+        self.assertRedirects(response, reverse('yourorders'))
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, 'Cancelled')
+
+    def test_customer_cannot_cancel_shipped_order(self):
+        self.client.logout()
+        self.client.login(username='buyer', password='testpass123')
+        self.order.status = 'Shipped'
+        self.order.save(update_fields=['status'])
+
+        response = self.client.post(reverse('cancel_order', args=[self.order.id]), follow=True)
+
+        self.assertRedirects(response, reverse('yourorders'))
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, 'Shipped')

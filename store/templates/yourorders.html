@@ -16,6 +16,7 @@
 
 <section class="py-4 flex-grow-1">
     <div class="container">
+        <div class="toast-container position-fixed top-0 end-0 p-3" id="customerHandshakePopupContainer"></div>
         <div id="incomingCallAlertContainer" class="mb-3"></div>
 
         {% if orders %}
@@ -30,7 +31,7 @@
                             <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
                             <strong>#{{ order.id }}</strong>
                         </div>
-                        <span class="badge bg-success">
+                        <span class="badge {% if order.status == 'Delivered' %}bg-success{% elif order.status == 'Cancelled' %}bg-danger{% elif order.status == 'Shipped' %}bg-info text-dark{% elif order.status == 'Packed' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
                             {{ order.status|default:"Confirmed" }}
                         </span>
                     </div>
@@ -69,17 +70,23 @@
                         {% endif %}
 
                         <div class="d-flex flex-wrap gap-2 mt-3">
+                            {% if order.can_handshake %}
                             <button class="btn btn-outline-primary btn-sm" onclick="openHandshake('{{ order.id }}')">
                                 Safe Handshake
                             </button>
+                            {% else %}
+                            <button class="btn btn-outline-secondary btn-sm" disabled>
+                                Safe Handshake
+                            </button>
+                            {% endif %}
 
                             {% if order.can_track %}
-                            <a href="{% url 'customer_track_order' order.id %}" class="btn btn-primary btn-sm" target="_blank">
-                                Track Order
+                            <a href="{% url 'customer_track_order' order.id %}" class="btn btn-primary btn-sm" target="_blank" aria-label="Track order" title="Track order">
+                                <i class="bi bi-geo-alt-fill"></i>
                             </a>
                             {% else %}
-                            <button class="btn btn-secondary btn-sm" disabled>
-                                Tracking Unavailable
+                            <button class="btn btn-secondary btn-sm" disabled aria-label="Tracking unavailable" title="Tracking unavailable">
+                                <i class="bi bi-geo-alt-fill"></i>
                             </button>
                             {% endif %}
 
@@ -90,6 +97,19 @@
                             {% else %}
                             <button class="btn btn-outline-secondary btn-sm" disabled aria-label="Call unavailable" title="Call unavailable">
                                 <i class="bi bi-telephone-fill"></i>
+                            </button>
+                            {% endif %}
+
+                            {% if order.can_cancel %}
+                            <form method="post" action="{% url 'cancel_order' order.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                    Cancel Order
+                                </button>
+                            </form>
+                            {% else %}
+                            <button class="btn btn-outline-secondary btn-sm" disabled>
+                                Cancel Order
                             </button>
                             {% endif %}
                         </div>
@@ -123,6 +143,28 @@
 <script>
     const customerHandshakeCompletionDelayMs = 1800;
     let customerHandshakeStatusPoll = null;
+
+    function showCustomerHandshakePopup(message, variant = "danger") {
+        const popupContainer = document.getElementById("customerHandshakePopupContainer");
+        if (!popupContainer) return;
+
+        const toastEl = document.createElement("div");
+        toastEl.className = `toast align-items-center text-bg-${variant} border-0`;
+        toastEl.setAttribute("role", "alert");
+        toastEl.setAttribute("aria-live", "assertive");
+        toastEl.setAttribute("aria-atomic", "true");
+        toastEl.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+
+        popupContainer.appendChild(toastEl);
+        const toast = new bootstrap.Toast(toastEl, { delay: 3200 });
+        toast.show();
+        toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
+    }
 
     function stopCustomerHandshakeStatusPolling() {
         if (customerHandshakeStatusPoll) {
@@ -158,13 +200,13 @@
             .then(data => {
 
                 if (!data.success) {
-                    alert("Unable to generate OTP");
+                    showCustomerHandshakePopup(data.error || "Unable to open Safe Handshake.");
                     return;
                 }
 
                 const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
                 if (!modal) {
-                    alert("Handshake modal not found");
+                    showCustomerHandshakePopup("Handshake modal not found.");
                     return;
                 }
                 console.log("Received OTP data:", data);
@@ -186,7 +228,7 @@
             })
             .catch(err => {
                 console.error("OTP error:", err);
-                alert("OTP generation failed. Check console.");
+                showCustomerHandshakePopup("OTP generation failed. Please try again.");
             });
     }
 
@@ -395,7 +437,7 @@
         if (!config) return;
         const userOTP = getUserOTP(config);
         if (userOTP.length < 4) {
-            alert('Please complete the OTP');
+            showCustomerHandshakePopup("Please complete the OTP.", "warning");
             return;
         }
 
@@ -446,7 +488,7 @@
                 } else {
 
                     if (data.error) {
-                        alert(data.error);
+                        showCustomerHandshakePopup(data.error);
                     }
 
                     // Step 1 → move hands forward
