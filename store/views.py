@@ -48,8 +48,15 @@ def product(request):
     })
 
 def home(request):
-    categories = Category.objects.all()
-    return render(request, 'home.html', {"categories": categories})
+    categories = list(Category.objects.all())
+    featured_products = Product.objects.order_by('-created_at')[:8]
+    hero_categories = categories[:3]
+
+    return render(request, 'home.html', {
+        "categories": categories,
+        "hero_categories": hero_categories,
+        "featured_products": featured_products,
+    })
 
 # -------------------- PROFILE & WISHLIST --------------------
 

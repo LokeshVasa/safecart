@@ -6,6 +6,62 @@
 
 {% block content %}
 
+<style>
+    .category-product-card {
+        border: 0;
+        border-radius: 1rem;
+        overflow: hidden;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .category-product-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 1rem 2rem rgba(13, 37, 63, 0.12);
+    }
+
+    .category-product-image-wrap {
+        aspect-ratio: 4 / 4.4;
+        background: linear-gradient(135deg, #eef4ff 0%, #f8fbff 100%);
+        overflow: hidden;
+    }
+
+    .category-product-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .category-product-title {
+        min-height: 3rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .category-product-description {
+        min-height: 3.6rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .category-product-actions {
+        gap: 0.5rem;
+    }
+
+    .category-product-actions form {
+        flex: 1 1 0;
+    }
+
+    .category-product-actions .btn {
+        width: 100%;
+        white-space: nowrap;
+    }
+</style>
+
 <!-- Flash Messages -->
 <div id="flash-messages">
     {% include "flash_messages.html" %}
@@ -25,17 +81,19 @@
         <div class="row g-4">
             {% for product in products %}
             <div class="col-sm-6 col-md-4 col-lg-3">
-                <div class="card h-100 shadow-sm">
-                    <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                <div class="card h-100 shadow-sm category-product-card">
+                    <div class="category-product-image-wrap">
+                        <img src="{{ product.image.url }}" class="category-product-image" alt="{{ product.name }}">
+                    </div>
                     <div class="card-body d-flex flex-column">
-                        <h5 class="card-title">{{ product.name }}</h5>
-                        <p class="card-text small text-muted">{{ product.description }}</p>
+                        <h5 class="card-title category-product-title">{{ product.name }}</h5>
+                        <p class="card-text small text-muted category-product-description">{{ product.description|default:"No description available." }}</p>
                         <p class="fw-bold text-success mb-3">₹{{ product.price }}</p>
 
-                        <div class="mt-auto d-flex justify-content-between">
+                        <div class="mt-auto d-flex justify-content-between category-product-actions">
                             <!-- Wishlist -->
                             <form hx-post="{% url 'add-to-wishlist' %}" hx-swap="none" hx-on::after-request="updateWishlistState(event)" 
-                                  method="POST" class="me-2">
+                                  method="POST">
                                 {% csrf_token %}
                                 <input type="hidden" name="product_id" value="{{ product.id }}">
                                 <button type="submit" class="btn btn-outline-danger btn-sm">
