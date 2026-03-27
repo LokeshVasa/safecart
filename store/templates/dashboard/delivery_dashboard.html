@@ -10,55 +10,82 @@
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
-        :root {
-            --dashboard-bg: linear-gradient(135deg, #f6f8fb 0%, #edf4ff 48%, #f9f4ea 100%);
-            --panel-shadow: 0 18px 45px rgba(32, 62, 96, 0.08);
-        }
-
         body {
-            background: var(--dashboard-bg);
+            background:
+                radial-gradient(circle at top left, rgba(13, 110, 253, 0.12), transparent 28%),
+                linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
             min-height: 100vh;
         }
 
-        .hero-panel,
-        .metric-card,
-        .dashboard-card {
+        .delivery-shell {
+            max-width: 1280px;
+        }
+
+        .hero-card,
+        .stats-card,
+        .panel-card {
             border: 0;
             border-radius: 1.25rem;
-            box-shadow: var(--panel-shadow);
+            box-shadow: 0 18px 45px rgba(29, 53, 87, 0.08);
         }
 
-        .hero-panel {
-            background: linear-gradient(135deg, #163d65 0%, #1f5d96 50%, #2a7c8c 100%);
+        .hero-card {
+            background: linear-gradient(135deg, #0d6efd 0%, #4f8cff 100%);
             color: #fff;
             overflow: hidden;
+            position: relative;
         }
 
-        .metric-card {
-            background: rgba(255, 255, 255, 0.94);
+        .hero-card::after {
+            content: "";
+            position: absolute;
+            inset: auto -4rem -4rem auto;
+            width: 14rem;
+            height: 14rem;
+            background: rgba(255, 255, 255, 0.10);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .stats-card {
+            background: #fff;
+        }
+
+        .stats-icon {
+            width: 3rem;
+            height: 3rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.95rem;
+            font-size: 1.2rem;
         }
 
         .metric-value {
-            font-size: 2rem;
+            font-size: 1.9rem;
             font-weight: 700;
-            line-height: 1;
         }
 
-        .order-card {
-            border: 1px solid rgba(22, 61, 101, 0.08);
+        .panel-card {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(8px);
+        }
+
+        .order-row {
+            border: 1px solid rgba(13, 110, 253, 0.08);
             border-radius: 1rem;
             background: #fff;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
         }
 
-        .order-card:hover {
+        .order-row:hover {
             transform: translateY(-2px);
             box-shadow: 0 12px 28px rgba(32, 62, 96, 0.08);
         }
 
         .scanner-frame {
             border-radius: 1rem;
-            background: linear-gradient(135deg, rgba(31, 93, 150, 0.08), rgba(42, 124, 140, 0.12));
+            background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(79, 140, 255, 0.12));
         }
 
         #qrVideo {
@@ -72,10 +99,20 @@
         .toast-container {
             z-index: 1080;
         }
+
+        .rule-item {
+            display: flex;
+            gap: 0.85rem;
+            align-items: flex-start;
+        }
+
+        .rule-item + .rule-item {
+            margin-top: 1rem;
+        }
     </style>
 </head>
 
-<body class="bg-light">
+<body>
 
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-2 sticky-top">
   <div class="container d-flex justify-content-between align-items-center">
@@ -94,17 +131,17 @@
 
     <div class="toast-container position-fixed top-0 end-0 p-3" id="popupContainer"></div>
 
-    <div class="container py-4">
-        <div class="hero-panel p-4 p-lg-5 mb-4">
-            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-4">
+    <div class="container py-4 py-lg-5 delivery-shell">
+        <div class="hero-card p-4 p-lg-5 mb-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-4 position-relative">
                 <div>
-                    <p class="text-uppercase small fw-semibold mb-2 opacity-75">Delivery workspace</p>
-                    <h2 class="display-6 fw-bold mb-2">Delivery Agent Dashboard</h2>
-                    <p class="mb-0 opacity-75">Scan order QR codes, monitor assigned deliveries, and keep handoff limits visible without leaving the dashboard.</p>
+                    <p class="text-uppercase small fw-semibold mb-2 opacity-75">Delivery Workspace</p>
+                    <h1 class="display-6 fw-bold mb-2">Delivery Agent Dashboard</h1>
+                    <p class="mb-0 opacity-75">Scan order QR codes, manage assigned deliveries, and keep QR validity visible from one place.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
-                    <button class="btn btn-light btn-lg px-4" data-bs-toggle="modal" data-bs-target="#scanQrModal">
-                        <i class="bi bi-qr-code-scan me-2"></i>Scan QR
+                    <button class="btn btn-light text-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#scanQrModal">
+                        <i class="bi bi-qr-code-scan me-1"></i> Scan QR
                     </button>
                 </div>
             </div>
@@ -112,26 +149,30 @@
 
         <div class="row g-3 mb-4">
             <div class="col-6 col-lg-3">
-                <div class="metric-card p-3 h-100">
-                    <div class="text-muted small mb-2">Assigned Orders</div>
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-primary-subtle text-primary mb-3"><i class="bi bi-box-seam"></i></div>
+                    <div class="text-muted small">Assigned Orders</div>
                     <div class="metric-value text-primary">{{ stats.assigned_count }}</div>
                 </div>
             </div>
             <div class="col-6 col-lg-3">
-                <div class="metric-card p-3 h-100">
-                    <div class="text-muted small mb-2">Active Deliveries</div>
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-success-subtle text-success mb-3"><i class="bi bi-truck"></i></div>
+                    <div class="text-muted small">Active Deliveries</div>
                     <div class="metric-value text-success">{{ stats.active_count }}</div>
                 </div>
             </div>
             <div class="col-6 col-lg-3">
-                <div class="metric-card p-3 h-100">
-                    <div class="text-muted small mb-2">Delivered by You</div>
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-dark-subtle text-dark mb-3"><i class="bi bi-check2-circle"></i></div>
+                    <div class="text-muted small">Delivered by You</div>
                     <div class="metric-value text-dark">{{ stats.delivered_count }}</div>
                 </div>
             </div>
             <div class="col-6 col-lg-3">
-                <div class="metric-card p-3 h-100">
-                    <div class="text-muted small mb-2">Open Orders to Claim</div>
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-warning-subtle text-warning mb-3"><i class="bi bi-broadcast-pin"></i></div>
+                    <div class="text-muted small">Open Orders to Claim</div>
                     <div class="metric-value" style="color:#c2681a;">{{ stats.available_count }}</div>
                 </div>
             </div>
@@ -139,17 +180,22 @@
 
         <div class="row g-4">
             <div class="col-lg-8">
-                <div class="dashboard-card bg-white p-4">
-                    <div class="mb-3">
-                        <h4 class="mb-1">Your Assigned Orders</h4>
+                <div class="panel-card p-3 p-lg-4">
+                    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+                        <div>
+                        <h2 class="h4 fw-bold mb-1">Your Assigned Orders</h2>
                         <p class="text-muted mb-0">Recent orders already linked to your delivery account.</p>
+                        </div>
+                        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#scanQrModal">
+                            <i class="bi bi-qr-code-scan me-1"></i> Open Scanner
+                        </button>
                     </div>
 
                     {% if assigned_orders %}
                         <div class="row g-3">
                             {% for order in assigned_orders %}
                                 <div class="col-md-6">
-                                    <div class="order-card p-3 h-100">
+                                    <div class="order-row p-3 h-100">
                                         <div class="d-flex justify-content-between align-items-start mb-2">
                                             <div>
                                                 <div class="fw-semibold">Order #{{ order.id }}</div>
@@ -206,17 +252,17 @@
             </div>
 
             <div class="col-lg-4">
-                <div class="dashboard-card bg-white p-4 mb-4">
-                    <h4 class="mb-3">QR Rules</h4>
+                <div class="panel-card p-4 mb-4">
+                    <h2 class="h4 fw-bold mb-3">QR Rules</h2>
                     <div class="scanner-frame p-3">
-                        <div class="d-flex align-items-start gap-3 mb-3">
+                        <div class="rule-item">
                             <i class="bi bi-clock-history fs-4 text-primary"></i>
                             <div>
                                 <div class="fw-semibold">Valid for {{ stats.qr_expiry_hours }} hour{{ stats.qr_expiry_hours|pluralize }}</div>
                                 <div class="text-muted small">The timer starts after the first successful scan.</div>
                             </div>
                         </div>
-                        <div class="d-flex align-items-start gap-3">
+                        <div class="rule-item">
                             <i class="bi bi-arrow-repeat fs-4 text-primary"></i>
                             <div>
                                 <div class="fw-semibold">Maximum {{ stats.qr_max_scans }} scans</div>
@@ -226,12 +272,12 @@
                     </div>
                 </div>
 
-                <div class="dashboard-card bg-white p-4">
-                    <h4 class="mb-3">How It Works</h4>
+                <div class="panel-card p-4">
+                    <h2 class="h4 fw-bold mb-3">How It Works</h2>
                     <div class="small text-muted mb-2">1. Scan the QR from the package label.</div>
                     <div class="small text-muted mb-2">2. The order is assigned to you on the first successful scan.</div>
-                    <div class="small text-muted mb-2">3. Use the order page to navigate, call the customer, and complete OTP handoff.</div>
-                    <div class="small text-muted mb-0">4. Watch the timer so the QR does not expire before delivery.</div>
+                    <div class="small text-muted mb-2">3. Open the order page to navigate, call, and complete handoff.</div>
+                    <div class="small text-muted mb-0">4. If the QR window expires, use the route view and request a fresh OTP when needed.</div>
                 </div>
             </div>
         </div>

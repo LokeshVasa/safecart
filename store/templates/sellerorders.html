@@ -5,6 +5,51 @@
 {% block title %}Seller Orders - SafeCart{% endblock %}
 {% block body_class %}d-flex flex-column min-vh-100{% endblock %}
 
+{% block extra_head %}
+<style>
+    .order-card {
+        min-height: 27rem;
+    }
+
+    .order-card-body {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .order-items-list {
+        height: 10.5rem;
+        overflow-y: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .order-items-list::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
+    }
+
+    .order-item-thumb {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        flex: 0 0 60px;
+    }
+
+    .order-item-row {
+        min-height: 4.75rem;
+    }
+
+    .order-summary-block {
+        margin-top: 0.5rem;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <section class="py-3 bg-primary text-white text-center border-bottom mt-0">
     <div class="container">
@@ -19,7 +64,7 @@
             <div class="row g-4">
                 {% for order in orders %}
                     <div class="col-md-6 col-lg-4">
-                        <div class="card shadow-sm border-0 h-100">
+                        <div class="card shadow-sm border-0 h-100 order-card">
                             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                                 <div>
                                     <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
@@ -27,16 +72,19 @@
                                 </div>
                                 <span class="badge {% if order.status == 'Delivered' %}bg-success{% elif order.status == 'Cancelled' %}bg-danger{% elif order.status == 'Shipped' %}bg-info text-dark{% elif order.status == 'Packed' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ order.status|default:"Confirmed" }}</span>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body order-card-body">
+                                <div class="order-items-list">
                                 {% for item in order.items %}
-                                    <div class="d-flex align-items-center mb-3">
-                                        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="img-fluid rounded me-3" style="width:60px; height:60px; object-fit:cover;">
+                                    <div class="d-flex align-items-center order-item-row">
+                                        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="img-fluid rounded me-3 order-item-thumb">
                                         <div>
                                             <h6 class="mb-1">{{ item.name }}</h6>
                                             <small class="text-muted">Qty: {{ item.quantity }} | ₹{{ item.price|floatformat:2 }}</small>
                                         </div>
                                     </div>
                                 {% endfor %}
+                                </div>
+                                <div class="order-summary-block">
                                 <hr>
                                 <p class="mb-1"><strong>Total Paid:</strong> ₹{{ order.total_amount|floatformat:2 }}</p>
                                 <p class="mb-0"><strong>Expected Delivery:</strong> {{ order.expected_delivery|date:"M d, Y" }}</p>
@@ -60,6 +108,7 @@
                                 {% else %}
                                 <button class="btn btn-outline-secondary" disabled>Print QR</button>
                                 {% endif %}
+                                </div>
                             </div>
                         </div>
                     </div>

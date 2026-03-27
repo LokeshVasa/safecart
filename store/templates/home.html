@@ -1,556 +1,164 @@
 {% extends "root.html" %}
 {% load static %}
 
-{% block title %}SafeCart - Shop Smarter, Safer, Faster{% endblock %}
+{% block title %}SafeCart - Your Trusted Shopping Destination{% endblock %}
 {% block body_class %}bg-light{% endblock %}
 
 {% block extra_head %}
 <style>
-    .home-shell {
-        background:
-            radial-gradient(circle at top left, rgba(13, 110, 253, 0.08), transparent 32%),
-            radial-gradient(circle at top right, rgba(255, 193, 7, 0.12), transparent 28%),
-            linear-gradient(180deg, #f7fbff 0%, #f5f7fb 45%, #ffffff 100%);
-    }
-
-    .home-hero {
-        position: relative;
-        overflow: hidden;
-        background: linear-gradient(135deg, #0f2f57 0%, #15549a 52%, #1f8aa0 100%);
-    }
-
-    .home-hero::before,
-    .home-hero::after {
-        content: "";
-        position: absolute;
-        border-radius: 999px;
-        filter: blur(8px);
-        opacity: 0.55;
-    }
-
-    .home-hero::before {
-        width: 18rem;
-        height: 18rem;
-        background: rgba(255, 193, 7, 0.2);
-        top: -5rem;
-        right: -4rem;
-    }
-
-    .home-hero::after {
-        width: 14rem;
-        height: 14rem;
-        background: rgba(255, 255, 255, 0.08);
-        bottom: -4rem;
-        left: -3rem;
-    }
-
-    .hero-slide {
-        height: clamp(26rem, 70vh, 38rem);
-    }
-
-    .hero-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.14);
-        color: #fff;
-        padding: 0.45rem 0.9rem;
-        font-size: 0.86rem;
-        font-weight: 600;
-        backdrop-filter: blur(8px);
-    }
-
-    .hero-stat {
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 1rem;
-        padding: 0.75rem 0.9rem;
-        min-width: 8.5rem;
-        backdrop-filter: blur(12px);
-    }
-
-    .hero-stat-label {
-        color: rgba(255, 255, 255, 0.62);
-        font-size: 0.82rem;
-        margin-bottom: 0.2rem;
-    }
-
-    .hero-stat-value {
-        font-size: 1.1rem;
-        font-weight: 700;
-    }
-
-    .hero-media-card {
-        position: relative;
-        z-index: 1;
-        border-radius: 1.75rem;
-        overflow: hidden;
-        box-shadow: 0 1.5rem 3rem rgba(7, 19, 41, 0.28);
-        height: 100%;
-        background: rgba(6, 19, 42, 0.22);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .hero-media-card img {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
+    .hero-carousel-image {
+        height: 500px;
         object-fit: cover;
         object-position: center top;
     }
 
-    .hero-media-card::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background:
-            linear-gradient(90deg, rgba(4, 16, 36, 0.42) 0%, rgba(4, 16, 36, 0.16) 34%, rgba(4, 16, 36, 0.02) 68%),
-            linear-gradient(180deg, rgba(5, 18, 40, 0.01) 24%, rgba(5, 18, 40, 0.26) 100%);
-        pointer-events: none;
-    }
-
-    .hero-overlay {
-        position: absolute;
-        inset: 0;
-        z-index: 2;
-        display: flex;
-        align-items: flex-end;
-        justify-content: space-between;
-        gap: 2rem;
-        padding: 2.2rem;
-    }
-
-    .hero-copy-panel {
-        max-width: 32rem;
+    .hero-carousel .carousel-caption {
+        left: 8%;
+        right: auto;
+        bottom: 3.5rem;
+        max-width: 30rem;
+        text-align: left;
         padding: 0;
         background: transparent;
+    }
+
+    .hero-carousel .carousel-caption h2 {
+        letter-spacing: -0.03em;
+        text-shadow: 0 0.3rem 1.2rem rgba(0, 0, 0, 0.35);
+    }
+
+    .hero-carousel .carousel-caption p {
+        text-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.3);
+    }
+
+    .hero-carousel .carousel-indicators [data-bs-target] {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    .home-info-bar {
+        background: #ffffff;
+        border-bottom: 1px solid rgba(13, 110, 253, 0.08);
+        border-top: 1px solid rgba(13, 110, 253, 0.08);
+    }
+
+    .info-pill {
+        color: #0d6efd;
+        font-weight: 600;
+    }
+
+    .category-card {
         border: 0;
-        backdrop-filter: none;
-        box-shadow: none;
-    }
-
-    .hero-heading {
-        margin: 0;
-        font-size: clamp(2.3rem, 4vw, 4.1rem);
-        line-height: 0.96;
-        letter-spacing: -0.04em;
-        text-wrap: balance;
-        text-shadow: 0 0.35rem 1.6rem rgba(3, 11, 24, 0.45);
-    }
-
-    .hero-description {
-        max-width: 27rem;
-        margin: 0.9rem 0 0;
-        color: rgba(255, 255, 255, 0.78);
-        font-size: 0.98rem;
-        line-height: 1.6;
-        text-shadow: 0 0.25rem 1.2rem rgba(3, 11, 24, 0.35);
-    }
-
-    .hero-media-badge {
-        position: absolute;
-        right: 2.2rem;
-        bottom: 2.2rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 1rem;
-        padding: 0.95rem 1rem;
-        background: rgba(7, 19, 41, 0.62);
-        color: #fff;
         border-radius: 1rem;
-        backdrop-filter: blur(10px);
-        z-index: 3;
-    }
-
-    .hero-category-kicker {
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        font-size: 0.72rem;
-        color: rgba(255, 255, 255, 0.62);
-        margin-bottom: 0.6rem;
-        text-shadow: 0 0.25rem 1rem rgba(3, 11, 24, 0.35);
-    }
-
-    .hero-actions {
-        margin-top: 1.2rem;
-    }
-
-    .hero-actions .btn {
-        min-width: 10rem;
-    }
-
-    .hero-actions .btn-light {
-        box-shadow: 0 0.8rem 1.6rem rgba(0, 0, 0, 0.16);
-    }
-
-    .home-carousel-controls .carousel-control-prev,
-    .home-carousel-controls .carousel-control-next {
-        width: 3.25rem;
-        height: 3.25rem;
-        top: auto;
-        bottom: 1.5rem;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.12);
-        opacity: 1;
-    }
-
-    .home-carousel-controls .carousel-control-prev {
-        left: auto;
-        right: 5.75rem;
-    }
-
-    .home-carousel-controls .carousel-control-next {
-        right: 1.5rem;
-    }
-
-    .trust-band {
-        margin-top: -2.5rem;
-        position: relative;
-        z-index: 3;
-    }
-
-    .trust-card,
-    .category-card,
-    .featured-card,
-    .cta-panel {
-        border: 0;
-        border-radius: 1.25rem;
-        box-shadow: 0 1rem 2rem rgba(18, 38, 63, 0.08);
-    }
-
-    .trust-card {
-        background: rgba(255, 255, 255, 0.92);
-        backdrop-filter: blur(8px);
-    }
-
-    .category-card,
-    .featured-card {
         overflow: hidden;
+        box-shadow: 0 0.75rem 1.8rem rgba(20, 42, 74, 0.08);
         transition: transform 0.18s ease, box-shadow 0.18s ease;
     }
 
-    .category-card:hover,
-    .featured-card:hover {
+    .category-card:hover {
         transform: translateY(-4px);
-        box-shadow: 0 1.25rem 2.5rem rgba(18, 38, 63, 0.12);
+        box-shadow: 0 1rem 2.2rem rgba(20, 42, 74, 0.12);
     }
 
-    .category-image-wrap {
-        aspect-ratio: 1 / 1.15;
-        overflow: hidden;
-        background: linear-gradient(135deg, #eef4ff 0%, #faf6ec 100%);
-    }
-
-    .category-image-wrap img,
-    .featured-image-wrap img {
-        width: 100%;
-        height: 100%;
+    .category-card img {
+        aspect-ratio: 1 / 1.02;
         object-fit: cover;
-        display: block;
     }
 
-    .featured-image-wrap {
-        aspect-ratio: 1 / 1.05;
-        background: linear-gradient(135deg, #eef4ff 0%, #f6f8fd 100%);
-        overflow: hidden;
-    }
-
-    .featured-title {
-        min-height: 3rem;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-    .featured-description {
-        min-height: 3.6rem;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-    .section-heading {
-        letter-spacing: -0.03em;
-    }
-
-    .cta-panel {
-        background: linear-gradient(135deg, #fff8e8 0%, #eef6ff 100%);
-    }
-
-    @media (max-width: 991.98px) {
-        .hero-slide {
-            height: clamp(24rem, 62vh, 30rem);
+    @media (max-width: 767.98px) {
+        .hero-carousel-image {
+            height: 320px;
         }
 
-        .hero-media-card {
-            height: 100%;
-        }
-
-        .hero-overlay {
-            inset: auto 0 0 0;
-            display: block;
-            padding: 1rem;
-        }
-
-        .hero-copy-panel {
-            max-width: none;
-            margin-right: 0;
-            margin-bottom: 5.25rem;
-        }
-
-        .hero-media-badge {
+        .hero-carousel .carousel-caption {
             left: 1rem;
             right: 1rem;
             bottom: 1rem;
+            max-width: none;
+            padding: 0;
         }
 
-        .trust-band {
-            margin-top: 0;
+        .home-info-bar .container {
+            gap: 0.75rem;
         }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="home-shell">
-    <section class="home-hero text-white pb-5">
-        <div id="heroCarousel" class="carousel slide" data-bs-ride="carousel" data-bs-interval="3500">
-            <div class="carousel-indicators mb-4">
-                {% for slide in hero_categories %}
-                <button type="button"
-                        data-bs-target="#heroCarousel"
-                        data-bs-slide-to="{{ forloop.counter0 }}"
-                        class="{% if forloop.first %}active{% endif %}"
-                        {% if forloop.first %}aria-current="true"{% endif %}
-                        aria-label="Slide {{ forloop.counter }}"></button>
-                {% endfor %}
-            </div>
+<div id="heroCarousel" class="carousel slide carousel-fade hero-carousel" data-bs-ride="carousel" data-bs-interval="3500">
+    <div class="carousel-indicators">
+        {% for slide in hero_categories %}
+        <button type="button"
+                data-bs-target="#heroCarousel"
+                data-bs-slide-to="{{ forloop.counter0 }}"
+                class="{% if forloop.first %}active{% endif %}"
+                {% if forloop.first %}aria-current="true"{% endif %}
+                aria-label="Slide {{ forloop.counter }}"></button>
+        {% endfor %}
+    </div>
 
-            <div class="carousel-inner">
-                {% for slide in hero_categories %}
-                <div class="carousel-item {% if forloop.first %}active{% endif %}">
-                    <div class="container py-5">
-                        <div class="hero-slide">
-                            <div class="hero-media-card">
-                                <img src="{{ slide.image_src }}" alt="{{ slide.category }}">
-                                <div class="hero-overlay">
-                                    <div class="hero-copy-panel">
-                                        <span class="hero-pill">
-                                            <i class="bi bi-stars"></i>
-                                            Curated for everyday shopping
-                                        </span>
-                                        <div class="hero-category-kicker mt-3">{{ slide.category|title }}</div>
-                                        <h1 class="hero-heading fw-bold">{{ slide.heading }}</h1>
-                                        <p class="hero-description">{{ slide.description }}</p>
-                                        <div class="d-flex flex-wrap gap-2 hero-actions">
-                                            <a href="{% url 'product' %}?category={{ slide.category }}" class="btn btn-light btn-lg fw-semibold">
-                                                Shop {{ slide.category|title }}
-                                            </a>
-                                            <a href="#category-grid" class="btn btn-outline-light btn-lg">
-                                                Browse Categories
-                                            </a>
-                                        </div>
-                                    </div>
-
-                                    <div class="hero-media-badge">
-                                        <div>
-                                            <div class="small text-white-50">Featured category</div>
-                                            <div class="fw-semibold">{{ slide.category|title }}</div>
-                                        </div>
-                                        <div class="d-flex gap-2">
-                                            <div class="hero-stat">
-                                                <div class="hero-stat-label">Safe Handoff</div>
-                                                <div class="hero-stat-value">OTP</div>
-                                            </div>
-                                            <div class="hero-stat">
-                                                <div class="hero-stat-label">Returns</div>
-                                                <div class="hero-stat-value">7 Days</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% empty %}
-                <div class="carousel-item active">
-                    <div class="container py-5">
-                        <div class="hero-slide">
-                            <div class="hero-media-card" style="background: linear-gradient(135deg, #143864 0%, #1f6fb2 55%, #39a7b8 100%);">
-                                <div class="hero-overlay">
-                                    <div class="hero-copy-panel">
-                                        <span class="hero-pill">
-                                            <i class="bi bi-stars"></i>
-                                            Safer shopping starts here
-                                        </span>
-                                        <h1 class="hero-heading fw-bold mt-3">Shop essentials with confidence</h1>
-                                        <p class="hero-description">SafeCart combines fast checkout, COD-friendly ordering, and delivery verification built for peace of mind.</p>
-                                        <div class="d-flex flex-wrap gap-2 hero-actions">
-                                            <a href="#category-grid" class="btn btn-light btn-lg fw-semibold">Browse Categories</a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-
-            <div class="home-carousel-controls d-none d-lg-block">
-                <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
-                    <span class="carousel-control-prev-icon"></span>
-                    <span class="visually-hidden">Previous</span>
-                </button>
-                <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
-                    <span class="carousel-control-next-icon"></span>
-                    <span class="visually-hidden">Next</span>
-                </button>
+    <div class="carousel-inner">
+        {% for slide in hero_categories %}
+        <div class="carousel-item {% if forloop.first %}active{% endif %}">
+            <img src="{{ slide.image_src }}" class="d-block w-100 hero-carousel-image" alt="{{ slide.category }}">
+            <div class="carousel-caption">
+                <h2 class="fw-bold">{{ slide.heading }}</h2>
+                <p>{{ slide.description }}</p>
+                <a href="{% url 'product' %}?category={{ slide.category }}" class="btn btn-primary">
+                    Shop {{ slide.category|title }}
+                </a>
             </div>
         </div>
-    </section>
-
-    <section class="trust-band pb-4">
-        <div class="container">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <div class="trust-card p-4 h-100">
-                        <div class="d-flex align-items-start gap-3">
-                            <div class="fs-2 text-primary"><i class="bi bi-arrow-repeat"></i></div>
-                            <div>
-                                <h5 class="mb-1">7-Day Easy Returns</h5>
-                                <p class="text-muted mb-0">A cleaner post-purchase experience for shoppers who want flexibility without friction.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="trust-card p-4 h-100">
-                        <div class="d-flex align-items-start gap-3">
-                            <div class="fs-2 text-primary"><i class="bi bi-cash-coin"></i></div>
-                            <div>
-                                <h5 class="mb-1">Cash on Delivery Ready</h5>
-                                <p class="text-muted mb-0">Built for practical buying habits with COD-friendly checkout and safer delivery confirmation.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="trust-card p-4 h-100">
-                        <div class="d-flex align-items-start gap-3">
-                            <div class="fs-2 text-primary"><i class="bi bi-shield-check"></i></div>
-                            <div>
-                                <h5 class="mb-1">OTP-Based Handoff</h5>
-                                <p class="text-muted mb-0">Extra delivery assurance through Safe Handshake verification when the order reaches you.</p>
-                            </div>
-                        </div>
-                    </div>
+        {% empty %}
+        <div class="carousel-item active">
+            <div class="d-flex align-items-center justify-content-center text-white" style="height:500px; background:linear-gradient(135deg, #0a3775 0%, #0d6efd 100%);">
+                <div class="text-center px-4">
+                    <h2 class="fw-bold">SafeCart</h2>
+                    <p class="mb-3">Safer delivery, cleaner shopping flow.</p>
+                    <a href="#category-grid" class="btn btn-light btn-lg text-primary">Browse Categories</a>
                 </div>
             </div>
         </div>
-    </section>
+        {% endfor %}
+    </div>
 
-    <section class="py-5" id="category-grid">
-        <div class="container">
-            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-4">
-                <div>
-                    <p class="text-uppercase text-primary fw-semibold mb-2 small">Browse Faster</p>
-                    <h2 class="section-heading fw-bold mb-2">Shop by Category</h2>
-                    <p class="text-muted mb-0">Jump straight into the collections people usually start with.</p>
-                </div>
-            </div>
-
-            <div class="row g-4">
-                {% for category in categories %}
-                <div class="col-6 col-md-4 col-xl-3">
-                    <a href="{% url 'product' %}?category={{ category.category }}" class="text-decoration-none text-dark d-block h-100">
-                        <div class="card h-100 category-card">
-                            <div class="category-image-wrap">
-                                <img src="{{ category.image.url }}" alt="{{ category.category }}">
-                            </div>
-                            <div class="card-body">
-                                <div class="small text-primary fw-semibold mb-2">Category</div>
-                                <h5 class="card-title mb-2">{{ category.category|title }}</h5>
-                                <p class="card-text text-muted small mb-0">{{ category.heading }}</p>
-                            </div>
-                        </div>
-                    </a>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </section>
-
-    <section class="pb-5">
-        <div class="container">
-            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-4">
-                <div>
-                    <p class="text-uppercase text-primary fw-semibold mb-2 small">Fresh Picks</p>
-                    <h2 class="section-heading fw-bold mb-2">New Arrivals</h2>
-                    <p class="text-muted mb-0">A quick shortlist of the latest products added to the store.</p>
-                </div>
-            </div>
-
-            <div class="row g-4">
-                {% for product in featured_products %}
-                <div class="col-sm-6 col-lg-3">
-                    <div class="card h-100 featured-card">
-                        <div class="featured-image-wrap">
-                            <img src="{{ product.image.url }}" alt="{{ product.name }}">
-                        </div>
-                        <div class="card-body d-flex flex-column">
-                            <div class="small text-primary fw-semibold mb-2">{{ product.category|title }}</div>
-                            <h5 class="featured-title mb-2">{{ product.name }}</h5>
-                            <p class="featured-description text-muted small mb-3">{{ product.description|default:"A fresh addition to SafeCart." }}</p>
-                            <div class="mt-auto d-flex justify-content-between align-items-center">
-                                <span class="fw-bold text-success">₹{{ product.price }}</span>
-                                <a href="{% url 'product' %}?category={{ product.category }}" class="btn btn-outline-primary btn-sm">
-                                    View More
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% empty %}
-                <div class="col-12">
-                    <div class="alert alert-light border shadow-sm mb-0">Products will appear here as soon as they are added to the catalog.</div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </section>
-
-    <section class="pb-5">
-        <div class="container">
-            <div class="cta-panel p-4 p-lg-5">
-                <div class="row align-items-center g-4">
-                    <div class="col-lg-8">
-                        <p class="text-uppercase text-primary fw-semibold mb-2 small">Ready to shop</p>
-                        <h2 class="section-heading fw-bold mb-2">Discover products with a smoother checkout and safer delivery flow.</h2>
-                        <p class="text-muted mb-0">Browse categories, add favorites, and place your next COD order with a delivery confirmation system built into the experience.</p>
-                    </div>
-                    <div class="col-lg-4 text-lg-end">
-                        {% if categories %}
-                        <a href="{% url 'product' %}?category={{ categories.0.category }}" class="btn btn-primary btn-lg px-4">
-                            Start Shopping
-                        </a>
-                        {% else %}
-                        <a href="{% url 'home' %}" class="btn btn-primary btn-lg px-4">
-                            Explore SafeCart
-                        </a>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+    <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon"></span>
+        <span class="visually-hidden">Previous</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon"></span>
+        <span class="visually-hidden">Next</span>
+    </button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<div class="home-info-bar py-3">
+    <div class="container d-flex flex-wrap justify-content-center gap-4 text-center">
+        <span class="info-pill">7 Days Easy Return</span>
+        <span class="info-pill">Cash on Delivery</span>
+        <span class="info-pill">OTP Based Handoff</span>
+    </div>
+</div>
+
+<section class="py-5" id="category-grid">
+    <div class="container">
+        <h2 class="text-center fw-bold mb-5">Shop by Category</h2>
+        <div class="row g-4">
+            {% for category in categories %}
+            <div class="col-6 col-md-4 col-lg-3">
+                <a href="{% url 'product' %}?category={{ category.category }}" class="text-decoration-none text-dark d-block h-100">
+                    <div class="card h-100 category-card">
+                        <img src="{{ category.image.url }}" class="card-img-top" alt="{{ category.category }}">
+                        <div class="card-body text-center">
+                            <h5 class="card-title mb-0">{{ category.category|title }}</h5>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
 {% endblock %}

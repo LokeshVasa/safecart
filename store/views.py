@@ -915,7 +915,7 @@ def sellerorders(request):
             'expected_delivery': expected_delivery,
             'pincode': order.address.pincode,
             'token_': order.token_value,  # Ensure your Order model has token_value
-            'can_print_qr': order.status != 'Cancelled',
+            'can_print_qr': order.status in ['Pending', 'Packed', 'Shipped'],
             'created_at': order.created_at,
         })
 

@@ -1,310 +1,160 @@
 {% extends "root.html" %}
-{% load static %}
 
 {% block title %}Sign Up - SafeCart{% endblock %}
 {% block body_class %}bg-light{% endblock %}
 
 {% block extra_head %}
 <style>
-    .signup-shell {
+    .auth-shell {
         background:
-            radial-gradient(circle at top left, rgba(13, 110, 253, 0.1), transparent 28%),
-            radial-gradient(circle at bottom right, rgba(255, 193, 7, 0.12), transparent 24%),
-            linear-gradient(180deg, #f4f8ff 0%, #f7f9fc 45%, #ffffff 100%);
+            radial-gradient(circle at top left, rgba(13, 110, 253, 0.08), transparent 30%),
+            linear-gradient(180deg, #f7fbff 0%, #f4f7fb 48%, #ffffff 100%);
+        min-height: calc(100vh - 140px);
     }
 
-    .signup-panel {
+    .auth-card {
         border: 0;
-        border-radius: 1.75rem;
-        overflow: hidden;
-        box-shadow: 0 1.4rem 3rem rgba(20, 42, 74, 0.12);
+        border-radius: 1.25rem;
+        box-shadow: 0 1rem 2.5rem rgba(20, 42, 74, 0.08);
     }
 
-    .signup-showcase {
-        position: relative;
-        min-height: 100%;
-        background:
-            radial-gradient(circle at top right, rgba(255, 193, 7, 0.14), transparent 26%),
-            radial-gradient(circle at bottom left, rgba(255, 255, 255, 0.09), transparent 24%),
-            linear-gradient(145deg, rgba(7, 30, 78, 0.96), rgba(13, 110, 253, 0.9));
-        color: #fff;
-    }
-
-    .signup-showcase::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background:
-            radial-gradient(circle at top right, rgba(255, 193, 7, 0.18), transparent 26%),
-            linear-gradient(180deg, rgba(5, 16, 33, 0.16), rgba(5, 16, 33, 0.3));
-        pointer-events: none;
-    }
-
-    .signup-showcase-inner {
-        position: relative;
-        z-index: 1;
-        padding: 3rem;
-        min-height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-    }
-
-    .signup-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.45rem 0.9rem;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.12);
-        backdrop-filter: blur(10px);
-        font-size: 0.85rem;
-        font-weight: 600;
-    }
-
-    .signup-title {
-        font-size: clamp(2.2rem, 4vw, 3.6rem);
-        line-height: 0.95;
-        letter-spacing: -0.04em;
-    }
-
-    .signup-copy {
-        max-width: 28rem;
-        color: rgba(255, 255, 255, 0.8);
-        font-size: 1rem;
-        line-height: 1.7;
-    }
-
-    .signup-feature-list {
-        display: grid;
-        gap: 0.9rem;
-        margin-top: 2rem;
-    }
-
-    .signup-feature {
-        display: flex;
-        align-items: center;
-        gap: 0.85rem;
-        padding: 0.9rem 1rem;
-        border-radius: 1rem;
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .signup-feature i {
-        font-size: 1.1rem;
-        color: #ffd66b;
-    }
-
-    .signup-form-wrap {
-        padding: 2.5rem 2.2rem;
-        background: #fff;
-    }
-
-    .signup-form-wrap h1 {
-        letter-spacing: -0.03em;
-    }
-
-    .signup-field label {
-        display: block;
-        margin-bottom: 0.45rem;
-        font-weight: 600;
-        color: #17324f;
-    }
-
-    .signup-input {
-        border-radius: 0.95rem;
-        border: 1px solid #d9e4f2;
+    .auth-input {
+        border-radius: 0.9rem;
+        border: 1px solid #d8e3f0;
         padding: 0.85rem 1rem;
-        box-shadow: none;
-        transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
     }
 
-    .signup-input:focus {
+    .auth-input:focus {
         border-color: #0d6efd;
-        box-shadow: 0 0 0 0.22rem rgba(13, 110, 253, 0.14);
-        transform: translateY(-1px);
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
     }
 
-    .signup-submit {
-        border-radius: 0.95rem;
-        padding: 0.9rem 1rem;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-    }
-
-    .signup-login-link a {
-        text-decoration: none;
+    .auth-submit {
+        border-radius: 0.9rem;
+        padding: 0.85rem 1rem;
         font-weight: 600;
-    }
-
-    @media (max-width: 991.98px) {
-        .signup-showcase {
-            min-height: 19rem;
-        }
-
-        .signup-showcase-inner,
-        .signup-form-wrap {
-            padding: 1.5rem;
-        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<section class="signup-shell py-5">
+<section class="auth-shell py-5 d-flex align-items-center">
     <div class="container">
         <div class="row justify-content-center">
-            <div class="col-xl-10">
-                <div class="signup-panel card">
-                    <div class="row g-0">
-                        <div class="col-lg-5">
-                            <div class="signup-showcase h-100">
-                                <div class="signup-showcase-inner">
-                                    <div>
-                                        <span class="signup-pill mb-4">
-                                            <i class="bi bi-stars"></i>
-                                            Join SafeCart
-                                        </span>
-                                        <h2 class="signup-title fw-bold mb-3">Create your account and start shopping smarter.</h2>
-                                        <p class="signup-copy mb-0">
-                                            Fast checkout, safer delivery handoff, and order tracking built into one clean storefront experience.
-                                        </p>
-                                    </div>
-
-                                    <div class="signup-feature-list">
-                                        <div class="signup-feature">
-                                            <i class="bi bi-shield-check"></i>
-                                            <span>Delivery handoff with secure OTP verification</span>
-                                        </div>
-                                        <div class="signup-feature">
-                                            <i class="bi bi-truck"></i>
-                                            <span>Track your order live once it is out for delivery</span>
-                                        </div>
-                                        <div class="signup-feature">
-                                            <i class="bi bi-bag-heart"></i>
-                                            <span>Save products, manage cart, and order with confidence</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+            <div class="col-lg-7">
+                <div class="card auth-card">
+                    <div class="card-body p-4 p-lg-5">
+                        <div class="text-center mb-4">
+                            <h1 class="h3 fw-bold mb-2">Create Account</h1>
+                            <p class="text-muted mb-0">Fill in your details to get started with SafeCart.</p>
                         </div>
 
-                        <div class="col-lg-7">
-                            <div class="signup-form-wrap">
-                                <div class="mb-4">
-                                    <h1 class="h2 fw-bold mb-2">Create Account</h1>
-                                    <p class="text-muted mb-0">Fill in your details to get started with SafeCart.</p>
-                                </div>
-
-                                {% if form.non_field_errors %}
-                                <div class="alert alert-danger rounded-4 border-0">
-                                    {{ form.non_field_errors }}
-                                </div>
-                                {% endif %}
-
-                                <form method="post" novalidate>
-                                    {% csrf_token %}
-                                    <div class="row g-3">
-                                        <div class="col-md-6 signup-field">
-                                            <label for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>
-                                            <input
-                                                type="text"
-                                                name="{{ form.first_name.html_name }}"
-                                                id="{{ form.first_name.id_for_label }}"
-                                                value="{{ form.first_name.value|default_if_none:'' }}"
-                                                class="form-control signup-input"
-                                                placeholder="Enter first name"
-                                                required>
-                                            {% for error in form.first_name.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                            {% endfor %}
-                                        </div>
-
-                                        <div class="col-md-6 signup-field">
-                                            <label for="{{ form.last_name.id_for_label }}">{{ form.last_name.label }}</label>
-                                            <input
-                                                type="text"
-                                                name="{{ form.last_name.html_name }}"
-                                                id="{{ form.last_name.id_for_label }}"
-                                                value="{{ form.last_name.value|default_if_none:'' }}"
-                                                class="form-control signup-input"
-                                                placeholder="Enter last name"
-                                                required>
-                                            {% for error in form.last_name.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                            {% endfor %}
-                                        </div>
-
-                                        <div class="col-12 signup-field">
-                                            <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
-                                            <input
-                                                type="text"
-                                                name="{{ form.username.html_name }}"
-                                                id="{{ form.username.id_for_label }}"
-                                                value="{{ form.username.value|default_if_none:'' }}"
-                                                class="form-control signup-input"
-                                                placeholder="Choose a username"
-                                                required>
-                                            {% for error in form.username.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                            {% endfor %}
-                                        </div>
-
-                                        <div class="col-12 signup-field">
-                                            <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
-                                            <input
-                                                type="email"
-                                                name="{{ form.email.html_name }}"
-                                                id="{{ form.email.id_for_label }}"
-                                                value="{{ form.email.value|default_if_none:'' }}"
-                                                class="form-control signup-input"
-                                                placeholder="Enter your email"
-                                                required>
-                                            {% for error in form.email.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                            {% endfor %}
-                                        </div>
-
-                                        <div class="col-md-6 signup-field">
-                                            <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
-                                            <input
-                                                type="password"
-                                                name="{{ form.password.html_name }}"
-                                                id="{{ form.password.id_for_label }}"
-                                                class="form-control signup-input"
-                                                placeholder="Enter password"
-                                                required>
-                                            {% for error in form.password.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                            {% endfor %}
-                                        </div>
-
-                                        <div class="col-md-6 signup-field">
-                                            <label for="{{ form.confirm_password.id_for_label }}">{{ form.confirm_password.label }}</label>
-                                            <input
-                                                type="password"
-                                                name="{{ form.confirm_password.html_name }}"
-                                                id="{{ form.confirm_password.id_for_label }}"
-                                                class="form-control signup-input"
-                                                placeholder="Confirm password"
-                                                required>
-                                            {% for error in form.confirm_password.errors %}
-                                            <div class="text-danger small mt-1">{{ error }}</div>
-                                            {% endfor %}
-                                        </div>
-
-                                        <div class="col-12 pt-2">
-                                            <button type="submit" class="btn btn-primary signup-submit w-100">Create Account</button>
-                                        </div>
-                                    </div>
-                                </form>
-
-                                <p class="signup-login-link text-center text-muted mt-4 mb-0">
-                                    Already have an account? <a href="{% url 'login' %}">Login</a>
-                                </p>
-                            </div>
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger rounded-4 border-0">
+                            {{ form.non_field_errors }}
                         </div>
+                        {% endif %}
+
+                        <form method="post" novalidate>
+                            {% csrf_token %}
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.first_name.id_for_label }}" class="form-label fw-semibold">{{ form.first_name.label }}</label>
+                                    <input
+                                        type="text"
+                                        name="{{ form.first_name.html_name }}"
+                                        id="{{ form.first_name.id_for_label }}"
+                                        value="{{ form.first_name.value|default_if_none:'' }}"
+                                        class="form-control auth-input"
+                                        placeholder="Enter first name"
+                                        required>
+                                    {% for error in form.first_name.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="{{ form.last_name.id_for_label }}" class="form-label fw-semibold">{{ form.last_name.label }}</label>
+                                    <input
+                                        type="text"
+                                        name="{{ form.last_name.html_name }}"
+                                        id="{{ form.last_name.id_for_label }}"
+                                        value="{{ form.last_name.value|default_if_none:'' }}"
+                                        class="form-control auth-input"
+                                        placeholder="Enter last name"
+                                        required>
+                                    {% for error in form.last_name.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="{{ form.username.id_for_label }}" class="form-label fw-semibold">{{ form.username.label }}</label>
+                                    <input
+                                        type="text"
+                                        name="{{ form.username.html_name }}"
+                                        id="{{ form.username.id_for_label }}"
+                                        value="{{ form.username.value|default_if_none:'' }}"
+                                        class="form-control auth-input"
+                                        placeholder="Choose a username"
+                                        required>
+                                    {% for error in form.username.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="{{ form.email.id_for_label }}" class="form-label fw-semibold">{{ form.email.label }}</label>
+                                    <input
+                                        type="email"
+                                        name="{{ form.email.html_name }}"
+                                        id="{{ form.email.id_for_label }}"
+                                        value="{{ form.email.value|default_if_none:'' }}"
+                                        class="form-control auth-input"
+                                        placeholder="Enter your email"
+                                        required>
+                                    {% for error in form.email.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="{{ form.password.id_for_label }}" class="form-label fw-semibold">{{ form.password.label }}</label>
+                                    <input
+                                        type="password"
+                                        name="{{ form.password.html_name }}"
+                                        id="{{ form.password.id_for_label }}"
+                                        class="form-control auth-input"
+                                        placeholder="Enter password"
+                                        required>
+                                    {% for error in form.password.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="{{ form.confirm_password.id_for_label }}" class="form-label fw-semibold">{{ form.confirm_password.label }}</label>
+                                    <input
+                                        type="password"
+                                        name="{{ form.confirm_password.html_name }}"
+                                        id="{{ form.confirm_password.id_for_label }}"
+                                        class="form-control auth-input"
+                                        placeholder="Confirm password"
+                                        required>
+                                    {% for error in form.confirm_password.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-12 pt-2">
+                                    <button type="submit" class="btn btn-primary auth-submit w-100">Create Account</button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <p class="text-center text-muted mt-4 mb-0">
+                            Already have an account? <a href="{% url 'login' %}" class="text-decoration-none fw-semibold">Login</a>
+                        </p>
                     </div>
                 </div>
             </div>
