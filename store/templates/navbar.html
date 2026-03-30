@@ -14,6 +14,13 @@
         <li class="nav-item">
           <a class="nav-link text-primary" href="{% url 'home' %}"><i class="bi bi-house-door-fill"></i> Home</a>
         </li>
+        {% if user.is_authenticated and user.is_superuser or perms.store.can_perform_admin_actions or perms.store.can_view_seller_orders or perms.store.can_deliver_order %}
+        <li class="nav-item">
+          <a class="nav-link text-primary" href="{% url 'dashboard_redirect' %}">
+            <i class="bi bi-grid-1x2-fill"></i> Dashboard
+          </a>
+        </li>
+        {% endif %}
         <li class="nav-item">
           <a class="nav-link text-primary" href="{% url 'cart' %}"><i class="bi bi-cart-fill"></i> Cart (<span id="cart-count">{{ cart_count }}</span>)</a>
         </li>
@@ -25,26 +32,26 @@
         </li>
 
         {% if user.is_authenticated %}
-        <li class="nav-item dropdown">
-          <a class="nav-link d-flex align-items-center p-0" href="#" id="profileDropdown" role="button"
-             data-bs-toggle="dropdown" aria-expanded="false">
-            <img src="{% static 'images/default-profile.png' %}" 
-                 alt="Profile" 
-                 class="rounded-circle border border-2 border-primary" 
-                 style="width:40px; height:40px;">
+        <li class="nav-item">
+          <a class="nav-link d-flex align-items-center p-0" href="{% url 'profile' %}" aria-label="Open profile" title="Profile">
+            <span class="position-relative d-inline-flex align-items-center justify-content-center rounded-circle border border-2 border-primary bg-primary-subtle text-primary fw-bold overflow-hidden"
+                  style="width:40px; height:40px;">
+              {% if user_avatar_data_uri %}
+              <img src="{{ user_avatar_data_uri }}"
+                   alt="Profile"
+                   class="w-100 h-100 object-fit-cover"
+                   onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              {% endif %}
+              <span style="display:{% if user_avatar_data_uri %}none{% else %}flex{% endif %}; width:100%; height:100%; align-items:center; justify-content:center;">
+                {{ user_avatar_initial }}
+              </span>
+            </span>
           </a>
-          <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="profileDropdown">
-            <li>
-              <a class="dropdown-item" href="{% url 'profile' %}">
-                <i class="bi bi-gear-fill"></i> Settings
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit(); return false;">
-                <i class="bi bi-box-arrow-right"></i> Logout
-              </a>
-            </li>
-          </ul>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-danger" href="#" onclick="document.getElementById('logout-form').submit(); return false;">
+            <i class="bi bi-box-arrow-right"></i> Logout
+          </a>
         </li>
         <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: none;">
           {% csrf_token %}

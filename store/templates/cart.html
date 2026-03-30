@@ -129,15 +129,14 @@
               {% csrf_token %}
               {{ form.as_p }}
 
-              <button type="button" class="btn btn-outline-primary w-100 mb-1" id="use-current-location">
+              {% if not hide_confirm_button %}
+              <button type="button" class="btn btn-success w-100 mb-1" id="confirm-address">Confirm Address</button>
+              <div class="text-center text-muted mb-1 fw-bold" id="or">or</div>
+              {% endif %}
+
+              <button type="button" class="btn btn-outline-primary w-100" id="use-current-location">
               📍 Use Current Location
               </button>
-
-              {% if not hide_confirm_button %}
-              <div class="text-center text-muted mb-1 fw-bold" id="or">or</div>
-
-               <button type="button" class="btn btn-success w-100" id="confirm-address">confirm address</button>
-               {% endif %}
             </form>
           </div>
         </div>
@@ -224,7 +223,7 @@
         let bsAlert = bootstrap.Alert.getOrCreateInstance(alertElem);
         bsAlert.close();
       });
-    }, 3000);
+    }, 2500);
   }
   document.addEventListener("DOMContentLoaded", autoDismissFlash);
 
@@ -352,7 +351,6 @@
   }
 </script>
 
-<script src="https://unpkg.com/htmx.org@1.9.3"></script>
 <script>
   // Ensure Django CSRF token is added to all HTMX requests
   document.body.addEventListener('htmx:configRequest', (event) => {
@@ -367,17 +365,50 @@
 document.addEventListener("DOMContentLoaded", () => {
     const currentLocationBtn = document.getElementById("use-current-location");
     const confirmBtn = document.getElementById("confirm-address");
+    const orDivider = document.getElementById("or");
     const checkoutBtn = document.getElementById("checkout-btn");
     const checkoutForm = document.getElementById("checkout-form");
     const flashContainer = document.getElementById("flash-messages");
-    const hasConfirmedAddress = "{{ has_confirmed_address|yesno:'true,false' }}" === "true";
+    const addressForm = document.getElementById("addres-form");
+    const currentLocationDefaultLabel = currentLocationBtn?.innerText || "📍 Use Current Location";
+    let hasConfirmedAddress = "{{ has_confirmed_address|yesno:'true,false' }}" === "true";
 
-    // Use current location
+    function showCartFlash(message, level = "danger") {
+        if (!flashContainer) return;
+        flashContainer.innerHTML = `
+            <div class="alert alert-${level} alert-dismissible fade show shadow" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+        refreshFlashMessages();
+    }
+
+    function setCheckoutEnabled(enabled) {
+        if (!checkoutBtn) return;
+        checkoutBtn.disabled = !enabled;
+        checkoutBtn.classList.toggle("disabled", !enabled);
+    }
+
+    function setConfirmVisibility(showConfirm) {
+        if (confirmBtn) confirmBtn.classList.toggle("d-none", !showConfirm);
+        if (orDivider) orDivider.classList.toggle("d-none", !showConfirm);
+    }
+
+    function setAddressFields(street, city, state, pincode) {
+        if (!addressForm) return;
+        addressForm.querySelector('[name="street"]').value = street;
+        addressForm.querySelector('[name="city"]').value = city;
+        addressForm.querySelector('[name="state"]').value = state;
+        addressForm.querySelector('[name="pincode"]').value = pincode;
+    }
+
     currentLocationBtn?.addEventListener("click", () => {
         if (!navigator.geolocation) {
-            alert("Geolocation not supported");
+            showCartFlash("Geolocation is not supported on this device.");
             return;
         }
+
         currentLocationBtn.disabled = true;
         currentLocationBtn.innerText = "Fetching location...";
 
@@ -387,87 +418,64 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.location.href = `/use-current-location/?latitude=${latitude}&longitude=${longitude}`;
             },
             () => {
-                alert("Location permission denied");
+                showCartFlash("Location permission was denied.");
                 currentLocationBtn.disabled = false;
-                currentLocationBtn.innerText = "📍 Use Current Location";
+                currentLocationBtn.innerText = currentLocationDefaultLabel;
             }
         );
     });
 
-    // Confirm address
     confirmBtn?.addEventListener("click", (e) => {
-        const form = document.getElementById("addres-form");
-        if (!form) return;
+        if (!addressForm) return;
 
-        const street = form.querySelector('[name="street"]')?.value.trim();
-        const city = form.querySelector('[name="city"]')?.value.trim();
-        const state = form.querySelector('[name="state"]')?.value.trim();
-        const pincode = form.querySelector('[name="pincode"]')?.value.trim();
+        const street = addressForm.querySelector('[name="street"]')?.value.trim();
+        const city = addressForm.querySelector('[name="city"]')?.value.trim();
+        const state = addressForm.querySelector('[name="state"]')?.value.trim();
+        const pincode = addressForm.querySelector('[name="pincode"]')?.value.trim();
 
         if (!street || !city || !state || !pincode) {
             e.preventDefault();
-            if (!flashContainer.querySelector(".alert-danger")) {
-                const alertDiv = document.createElement("div");
-                alertDiv.className = "alert alert-danger alert-dismissible fade show shadow";
-                alertDiv.role = "alert";
-                alertDiv.innerHTML = `
-                    Please fill all address fields before confirming.
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                `;
-                flashContainer.appendChild(alertDiv);
-                setTimeout(() => alertDiv.remove(), 3000);
-            }
+            showCartFlash("Please fill all address fields before confirming.");
             return;
         }
 
-        const url = "{% url 'save_address_and_map' %}" +
-                    `?street=${encodeURIComponent(street)}` +
-                    `&city=${encodeURIComponent(city)}` +
-                    `&state=${encodeURIComponent(state)}` +
-                    `&pincode=${encodeURIComponent(pincode)}`;
-        window.location.href = url;
+        const params = new URLSearchParams({ street, city, state, pincode });
+        window.location.href = `{% url 'save_address_and_map' %}?${params.toString()}`;
     });
 
-    // Checkout button
-    if (!hasConfirmedAddress && checkoutBtn) checkoutBtn.classList.add("disabled");
+    setCheckoutEnabled(hasConfirmedAddress);
 
     checkoutForm?.addEventListener("submit", (e) => {
         if (!hasConfirmedAddress) {
             e.preventDefault();
-            if (!flashContainer.querySelector(".alert-success")) {
-                const alertDiv = document.createElement("div");
-                alertDiv.className = "alert alert-success bg-success-subtle text-success-emphasis alert-dismissible fade show shadow";
-                alertDiv.role = "alert";
-                alertDiv.innerHTML = `
-                    Please confirm your address on the map before proceeding to checkout.
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                `;
-                flashContainer.appendChild(alertDiv);
-                setTimeout(() => alertDiv.remove(), 3000);
-            }
+            showCartFlash("Please confirm your selected address on the map before proceeding to checkout.", "warning");
         }
     });
+
+    window.selectAddress = function selectAddress(id, street, city, state, pincode) {
+        setAddressFields(street, city, state, pincode);
+
+        const params = new URLSearchParams({ street, city, state, pincode });
+        fetch(`{% url 'save_address_session' %}?${params.toString()}`)
+            .then((response) => response.json())
+            .then((data) => {
+                const isConfirmed = Boolean(data.success && data.is_confirmed);
+                hasConfirmedAddress = isConfirmed;
+                setConfirmVisibility(!isConfirmed);
+                setCheckoutEnabled(isConfirmed);
+
+                if (!isConfirmed) {
+                    showCartFlash("Selected address still needs map confirmation.", "warning");
+                }
+            })
+            .catch(() => {
+                hasConfirmedAddress = false;
+                setConfirmVisibility(true);
+                setCheckoutEnabled(false);
+                showCartFlash("Could not save the selected address. Please try again.");
+            });
+    };
 });
-</script>
-
-<script>
-function selectAddress(id, street, city, state, pincode) {
-    const form = document.getElementById('addres-form');
-    form.querySelector('[name="street"]').value = street;
-    form.querySelector('[name="city"]').value = city;
-    form.querySelector('[name="state"]').value = state;
-    form.querySelector('[name="pincode"]').value = pincode;
-
-    const confirmBtn = document.getElementById('confirm-address');
-    const orDiv = document.getElementById('or');
-    if (confirmBtn) confirmBtn.style.display = 'none';
-    if (orDiv) orDiv.style.display = 'none';
-
-    fetch("{% url 'save_address_session' %}?street=" + encodeURIComponent(street) +
-          "&city=" + encodeURIComponent(city) +
-          "&state=" + encodeURIComponent(state) +
-          "&pincode=" + encodeURIComponent(pincode));
-}
 </script>
 
 

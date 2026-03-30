@@ -9,18 +9,119 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        body {
+            background:
+                radial-gradient(circle at top left, rgba(13, 110, 253, 0.12), transparent 28%),
+                linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+            min-height: 100vh;
+        }
+
+        .delivery-shell {
+            max-width: 1280px;
+        }
+
+        .hero-card,
+        .stats-card,
+        .panel-card {
+            border: 0;
+            border-radius: 1.25rem;
+            box-shadow: 0 18px 45px rgba(29, 53, 87, 0.08);
+        }
+
+        .hero-card {
+            background: linear-gradient(135deg, #0d6efd 0%, #4f8cff 100%);
+            color: #fff;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .hero-card::after {
+            content: "";
+            position: absolute;
+            inset: auto -4rem -4rem auto;
+            width: 14rem;
+            height: 14rem;
+            background: rgba(255, 255, 255, 0.10);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .stats-card {
+            background: #fff;
+        }
+
+        .stats-icon {
+            width: 3rem;
+            height: 3rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.95rem;
+            font-size: 1.2rem;
+        }
+
+        .metric-value {
+            font-size: 1.9rem;
+            font-weight: 700;
+        }
+
+        .panel-card {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(8px);
+        }
+
+        .order-row {
+            border: 1px solid rgba(13, 110, 253, 0.08);
+            border-radius: 1rem;
+            background: #fff;
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .order-row:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 28px rgba(32, 62, 96, 0.08);
+        }
+
+        .scanner-frame {
+            border-radius: 1rem;
+            background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(79, 140, 255, 0.12));
+        }
+
+        #qrVideo {
+            width: 100%;
+            max-height: 360px;
+            border-radius: 1rem;
+            object-fit: cover;
+            background: #dce6f2;
+        }
+
+        .toast-container {
+            z-index: 1080;
+        }
+
+        .rule-item {
+            display: flex;
+            gap: 0.85rem;
+            align-items: flex-start;
+        }
+
+        .rule-item + .rule-item {
+            margin-top: 1rem;
+        }
+    </style>
 </head>
 
-<body class="bg-light">
+<body>
 
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-2 sticky-top">
   <div class="container d-flex justify-content-between align-items-center">
-    <a class="navbar-brand fw-semibold fs-4 text-primary" href="home">
+    <a class="navbar-brand fw-semibold fs-4 text-primary" href="{% url 'delivery_dashboard' %}">
       <i class="bi bi-bag-check-fill"></i> SafeCart
     </a>
-    <form method="post" action="{% url 'logout' %}" >
+    <form method="post" action="{% url 'logout' %}">
       {% csrf_token %}
-                <button type="submit" class="btn btn-outline-danger">Logout</button>
+      <button type="submit" class="btn btn-outline-danger">Logout</button>
     </form>
   </div>
 </nav>
@@ -28,25 +129,171 @@
 {% include "components/incoming_call_widget.html" %}
 {% include "components/outgoing_call_launcher.html" %}
 
-    <div class="container py-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Delivery Agent Dashboard</h2>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#scanQrModal">Scan QR</button>
+    <div class="toast-container position-fixed top-0 end-0 p-3" id="popupContainer"></div>
+
+    <div class="container py-4 py-lg-5 delivery-shell">
+        <div class="hero-card p-4 p-lg-5 mb-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-4 position-relative">
+                <div>
+                    <p class="text-uppercase small fw-semibold mb-2 opacity-75">Delivery Workspace</p>
+                    <h1 class="display-6 fw-bold mb-2">Delivery Agent Dashboard</h1>
+                    <p class="mb-0 opacity-75">Scan order QR codes, manage assigned deliveries, and keep QR validity visible from one place.</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-light text-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#scanQrModal">
+                        <i class="bi bi-qr-code-scan me-1"></i> Scan QR
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-primary-subtle text-primary mb-3"><i class="bi bi-box-seam"></i></div>
+                    <div class="text-muted small">Assigned Orders</div>
+                    <div class="metric-value text-primary">{{ stats.assigned_count }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-success-subtle text-success mb-3"><i class="bi bi-truck"></i></div>
+                    <div class="text-muted small">Active Deliveries</div>
+                    <div class="metric-value text-success">{{ stats.active_count }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-dark-subtle text-dark mb-3"><i class="bi bi-check2-circle"></i></div>
+                    <div class="text-muted small">Delivered by You</div>
+                    <div class="metric-value text-dark">{{ stats.delivered_count }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-warning-subtle text-warning mb-3"><i class="bi bi-broadcast-pin"></i></div>
+                    <div class="text-muted small">Open Orders to Claim</div>
+                    <div class="metric-value" style="color:#c2681a;">{{ stats.available_count }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="panel-card p-3 p-lg-4">
+                    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+                        <div>
+                        <h2 class="h4 fw-bold mb-1">Your Assigned Orders</h2>
+                        <p class="text-muted mb-0">Recent orders already linked to your delivery account.</p>
+                        </div>
+                        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#scanQrModal">
+                            <i class="bi bi-qr-code-scan me-1"></i> Open Scanner
+                        </button>
+                    </div>
+
+                    {% if assigned_orders %}
+                        <div class="row g-3">
+                            {% for order in assigned_orders %}
+                                <div class="col-md-6">
+                                    <div class="order-row p-3 h-100">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <div>
+                                                <div class="fw-semibold">Order #{{ order.id }}</div>
+                                                <div class="text-muted small">Customer: {{ order.customer_name }}</div>
+                                            </div>
+                                            <span class="badge {% if order.status == 'Delivered' %}text-bg-success{% elif order.status == 'Cancelled' %}text-bg-danger{% elif order.status == 'Shipped' %}text-bg-info{% elif order.status == 'Packed' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">
+                                                {{ order.status }}
+                                            </span>
+                                        </div>
+
+                                        <div class="small text-muted mb-2">Pin code: {{ order.pincode }} | Scans used: {{ order.qr_scan_count }}/{{ stats.qr_max_scans }}</div>
+
+                                        {% if order.expires_at %}
+                                            <div class="small mb-3">
+                                                <span class="text-muted">QR window:</span>
+                                                <span class="fw-semibold {% if order.is_expired %}text-danger{% else %}text-warning-emphasis{% endif %}"
+                                                      data-order-expiry
+                                                      data-expires-at="{{ order.expires_at|date:'c' }}">
+                                                    {% if order.is_expired %}Expired{% else %}Calculating...{% endif %}
+                                                </span>
+                                            </div>
+                                        {% else %}
+                                            <div class="small text-muted mb-3">QR timer starts on the first successful scan.</div>
+                                        {% endif %}
+
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="small text-muted">{{ order.remaining_scans }} scan{% if order.remaining_scans != 1 %}s{% endif %} left</span>
+                                            {% if order.can_open_order %}
+                                            <a href="{% url 'delivery_order_detail' %}?order-id={{ order.id }}" class="btn btn-sm btn-outline-primary">
+                                                Open Order
+                                            </a>
+                                            {% elif order.can_view_route %}
+                                            <a href="{% url 'delivery_route_detail' %}?order-id={{ order.id }}" class="btn btn-sm btn-outline-warning">
+                                                View Route
+                                            </a>
+                                            {% else %}
+                                            <button class="btn btn-sm btn-outline-secondary" disabled>
+                                                Unavailable
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <div class="fs-1 mb-2"><i class="bi bi-box-seam"></i></div>
+                            <h5>No assigned orders yet</h5>
+                            <p class="text-muted mb-0">Use the QR scanner to claim a delivery order, and it will appear here automatically.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="panel-card p-4 mb-4">
+                    <h2 class="h4 fw-bold mb-3">QR Rules</h2>
+                    <div class="scanner-frame p-3">
+                        <div class="rule-item">
+                            <i class="bi bi-clock-history fs-4 text-primary"></i>
+                            <div>
+                                <div class="fw-semibold">Valid for {{ stats.qr_expiry_hours }} hour{{ stats.qr_expiry_hours|pluralize }}</div>
+                                <div class="text-muted small">The timer starts after the first successful scan.</div>
+                            </div>
+                        </div>
+                        <div class="rule-item">
+                            <i class="bi bi-arrow-repeat fs-4 text-primary"></i>
+                            <div>
+                                <div class="fw-semibold">Maximum {{ stats.qr_max_scans }} scans</div>
+                                <div class="text-muted small">After that, the QR is blocked for any new scan attempt.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card p-4">
+                    <h2 class="h4 fw-bold mb-3">How It Works</h2>
+                    <div class="small text-muted mb-2">1. Scan the QR from the package label.</div>
+                    <div class="small text-muted mb-2">2. The order is assigned to you on the first successful scan.</div>
+                    <div class="small text-muted mb-2">3. Open the order page to navigate, call, and complete handoff.</div>
+                    <div class="small text-muted mb-0">4. If the QR window expires, use the route view and request a fresh OTP when needed.</div>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="modal fade" id="scanQrModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content">
+            <div class="modal-content border-0 rounded-4">
                 <div class="modal-header">
                     <h5 class="modal-title">Scan QR Code</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body text-center">
-
                     <video id="qrVideo" autoplay class="p-2 border border-lg"></video>
                     <canvas id="qrCanvas" hidden></canvas>
-                    <p class="fw-light mt-2">Scanning live… point your camera at the QR code.</p>
+                    <p class="fw-light mt-3">Scanning live... point your camera at the QR code.</p>
 
                     <div class="mt-3">
                         <label class="btn btn-info me-2">
@@ -54,7 +301,6 @@
                             <input type="file" id="uploadInput" accept="image/*" hidden>
                         </label>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -63,12 +309,59 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            const video = document.getElementById('qrVideo');
-            const canvas = document.getElementById('qrCanvas');
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            const uploadInput = document.getElementById('uploadInput');
+            const popupContainer = document.getElementById("popupContainer");
+            const video = document.getElementById("qrVideo");
+            const canvas = document.getElementById("qrCanvas");
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
+            const uploadInput = document.getElementById("uploadInput");
             let scanning = false;
             let stream;
+
+            function showPopup(message, variant = "danger") {
+                const toastEl = document.createElement("div");
+                toastEl.className = `toast align-items-center text-bg-${variant} border-0`;
+                toastEl.setAttribute("role", "alert");
+                toastEl.setAttribute("aria-live", "assertive");
+                toastEl.setAttribute("aria-atomic", "true");
+                toastEl.innerHTML = `
+                    <div class="d-flex">
+                        <div class="toast-body">${message}</div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                `;
+                popupContainer.appendChild(toastEl);
+                const toast = new bootstrap.Toast(toastEl, { delay: 2500 });
+                toast.show();
+                toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
+            }
+
+            function formatRemainingTime(totalSeconds) {
+                if (totalSeconds <= 0) return "Expired";
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                if (hours > 0) return `${hours}h ${minutes}m remaining`;
+                if (minutes > 0) return `${minutes}m remaining`;
+                return "Less than 1m remaining";
+            }
+
+            function startExpiryTimers() {
+                const expiryNodes = document.querySelectorAll("[data-order-expiry]");
+                if (!expiryNodes.length) return;
+
+                const updateAll = () => {
+                    expiryNodes.forEach((node) => {
+                        const expiresAt = new Date(node.dataset.expiresAt);
+                        const remainingSeconds = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
+                        node.textContent = formatRemainingTime(remainingSeconds);
+                        node.className = remainingSeconds <= 0
+                            ? "fw-semibold text-danger"
+                            : "fw-semibold text-warning-emphasis";
+                    });
+                };
+
+                updateAll();
+                setInterval(updateAll, 1000);
+            }
 
             async function startCamera() {
                 try {
@@ -77,14 +370,13 @@
                     scanning = true;
                     requestAnimationFrame(scanFrame);
                 } catch (err) {
-                    alert("Error accessing camera: " + err);
+                    showPopup("Unable to access the camera. Please allow camera permission or upload a QR image.");
                 }
             }
 
             function scanFrame() {
                 if (!scanning) return;
 
-                // Only scan if video has loaded enough
                 if (video.readyState === video.HAVE_ENOUGH_DATA) {
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
@@ -103,24 +395,22 @@
                 requestAnimationFrame(scanFrame);
             }
 
-
             function sendTokenToServer(token) {
-                fetch("{% url 'get_order_by_token' %}?token=" + encodeURIComponent(token))
+                fetch("{% url 'get_order_by_token' %}?token=" + encodeURIComponent((token || "").trim()))
                     .then(res => res.json())
                     .then(data => {
                         if (data.success && data.order_id) {
                             window.location.href = `/delivery/order/?order-id=${data.order_id}`;
                         } else {
-                            alert("Invalid or unknown QR token.");
+                            showPopup(data.error || "Invalid or unknown QR token.");
                             scanning = true;
                             startCamera();
                         }
                     })
-                    .catch(err => alert("Server error: " + err));
+                    .catch(() => showPopup("The server could not validate this QR right now. Please try again."));
             }
 
-            // Handle QR image upload
-            uploadInput.addEventListener('change', () => {
+            uploadInput.addEventListener("change", () => {
                 const file = uploadInput.files[0];
                 if (!file) return;
 
@@ -136,20 +426,28 @@
                         if (code && code.data) {
                             sendTokenToServer(code.data);
                         } else {
-                            alert("No QR code detected in uploaded image.");
+                            showPopup("No QR code was detected in the uploaded image.", "warning");
                         }
-                    }
+                    };
                     img.src = e.target.result;
-                }
+                };
                 reader.readAsDataURL(file);
             });
 
-            const modalEl = document.getElementById('scanQrModal');
-            modalEl.addEventListener('shown.bs.modal', startCamera);
-            modalEl.addEventListener('hidden.bs.modal', () => {
+            const modalEl = document.getElementById("scanQrModal");
+            modalEl.addEventListener("shown.bs.modal", startCamera);
+            modalEl.addEventListener("hidden.bs.modal", () => {
                 scanning = false;
                 if (stream) stream.getTracks().forEach(track => track.stop());
             });
+
+            {% if messages %}
+                {% for message in messages %}
+                    showPopup("{{ message|escapejs }}", "{% if message.tags == 'error' %}danger{% elif message.tags == 'warning' %}warning{% elif message.tags == 'success' %}success{% else %}primary{% endif %}");
+                {% endfor %}
+            {% endif %}
+
+            startExpiryTimers();
         });
     </script>
 </body>

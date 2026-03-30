@@ -1,42 +1,191 @@
-{% extends "root.html" %}
+{% extends "seller_root.html" %}
 {% load static %}
 {% load qr_code %}
 
 {% block title %}Seller Orders - SafeCart{% endblock %}
 {% block body_class %}d-flex flex-column min-vh-100{% endblock %}
 
-{% block content %}
-<section class="py-3 bg-primary text-white text-center border-bottom mt-0">
-    <div class="container">
-        <h1 class="fw-bold">Seller Orders</h1>
-        <p class="mb-0">View all the orders placed for your products</p>
-    </div>
-</section>
+{% block extra_head %}
+<style>
+    body {
+        background:
+            radial-gradient(circle at top left, rgba(13, 110, 253, 0.12), transparent 28%),
+            linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+    }
 
-<section class="py-2 flex-grow-1">
-    <div class="container">
+    .seller-shell {
+        max-width: 1280px;
+    }
+
+    .hero-card,
+    .stats-card,
+    .panel-card {
+        border: 0;
+        border-radius: 1.25rem;
+        box-shadow: 0 18px 45px rgba(29, 53, 87, 0.08);
+    }
+
+    .hero-card {
+        background: linear-gradient(135deg, #0d6efd 0%, #4f8cff 100%);
+        color: #fff;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .hero-card::after {
+        content: "";
+        position: absolute;
+        inset: auto -4rem -4rem auto;
+        width: 14rem;
+        height: 14rem;
+        background: rgba(255, 255, 255, 0.10);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+    .stats-card {
+        background: #fff;
+    }
+
+    .stats-icon {
+        width: 3rem;
+        height: 3rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.95rem;
+        font-size: 1.2rem;
+    }
+
+    .metric-value {
+        font-size: 1.9rem;
+        font-weight: 700;
+    }
+
+    .panel-card {
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(8px);
+    }
+
+    .order-card {
+        min-height: 27rem;
+    }
+
+    .order-card-body {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .order-items-list {
+        height: 10.5rem;
+        overflow-y: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .order-items-list::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
+    }
+
+    .order-item-thumb {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        flex: 0 0 60px;
+    }
+
+    .order-item-row {
+        min-height: 4.75rem;
+    }
+
+    .order-summary-block {
+        margin-top: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="py-4 py-lg-5 flex-grow-1">
+    <div class="container seller-shell">
+        <div class="hero-card p-4 p-lg-5 mb-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-4 align-items-lg-center position-relative">
+                <div>
+                    <p class="text-uppercase small fw-semibold mb-2 opacity-75">Seller Workspace</p>
+                    <h1 class="display-6 fw-bold mb-2">Seller Dashboard</h1>
+                    <p class="mb-0 opacity-75">Review recent orders, monitor delivery progress, and print QR labels from one place.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-primary-subtle text-primary mb-3"><i class="bi bi-receipt"></i></div>
+                    <div class="text-muted small">Total Orders</div>
+                    <div class="metric-value text-primary">{{ stats.total_orders }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-warning-subtle text-warning mb-3"><i class="bi bi-hourglass-split"></i></div>
+                    <div class="text-muted small">Pending</div>
+                    <div class="metric-value text-warning">{{ stats.pending_orders }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-info-subtle text-info mb-3"><i class="bi bi-truck"></i></div>
+                    <div class="text-muted small">Packed / Shipped</div>
+                    <div class="metric-value text-info">{{ stats.active_orders }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-success-subtle text-success mb-3"><i class="bi bi-check2-circle"></i></div>
+                    <div class="text-muted small">Delivered</div>
+                    <div class="metric-value text-success">{{ stats.delivered_orders }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-card p-3 p-lg-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+                <div>
+                    <h2 class="h4 fw-bold mb-1">Seller Orders</h2>
+                    <p class="text-muted mb-0">View all the orders placed for your products.</p>
+                </div>
+            </div>
         {% if orders %}
             <div class="row g-4">
                 {% for order in orders %}
                     <div class="col-md-6 col-lg-4">
-                        <div class="card shadow-sm border-0 h-100">
+                        <div class="card shadow-sm border-0 h-100 order-card">
                             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                                 <div>
                                     <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
                                     <strong>#{{ order.id }}</strong>
                                 </div>
-                                <span class="badge bg-success">{{ order.status|default:"Confirmed" }}</span>
+                                <span class="badge {% if order.status == 'Delivered' %}bg-success{% elif order.status == 'Cancelled' %}bg-danger{% elif order.status == 'Shipped' %}bg-info text-dark{% elif order.status == 'Packed' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ order.status|default:"Confirmed" }}</span>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body order-card-body">
+                                <div class="order-items-list">
                                 {% for item in order.items %}
-                                    <div class="d-flex align-items-center mb-3">
-                                        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="img-fluid rounded me-3" style="width:60px; height:60px; object-fit:cover;">
+                                    <div class="d-flex align-items-center order-item-row">
+                                        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="img-fluid rounded me-3 order-item-thumb">
                                         <div>
                                             <h6 class="mb-1">{{ item.name }}</h6>
                                             <small class="text-muted">Qty: {{ item.quantity }} | ₹{{ item.price|floatformat:2 }}</small>
                                         </div>
                                     </div>
                                 {% endfor %}
+                                </div>
+                                <div class="order-summary-block">
                                 <hr>
                                 <p class="mb-1"><strong>Total Paid:</strong> ₹{{ order.total_amount|floatformat:2 }}</p>
                                 <p class="mb-0"><strong>Expected Delivery:</strong> {{ order.expected_delivery|date:"M d, Y" }}</p>
@@ -55,7 +204,12 @@
                                     {% qr_from_text order.token_ size="M" %}
                                 </div>
 
+                                {% if order.can_print_qr %}
                                 <button class="btn btn-outline-secondary" onclick="printLabel({{ order.id }})">Print QR</button>
+                                {% else %}
+                                <button class="btn btn-outline-secondary" disabled>Print QR</button>
+                                {% endif %}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -67,6 +221,7 @@
                 <p class="text-muted">No recent orders by customers.</p>
             </div>
         {% endif %}
+        </div>
     </div>
 </section>
 
@@ -86,5 +241,4 @@ function printLabel(orderId) {
 }
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

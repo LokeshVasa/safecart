@@ -13,6 +13,7 @@ class StoreConfig(AppConfig):
         def create_user_groups_and_permissions(sender, **kwargs):
             # --- Groups ---
             buyer_group, _ = Group.objects.get_or_create(name='Buyer')
+            seller_group, _ = Group.objects.get_or_create(name='Seller')
             delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
             admin_group, _ = Group.objects.get_or_create(name='Admin')
 
@@ -39,10 +40,19 @@ class StoreConfig(AppConfig):
                 name='Can deliver assigned orders',
                 content_type=order_ct
             )
+            seller_orders_perm, _ = Permission.objects.get_or_create(
+                codename='can_view_seller_orders',
+                name='Can view seller orders',
+                content_type=order_ct
+            )
                # Assign permissions only if missing
             if admin_perm not in admin_group.permissions.all():
                 admin_group.permissions.add(admin_perm)
             if deliver_order_perm not in delivery_group.permissions.all():
                 delivery_group.permissions.add(deliver_order_perm)
+            if seller_orders_perm not in seller_group.permissions.all():
+                seller_group.permissions.add(seller_orders_perm)
+            if seller_orders_perm not in admin_group.permissions.all():
+                admin_group.permissions.add(seller_orders_perm)
 
         post_migrate.connect(create_user_groups_and_permissions, sender=self)

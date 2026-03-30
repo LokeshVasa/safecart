@@ -1,48 +1,162 @@
 {% extends "root.html" %}
-{% load static %}
 
 {% block title %}Sign Up - SafeCart{% endblock %}
 {% block body_class %}bg-light{% endblock %}
 
+{% block extra_head %}
+<style>
+    .auth-shell {
+        background:
+            radial-gradient(circle at top left, rgba(13, 110, 253, 0.08), transparent 30%),
+            linear-gradient(180deg, #f7fbff 0%, #f4f7fb 48%, #ffffff 100%);
+        min-height: calc(100vh - 140px);
+    }
+
+    .auth-card {
+        border: 0;
+        border-radius: 1.25rem;
+        box-shadow: 0 1rem 2.5rem rgba(20, 42, 74, 0.08);
+    }
+
+    .auth-input {
+        border-radius: 0.9rem;
+        border: 1px solid #d8e3f0;
+        padding: 0.85rem 1rem;
+    }
+
+    .auth-input:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.12);
+    }
+
+    .auth-submit {
+        border-radius: 0.9rem;
+        padding: 0.85rem 1rem;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-
-<!-- Flash Messages -->
-<div id="flash-messages" class="position-fixed top-0 end-0 p-3" style="margin-top: 80px; z-index: 3000;">
-    {% for message in messages %}
-    <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-lg border-0" role="alert">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    {% endfor %}
-</div>
-
-<!-- Page Header -->
-<section class="bg-primary text-white py-4 border-bottom">
-    <div class="container text-center">
-        <h1 class="fw-bold mb-0">Sign Up</h1>
-    </div>
-</section>
-
-<!-- Sign Up Form -->
-<section class="py-5">
+<section class="auth-shell py-5 d-flex align-items-center">
     <div class="container">
-        <div class="card shadow-sm mx-auto" style="max-width: 400px;">
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    {{ form.non_field_errors }}
-                    {% for field in form %}
-                    <div class="mb-3">
-                        {{ field.label_tag }}
-                        {{ field }}
-                        {% for error in field.errors %}
-                        <div class="text-danger small mt-1">{{ error }}</div>
-                        {% endfor %}
+        <div class="row justify-content-center">
+            <div class="col-lg-7">
+                <div class="card auth-card">
+                    <div class="card-body p-4 p-lg-5">
+                        <div class="text-center mb-4">
+                            <h1 class="h3 fw-bold mb-2">Create Account</h1>
+                            <p class="text-muted mb-0">Fill in your details to get started with SafeCart.</p>
+                        </div>
+
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger rounded-4 border-0">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <form method="post" novalidate>
+                            {% csrf_token %}
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.first_name.id_for_label }}" class="form-label fw-semibold">{{ form.first_name.label }}</label>
+                                    <input
+                                        type="text"
+                                        name="{{ form.first_name.html_name }}"
+                                        id="{{ form.first_name.id_for_label }}"
+                                        value="{{ form.first_name.value|default_if_none:'' }}"
+                                        class="form-control auth-input"
+                                        placeholder="Enter first name"
+                                        required>
+                                    {% for error in form.first_name.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="{{ form.last_name.id_for_label }}" class="form-label fw-semibold">{{ form.last_name.label }}</label>
+                                    <input
+                                        type="text"
+                                        name="{{ form.last_name.html_name }}"
+                                        id="{{ form.last_name.id_for_label }}"
+                                        value="{{ form.last_name.value|default_if_none:'' }}"
+                                        class="form-control auth-input"
+                                        placeholder="Enter last name"
+                                        required>
+                                    {% for error in form.last_name.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="{{ form.username.id_for_label }}" class="form-label fw-semibold">{{ form.username.label }}</label>
+                                    <input
+                                        type="text"
+                                        name="{{ form.username.html_name }}"
+                                        id="{{ form.username.id_for_label }}"
+                                        value="{{ form.username.value|default_if_none:'' }}"
+                                        class="form-control auth-input"
+                                        placeholder="Choose a username"
+                                        required>
+                                    {% for error in form.username.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="{{ form.email.id_for_label }}" class="form-label fw-semibold">{{ form.email.label }}</label>
+                                    <input
+                                        type="email"
+                                        name="{{ form.email.html_name }}"
+                                        id="{{ form.email.id_for_label }}"
+                                        value="{{ form.email.value|default_if_none:'' }}"
+                                        class="form-control auth-input"
+                                        placeholder="Enter your email"
+                                        required>
+                                    {% for error in form.email.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="{{ form.password.id_for_label }}" class="form-label fw-semibold">{{ form.password.label }}</label>
+                                    <input
+                                        type="password"
+                                        name="{{ form.password.html_name }}"
+                                        id="{{ form.password.id_for_label }}"
+                                        class="form-control auth-input"
+                                        placeholder="Enter password"
+                                        required>
+                                    {% for error in form.password.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="{{ form.confirm_password.id_for_label }}" class="form-label fw-semibold">{{ form.confirm_password.label }}</label>
+                                    <input
+                                        type="password"
+                                        name="{{ form.confirm_password.html_name }}"
+                                        id="{{ form.confirm_password.id_for_label }}"
+                                        class="form-control auth-input"
+                                        placeholder="Confirm password"
+                                        required>
+                                    {% for error in form.confirm_password.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+
+                                <div class="col-12 pt-2">
+                                    <button type="submit" class="btn btn-primary auth-submit w-100">Create Account</button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <p class="text-center text-muted mt-4 mb-0">
+                            Already have an account? <a href="{% url 'login' %}" class="text-decoration-none fw-semibold">Login</a>
+                        </p>
                     </div>
-                    {% endfor %}
-                    <button type="submit" class="btn btn-primary w-100">Sign Up</button>
-                </form>
-                <p class="text-center mt-3">Already have an account? <a href="{% url 'login' %}">Login</a></p>
+                </div>
             </div>
         </div>
     </div>

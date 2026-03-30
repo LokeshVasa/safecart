@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -8,15 +9,24 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <style>
+        .delivery-agent-marker {
+            transition: transform 0.45s ease;
+            transform-origin: 50% 58%;
+            will-change: transform;
+        }
+    </style>
 </head>
 
 <body class="bg-light">
+
+    <div class="toast-container position-fixed top-0 end-0 p-3" id="detailPopupContainer"></div>
 
     <div class="container py-4">
         <form style="display:none">{% csrf_token %}</form>
         {% include "components/incoming_call_widget.html" %}
         {% include "components/outgoing_call_launcher.html" %}
-        <h2 class="mb-4">Order Details (ID: {{ order.id }})</h2>
+        <h2 class="mb-4">{{ page_heading|default:"Order Details" }} (ID: {{ order.id }})</h2>
 
         <div class="card mb-4">
             <div class="card-body position-relative">
@@ -26,16 +36,40 @@
                 <button class="btn btn-secondary position-absolute" style="top: 15px; right: 15px;" disabled>
                     Delivered
                 </button>
-                {% else %}
+                {% elif allow_request_new_otp %}
+                <button class="btn btn-warning position-absolute" style="top: 15px; right: 15px;"
+                    onclick="openHandshake('{{ order.id }}')">
+                    Request New OTP
+                </button>
+                {% elif allow_handoff_actions %}
                 <button class="btn btn-primary position-absolute" style="top: 15px; right: 15px;"
                     onclick="openHandshake('{{ order.id }}')">
                     Generate OTP
+                </button>
+                {% else %}
+                <button class="btn btn-secondary position-absolute" style="top: 15px; right: 15px;" disabled>
+                    Route Only
                 </button>
                 {% endif %}
 
                 <p><strong>User:</strong> {{ order.user.username }}</p>
                 <p><strong>Payment Type:</strong> {{ order.payment_type }}</p>
                 <p><strong>Status:</strong> {{ order.status }}</p>
+                {% if status_note %}
+                <div class="alert alert-warning py-2 px-3 small">
+                    {{ status_note }}
+                </div>
+                {% endif %}
+                {% if order.expires_at %}
+                <p class="mb-0">
+                    <strong>QR Validity:</strong>
+                    <span id="qrExpiryCountdown"
+                          class="badge rounded-pill text-bg-warning"
+                          data-expires-at="{{ order.expires_at|date:'c' }}">
+                        Calculating...
+                    </span>
+                </p>
+                {% endif %}
 
                 <div class="mt-3">
                     <a href="{% url 'delivery_dashboard' %}" class="btn btn-secondary">
@@ -45,7 +79,26 @@
                     <a href="{% url 'join_order_call' order.id %}?autostart=1" class="btn btn-primary me-2" target="_blank" aria-label="Call customer" title="Call customer" data-call-order-id="{{ order.id }}">
                         <i class="bi bi-telephone-fill"></i>
                     </a>
+                </div>
 
+                <div class="mt-3 p-3 rounded border bg-light-subtle">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                        <div>
+                            <strong>Tracking Mode</strong>
+                            <span id="trackingModeBadge" class="badge text-bg-success ms-2">Live GPS</span>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-outline-dark" id="startTestRideBtn">
+                                Start Demo Ride
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary d-none" id="stopTestRideBtn">
+                                Back To Live GPS
+                            </button>
+                        </div>
+                    </div>
+                    <p id="trackingModeHelpText" class="small text-muted mb-0">
+                        Real geolocation is active by default. Use demo ride when you want to simulate delivery movement for testing.
+                    </p>
                 </div>
             </div>
         </div>
@@ -69,6 +122,119 @@
     <!-- FULL HANDSHAKE SCRIPT -->
     <!-- ============================= -->
     <script>
+        const deliveryDashboardUrl = "{% url 'delivery_dashboard' %}";
+        const deliveryRouteUrl = "{% url 'delivery_route_detail' %}?order-id={{ order.id }}";
+        const routeOnlyMode = {% if route_only %}true{% else %}false{% endif %};
+        const handshakeButtonLabel = routeOnlyMode ? "Request New OTP" : "Verify OTP";
+        const handshakeCompletionDelayMs = 1800;
+        let handshakeStatusPoll = null;
+
+        function showDetailPopup(message, variant = "danger") {
+            const popupContainer = document.getElementById("detailPopupContainer");
+            if (!popupContainer) return;
+
+            const toastEl = document.createElement("div");
+            toastEl.className = `toast align-items-center text-bg-${variant} border-0`;
+            toastEl.setAttribute("role", "alert");
+            toastEl.setAttribute("aria-live", "assertive");
+            toastEl.setAttribute("aria-atomic", "true");
+            toastEl.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+
+            popupContainer.appendChild(toastEl);
+            const toast = new bootstrap.Toast(toastEl, { delay: 2500 });
+            toast.show();
+            toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());
+        }
+
+        function stopHandshakeStatusPolling() {
+            if (handshakeStatusPoll) {
+                clearInterval(handshakeStatusPoll);
+                handshakeStatusPoll = null;
+            }
+        }
+
+        function exitToDashboard(message, variant = "warning", nextUrl = deliveryDashboardUrl) {
+            stopHandshakeStatusPolling();
+            setTimeout(() => {
+                closeHandshake('{{ order.id }}');
+                showDetailPopup(message, variant);
+            }, handshakeCompletionDelayMs);
+            setTimeout(() => {
+                window.location.href = nextUrl;
+            }, handshakeCompletionDelayMs + 1200);
+        }
+
+        function formatRemainingTime(totalSeconds) {
+            if (totalSeconds <= 0) {
+                return "Expired";
+            }
+
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+            if (hours > 0) {
+                return `${hours}h ${minutes}m remaining`;
+            }
+
+            if (minutes > 0) {
+                return `${minutes}m remaining`;
+            }
+
+            return "Less than 1m remaining";
+        }
+
+        function startQrExpiryCountdown() {
+            const countdownEl = document.getElementById("qrExpiryCountdown");
+            if (!countdownEl) return;
+
+            const expiresAtRaw = countdownEl.dataset.expiresAt;
+            const expiresAt = new Date(expiresAtRaw);
+
+            if (Number.isNaN(expiresAt.getTime())) {
+                countdownEl.textContent = "Unavailable";
+                countdownEl.className = "badge rounded-pill text-bg-secondary";
+                return;
+            }
+
+            function updateCountdown() {
+                const now = new Date();
+                const remainingSeconds = Math.floor((expiresAt.getTime() - now.getTime()) / 1000);
+
+                countdownEl.textContent = formatRemainingTime(remainingSeconds);
+
+                if (remainingSeconds <= 0) {
+                    countdownEl.className = "badge rounded-pill text-bg-danger";
+                    if (!routeOnlyMode) {
+                        exitToDashboard("This QR has expired. Switching to route view.", "warning", deliveryRouteUrl);
+                    }
+                    return false;
+                }
+
+                countdownEl.className = remainingSeconds <= 900
+                    ? "badge rounded-pill text-bg-danger"
+                    : "badge rounded-pill text-bg-warning";
+                return true;
+            }
+
+            if (!updateCountdown() && !routeOnlyMode) return;
+
+            const timer = setInterval(() => {
+                if (!updateCountdown()) {
+                    clearInterval(timer);
+                    if (routeOnlyMode) {
+                        countdownEl.textContent = "Expired";
+                    }
+                }
+            }, 1000);
+        }
+
+        startQrExpiryCountdown();
+
         /* =====================================================
            MODAL OPEN / CLOSE
         ===================================================== */
@@ -86,13 +252,13 @@
                 .then(data => {
 
                     if (!data.success) {
-                        alert(data.error || "OTP cannot be generated");
+                        showDetailPopup(data.error || "OTP cannot be generated");
                         return;
                     }
 
                     const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
                     if (!modal) {
-                        alert("Handshake modal not found");
+                        showDetailPopup("Handshake modal not found");
                         return;
                     }
 
@@ -102,6 +268,7 @@
                     /* Persist verification status */
                     modal.dataset.customerVerified = data.customer_verified;
                     modal.dataset.agentVerified = data.agent_verified;
+                    modal.dataset.orderDelivered = data.order_delivered || false;
 
                     modal.classList.add('active');
 
@@ -109,13 +276,14 @@
                 })
                 .catch(err => {
                     console.error("OTP error:", err);
-                    alert("OTP generation failed. Check console.");
+                    showDetailPopup("OTP generation failed. Please try again.");
                 });
         }
 
         function closeHandshake(orderId) {
             const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
             if (!modal) return;
+            stopHandshakeStatusPolling();
             modal.classList.remove('active');
         }
 
@@ -137,6 +305,34 @@
             };
         }
 
+        function startHandshakeStatusPolling(orderId) {
+            stopHandshakeStatusPolling();
+
+            handshakeStatusPoll = setInterval(() => {
+                fetch(`/delivery/get-otp/${orderId}/`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data.success) return;
+
+                        const modal = document.getElementById(`safeHandshakeModal-${orderId}`);
+                        if (!modal || !modal.classList.contains('active')) {
+                            stopHandshakeStatusPolling();
+                            return;
+                        }
+
+                        modal.dataset.customerVerified = String(Boolean(data.customer_verified));
+                        modal.dataset.agentVerified = String(Boolean(data.agent_verified));
+                        modal.dataset.orderDelivered = String(Boolean(data.order_delivered));
+
+                        if (data.order_delivered || (data.customer_verified && data.agent_verified)) {
+                            stopHandshakeStatusPolling();
+                            exitToDashboard("Order delivered successfully. Returning to dashboard.", "success");
+                        }
+                    })
+                    .catch(() => {});
+            }, 2000);
+        }
+
         /* =====================================================
            INITIALIZE OTP INPUTS
         ===================================================== */
@@ -145,6 +341,15 @@
             if (!config) return;
 
             const displayChars = config.displayOTP.split('');
+            const stage = config.modal.querySelector('.stage');
+            const btn = config.modal.querySelector('.neon-button');
+
+            stage.classList.remove('success', 'failure');
+            btn.textContent = handshakeButtonLabel;
+            btn.disabled = false;
+            btn.style.pointerEvents = "auto";
+            btn.style.opacity = "1";
+            btn.onclick = () => handshake(orderId);
 
             const autoContainer = config.modal.querySelector(
                 `.hand.${config.autoFillSide} .otp-container`
@@ -194,23 +399,31 @@
 
             const customerVerified = config.modal.dataset.customerVerified === "true";
             const agentVerified = config.modal.dataset.agentVerified === "true";
+            const orderDelivered = config.modal.dataset.orderDelivered === "true";
+
+            if (orderDelivered || (customerVerified && agentVerified)) {
+                stage.classList.add('success');
+                disableUserInputs(config);
+                btn.textContent = "Done";
+                btn.disabled = false;
+                btn.style.pointerEvents = "auto";
+                btn.style.opacity = "1";
+                btn.onclick = () => exitToDashboard("Order delivered successfully. Returning to dashboard.", "success");
+                return;
+            }
 
             /* If agent already verified before refresh */
             if (agentVerified) {
-
-                const stage = config.modal.querySelector('.stage');
-
                 stage.classList.remove('failure');
                 stage.classList.add('success');
 
                 disableUserInputs(config);
 
-                const btn = config.modal.querySelector('.neon-button');
-
-                btn.textContent = "Success";
+                btn.textContent = "Waiting for customer";
                 btn.disabled = true;
                 btn.style.pointerEvents = "none";
                 btn.style.opacity = "0.6";
+                startHandshakeStatusPolling(orderId);
             }
         }
 
@@ -264,7 +477,7 @@
             const userOTP = getUserOTP(config);
 
             if (userOTP.length < 4) {
-                alert("Please complete the OTP");
+                showDetailPopup("Please complete the OTP", "warning");
                 return;
             }
 
@@ -295,15 +508,21 @@
 
                         const btn = config.modal.querySelector('.neon-button');
 
-                        btn.textContent = "Success";
+                        btn.textContent = "Waiting for customer";
                         btn.disabled = true;
                         btn.style.pointerEvents = "none";
                         btn.style.opacity = "0.6";
 
+                        if (data.order_delivered) {
+                            exitToDashboard("Order delivered successfully. Returning to dashboard.", "success");
+                        } else {
+                            startHandshakeStatusPolling(orderId);
+                        }
+
                     } else {
 
                         if (data.error) {
-                            alert(data.error);
+                            showDetailPopup(data.error);
                         }
 
                         stage.classList.add('success');
@@ -327,11 +546,13 @@
     <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 
     <script>
+        {% now "U" as delivery_agent_icon_version %}
         var deliveryAgentIcon = L.icon({
-            iconUrl: '/static/images/delivery-agent.png',
-            iconSize: [72, 72],
-            iconAnchor: [36, 50],
-            popupAnchor: [0, -50]
+            iconUrl: "{% static 'images/delivery-agent.png' %}?v={{ delivery_agent_icon_version }}",
+            iconSize: [64, 64],
+            iconAnchor: [32, 32],
+            popupAnchor: [0, -32],
+            className: 'delivery-agent-marker'
         });
 
         var destinationIcon = L.icon({
@@ -357,17 +578,28 @@
         var routingControl = null;
         var quickLine = null;
         var cachedLine = null;
+        var remainingRouteLine = null;
         var hasRoute = false;
         var lastRouteAt = 0;
-        var minRouteMs = 15000;
-        var lastRoutedLatLng = null;
-        var minRouteMeters = 75;
+        var minRouteMs = 12000;
+        var rerouteDistanceThresholdMeters = 45;
         var cacheRouteKey = "route_cache_order_{{ order.id }}";
         var cacheRouteTsKey = cacheRouteKey + "_ts";
         var cacheRouteStartKey = cacheRouteKey + "_start";
         var cacheTtlMs = 30 * 60 * 1000;
         var orderStatus = "{{ order.status|default:''|escapejs }}";
         var cacheMaxStartShiftMeters = 2000;
+        var lastMarkerHeading = null;
+        var markerHeadingOffset = 90;
+        var currentRouteCoords = [];
+        var testRideInterval = null;
+        var isTestRideActive = false;
+        var lastKnownAgentLatLng = null;
+        var lastKnownRealAgentLatLng = null;
+        var startTestRideBtn = document.getElementById("startTestRideBtn");
+        var stopTestRideBtn = document.getElementById("stopTestRideBtn");
+        var trackingModeBadge = document.getElementById("trackingModeBadge");
+        var trackingModeHelpText = document.getElementById("trackingModeHelpText");
 
         function distanceMeters(aLat, aLng, bLat, bLng) {
             var R = 6371000;
@@ -381,6 +613,190 @@
                 sinDLat * sinDLat +
                 Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
             return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+        }
+
+        function bearingDegrees(fromLat, fromLng, toLat, toLng) {
+            var lat1 = (fromLat * Math.PI) / 180;
+            var lat2 = (toLat * Math.PI) / 180;
+            var dLng = ((toLng - fromLng) * Math.PI) / 180;
+
+            var y = Math.sin(dLng) * Math.cos(lat2);
+            var x =
+                Math.cos(lat1) * Math.sin(lat2) -
+                Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+
+            return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+        }
+
+        function applyMarkerHeading(marker, heading) {
+            if (!marker) return;
+            var markerEl = marker.getElement();
+            if (!markerEl) return;
+
+            var normalizedHeading = heading + markerHeadingOffset;
+            var baseTransform = markerEl.style.transform || "";
+            baseTransform = baseTransform.replace(/\srotate\([^)]*\)/g, "");
+            markerEl.style.transform = `${baseTransform} rotate(${normalizedHeading}deg)`;
+            lastMarkerHeading = heading;
+        }
+
+        function getNearestRouteIndex(latLng, routeCoords) {
+            if (!latLng || !Array.isArray(routeCoords) || routeCoords.length === 0) {
+                return 0;
+            }
+
+            var nearestIndex = 0;
+            var nearestDistance = Infinity;
+
+            for (var i = 0; i < routeCoords.length; i++) {
+                var routePoint = routeCoords[i];
+                var pointLat = Array.isArray(routePoint) ? routePoint[0] : routePoint.lat;
+                var pointLng = Array.isArray(routePoint) ? routePoint[1] : routePoint.lng;
+                var pointDistance = distanceMeters(latLng.lat, latLng.lng, pointLat, pointLng);
+                if (pointDistance < nearestDistance) {
+                    nearestDistance = pointDistance;
+                    nearestIndex = i;
+                }
+            }
+
+            return nearestIndex;
+        }
+
+        function getNearestRouteDistance(latLng, routeCoords) {
+            if (!latLng || !Array.isArray(routeCoords) || routeCoords.length === 0) {
+                return Infinity;
+            }
+
+            var nearestDistance = Infinity;
+
+            for (var i = 0; i < routeCoords.length; i++) {
+                var routePoint = routeCoords[i];
+                var pointLat = Array.isArray(routePoint) ? routePoint[0] : routePoint.lat;
+                var pointLng = Array.isArray(routePoint) ? routePoint[1] : routePoint.lng;
+                var pointDistance = distanceMeters(latLng.lat, latLng.lng, pointLat, pointLng);
+                if (pointDistance < nearestDistance) {
+                    nearestDistance = pointDistance;
+                }
+            }
+
+            return nearestDistance;
+        }
+
+        function renderRemainingRoute(latLng) {
+            if (!latLng || !Array.isArray(currentRouteCoords) || currentRouteCoords.length < 2) {
+                if (remainingRouteLine) {
+                    map.removeLayer(remainingRouteLine);
+                    remainingRouteLine = null;
+                }
+                return;
+            }
+
+            var nearestIndex = getNearestRouteIndex(latLng, currentRouteCoords);
+            var remainingCoords = currentRouteCoords.slice(nearestIndex);
+
+            if (remainingCoords.length < 2) {
+                remainingCoords = [
+                    [latLng.lat, latLng.lng],
+                    [destinationLat, destinationLng]
+                ];
+            } else {
+                remainingCoords[0] = [latLng.lat, latLng.lng];
+            }
+
+            if (!remainingRouteLine) {
+                remainingRouteLine = L.polyline(remainingCoords, {
+                    color: "black",
+                    weight: 6,
+                    opacity: 0.9
+                }).addTo(map);
+            } else {
+                remainingRouteLine.setLatLngs(remainingCoords);
+            }
+        }
+
+        function setTestRideButtons(active) {
+            if (startTestRideBtn) {
+                startTestRideBtn.classList.toggle("d-none", active);
+            }
+            if (stopTestRideBtn) {
+                stopTestRideBtn.classList.toggle("d-none", !active);
+            }
+            if (trackingModeBadge) {
+                trackingModeBadge.textContent = active ? "Demo Ride" : "Live GPS";
+                trackingModeBadge.className = active
+                    ? "badge text-bg-primary ms-2"
+                    : "badge text-bg-success ms-2";
+            }
+            if (trackingModeHelpText) {
+                trackingModeHelpText.textContent = active
+                    ? "Demo ride is controlling the scooter on the map. Switch back any time to resume real device location updates."
+                    : "Real geolocation is active by default. Use demo ride when you want to simulate delivery movement for presentation or testing.";
+            }
+        }
+
+        function stopTestRide(showPopup) {
+            if (testRideInterval) {
+                clearInterval(testRideInterval);
+                testRideInterval = null;
+            }
+            isTestRideActive = false;
+            setTestRideButtons(false);
+            if (lastKnownRealAgentLatLng) {
+                updateRoute({ latlng: lastKnownRealAgentLatLng });
+                sendLiveLocation(lastKnownRealAgentLatLng.lat, lastKnownRealAgentLatLng.lng);
+            }
+            map.locate({ setView: true, maxZoom: 16, watch: true, enableHighAccuracy: true });
+            if (showPopup) {
+                showDetailPopup("Back on live GPS tracking.", "secondary");
+            }
+        }
+
+        function buildFallbackRoute(fromLatLng) {
+            var points = [];
+            var steps = 25;
+            for (var i = 0; i <= steps; i++) {
+                var ratio = i / steps;
+                points.push([
+                    fromLatLng.lat + ((destinationLat - fromLatLng.lat) * ratio),
+                    fromLatLng.lng + ((destinationLng - fromLatLng.lng) * ratio)
+                ]);
+            }
+            return points;
+        }
+
+        function startTestRide() {
+            if (destinationLat === 0 || destinationLng === 0) {
+                showDetailPopup("Customer destination is missing, so the test ride cannot start.");
+                return;
+            }
+
+            var startPoint = lastKnownAgentLatLng || deliveryMarker?.getLatLng() || map.getCenter();
+            var routePoints = currentRouteCoords.length > 1 ? currentRouteCoords.slice() : buildFallbackRoute(startPoint);
+
+            if (!routePoints.length) {
+                showDetailPopup("Route is not ready yet. Wait a moment and try again.", "warning");
+                return;
+            }
+
+            stopTestRide(false);
+            isTestRideActive = true;
+            setTestRideButtons(true);
+            showDetailPopup("Test ride started. Simulating delivery movement.", "primary");
+
+            var pointIndex = 0;
+            testRideInterval = setInterval(() => {
+                if (pointIndex >= routePoints.length) {
+                    stopTestRide(false);
+                    showDetailPopup("Test ride reached the customer location.", "success");
+                    return;
+                }
+
+                var point = routePoints[pointIndex];
+                var simulatedLatLng = L.latLng(point[0], point[1]);
+                updateRoute({ latlng: simulatedLatLng });
+                sendLiveLocation(simulatedLatLng.lat, simulatedLatLng.lng);
+                pointIndex += 1;
+            }, 900);
         }
         var deliveryMarker = null;
 
@@ -428,6 +844,8 @@
             if (destinationLat === 0 || destinationLng === 0) return;
 
             var agentLocation = e.latlng;
+            var heading = null;
+            lastKnownAgentLatLng = agentLocation;
 
             if (orderStatus === "Delivered") {
                 localStorage.removeItem(cacheRouteKey);
@@ -467,11 +885,9 @@
                     try {
                         var points = JSON.parse(cached);
                         if (Array.isArray(points) && points.length > 1) {
-                            cachedLine = L.polyline(points, {
-                                color: "black",
-                                weight: 6,
-                                opacity: 0.9
-                            }).addTo(map);
+                            cachedLine = true;
+                            currentRouteCoords = points;
+                            renderRemainingRoute(agentLocation);
                             hasRoute = true;
                         }
                     } catch (e) {
@@ -488,9 +904,42 @@
                 deliveryMarker = L.marker(agentLocation, { icon: deliveryAgentIcon })
                     .addTo(map)
                     .bindPopup("Delivery Agent");
+                if (destinationLat !== 0 && destinationLng !== 0) {
+                    heading = bearingDegrees(
+                        agentLocation.lat,
+                        agentLocation.lng,
+                        destinationLat,
+                        destinationLng
+                    );
+                }
             } else {
+                var currentLatLng = deliveryMarker.getLatLng();
+                if (currentLatLng) {
+                    var moved = distanceMeters(
+                        currentLatLng.lat,
+                        currentLatLng.lng,
+                        agentLocation.lat,
+                        agentLocation.lng
+                    );
+                    if (moved >= 3) {
+                        heading = bearingDegrees(
+                            currentLatLng.lat,
+                            currentLatLng.lng,
+                            agentLocation.lat,
+                            agentLocation.lng
+                        );
+                    }
+                }
                 deliveryMarker.setLatLng(agentLocation);
             }
+
+            if (heading !== null) {
+                applyMarkerHeading(deliveryMarker, heading);
+            } else if (lastMarkerHeading !== null) {
+                applyMarkerHeading(deliveryMarker, lastMarkerHeading);
+            }
+
+            renderRemainingRoute(agentLocation);
 
             if (!hasRoute && !quickLine) {
                 quickLine = L.polyline(
@@ -519,9 +968,9 @@
                     createMarker: function () { return null; },
                     lineOptions: {
                         styles: [{
-                            color: 'black',
-                            weight: 6,
-                            opacity: 0.9
+                            color: 'transparent',
+                            weight: 1,
+                            opacity: 0
                         }]
                     },
                     addWaypoints: false,
@@ -546,6 +995,8 @@
                         var coords = e.routes[0].coordinates.map(function (c) {
                             return [c.lat, c.lng];
                         });
+                        currentRouteCoords = coords;
+                        renderRemainingRoute(agentLocation);
                         try {
                             localStorage.setItem(cacheRouteKey, JSON.stringify(coords));
                             localStorage.setItem(cacheRouteTsKey, String(Date.now()));
@@ -569,35 +1020,30 @@
             }
 
             var now = Date.now();
-            var shouldRouteByTime = now - lastRouteAt >= minRouteMs;
-            var shouldRouteByMove = true;
-            if (lastRoutedLatLng) {
-                var moved = distanceMeters(
-                    lastRoutedLatLng.lat,
-                    lastRoutedLatLng.lng,
-                    agentLocation.lat,
-                    agentLocation.lng
-                );
-                shouldRouteByMove = moved >= minRouteMeters;
-            }
+            var nearestRouteDistance = getNearestRouteDistance(agentLocation, currentRouteCoords);
+            var shouldRoute = !currentRouteCoords.length || nearestRouteDistance > rerouteDistanceThresholdMeters;
+            var cooldownFinished = now - lastRouteAt >= minRouteMs;
 
-            if (shouldRouteByTime && shouldRouteByMove) {
+            if (shouldRoute && cooldownFinished) {
                 routingControl.route();
                 lastRouteAt = now;
-                lastRoutedLatLng = {
-                    lat: agentLocation.lat,
-                    lng: agentLocation.lng
-                };
             }
         }
 
         map.on('locationfound', function (e) {
+        lastKnownRealAgentLatLng = e.latlng;
+        if (isTestRideActive) {
+            return;
+        }
         updateRoute(e);
         sendLiveLocation(e.latlng.lat, e.latlng.lng);
         });
         map.on('locationerror', function () {
-            alert("Cannot get your location.");
+            showDetailPopup("Cannot get your location.", "warning");
         });
+
+        startTestRideBtn?.addEventListener("click", startTestRide);
+        stopTestRideBtn?.addEventListener("click", () => stopTestRide(true));
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

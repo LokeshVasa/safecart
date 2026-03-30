@@ -24,36 +24,89 @@ from django.contrib.auth.decorators import login_required, permission_required
 from .utils import geocode_address
 from geopy.geocoders import Nominatim
 from django.db import IntegrityError
+from django.db import transaction
+from django.templatetags.static import static
 import random
 import hashlib
 from .models import OrderOTP
 from .utils import encrypt_value, decrypt_value
 import json
 from django.views.decorators.http import require_GET
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # -------------------- PRODUCT & HOME --------------------
 
 def product(request):
-    category = request.GET.get('category', 'men')
-    category_object = get_object_or_404(Category, category=category)
-    products = Product.objects.filter(category=category)
+    category = (request.GET.get('category', 'men') or 'men').strip().lower()
+    category_object = get_object_or_404(Category, category__iexact=category)
+    products = Product.objects.filter(category__iexact=category)
     return render(request, "product.html", {
         "products": products,
         "heading": category_object.heading,
         "description": category_object.description,
-        "category": category
+        "category": category_object.category
     })
 
 def home(request):
-    categories = Category.objects.all()
-    return render(request, 'home.html', {"categories": categories})
+    categories = list(Category.objects.all())
+    featured_products = Product.objects.order_by('-created_at')[:8]
+    hero_categories = categories[:3]
+    static_images_dir = Path(settings.BASE_DIR) / "static" / "images"
+    hero_slides = []
+
+    for category in hero_categories:
+        category_slug = category.category.strip().lower().replace(" ", "-")
+        static_image_src = None
+
+        for extension in ("webp", "jpg", "jpeg", "png"):
+            candidate_name = f"hero-{category_slug}.{extension}"
+            candidate_path = static_images_dir / candidate_name
+            if candidate_path.exists():
+                static_image_src = static(f"images/{candidate_name}")
+                break
+
+        hero_slides.append({
+            "category": category.category,
+            "category_param": category.category.strip().lower(),
+            "heading": category.heading,
+            "description": category.description,
+            "image_src": static_image_src or category.image.url,
+        })
+
+    return render(request, 'home.html', {
+        "categories": categories,
+        "hero_categories": hero_slides,
+        "featured_products": featured_products,
+    })
 
 # -------------------- PROFILE & WISHLIST --------------------
 
 @login_required
 def profile(request):
+    if request.method == "POST":
+        if request.POST.get("action") == "remove_photo":
+            request.user.profile_image = None
+            request.user.save(update_fields=["profile_image"])
+            messages.success(request, "Profile photo removed.")
+            return redirect("profile")
+
+        uploaded_photo = request.FILES.get("profile_photo")
+
+        if not uploaded_photo:
+            messages.error(request, "Please choose an image before uploading.")
+            return redirect("profile")
+
+        if not uploaded_photo.content_type or not uploaded_photo.content_type.startswith("image/"):
+            messages.error(request, "Only image files are allowed for profile photos.")
+            return redirect("profile")
+
+        request.user.profile_image = uploaded_photo.read()
+        request.user.save(update_fields=["profile_image"])
+        messages.success(request, "Profile photo updated successfully.")
+        return redirect("profile")
+
     return render(request, 'profile.html')
 
 @login_required
@@ -128,7 +181,16 @@ def cart(request):
     # all addresses for modal
     all_addresses = Address.objects.filter(user=request.user).order_by("-id")
 
-    has_confirmed_address = all_addresses.filter(is_confirmed=True).exists()
+    selected_address_confirmed = False
+    if new_address_data:
+        selected_address = Address.objects.filter(
+            user=request.user,
+            street=new_address_data.get("street", ""),
+            city=new_address_data.get("city", ""),
+            state=new_address_data.get("state", ""),
+            pincode=new_address_data.get("pincode", "")
+        ).first()
+        selected_address_confirmed = bool(selected_address and selected_address.is_confirmed)
 
     return render(request,"cart.html", {
         "cart_items": cart_items,
@@ -139,7 +201,7 @@ def cart(request):
         "form": form,
         "all_addresses": all_addresses,
         "hide_confirm_button": hide_confirm_button,
-        "has_confirmed_address": has_confirmed_address,
+        "has_confirmed_address": selected_address_confirmed,
     })
 
 # -------------------- AUTH --------------------
@@ -149,6 +211,8 @@ def RegisterView(request):
         form = RegisterForm(request.POST)
         if form.is_valid():
             user = form.save()
+            buyer_group, _ = Group.objects.get_or_create(name='Buyer')
+            user.groups.add(buyer_group)
             login(request, user)
             messages.success(request, f"Welcome, {user.first_name}! Your account is ready.")
             return redirect('home')
@@ -176,6 +240,8 @@ def LoginView(request):
                 # Role-based redirect
             if user.is_superuser or user.groups.filter(name='Admin').exists():
                 return redirect('admin_dashboard')
+            elif user.groups.filter(name='Seller').exists():
+                return redirect('sellerorders')
             elif user.groups.filter(name='DeliveryAgent').exists():
                 return redirect('delivery_dashboard')
             else:  # Buyer or new user
@@ -665,13 +731,24 @@ def save_address_session(request):
     if not all([street, city, state, pincode]):
         return JsonResponse({"success": False})
 
+    address = Address.objects.filter(
+        user=request.user,
+        street=street,
+        city=city,
+        state=state,
+        pincode=pincode
+    ).first()
+
     request.session["new_address_data"] = {
         "street": street,
         "city": city,
         "state": state,
         "pincode": pincode
     }
-    return JsonResponse({"success": True})
+    return JsonResponse({
+        "success": True,
+        "is_confirmed": bool(address and address.is_confirmed)
+    })
 
 @login_required
 def proceed_to_checkout(request):
@@ -700,6 +777,10 @@ def proceed_to_checkout(request):
         messages.info(request, "Please confirm a valid address before proceeding to checkout.")
         return redirect("cart")
     
+    if not address.is_confirmed:
+        messages.info(request, "Please confirm your selected address on the map before proceeding to checkout.")
+        return redirect("cart")
+
     if not all([address.street, address.city, address.state, address.pincode]):
         messages.info(request, "Please ensure your address has all required fields before checkout.")
         return redirect("cart")
@@ -709,7 +790,7 @@ def proceed_to_checkout(request):
         address=address,
         payment_type="COD",
         token_value=str(uuid.uuid4()),
-        expires_at=timezone.now() + timezone.timedelta(hours=1),
+        expires_at=None,
         status="Pending"
     )
 
@@ -733,6 +814,13 @@ def proceed_to_checkout(request):
 @login_required
 def yourorders(request):
     orders = Order.objects.filter(user=request.user).order_by('-created_at')
+    status_priority = {
+        'Pending': 0,
+        'Packed': 1,
+        'Shipped': 2,
+        'Delivered': 3,
+        'Cancelled': 4,
+    }
 
     # Prepare orders with items
     orders_with_details = []
@@ -763,14 +851,50 @@ def yourorders(request):
                 order.status in ['Packed', 'Shipped']
                 and order.delivery_agent_id is not None
             ),
+            'can_handshake': (
+                order.status in ['Pending', 'Packed', 'Shipped']
+                and order.delivery_agent_id is not None
+            ),
+            'can_cancel': order.status in ['Pending', 'Packed'],
+            'created_at': order.created_at,
         })
+
+    orders_with_details.sort(
+        key=lambda order: (
+            status_priority.get(order['status'], 99),
+            -order['created_at'].timestamp()
+        )
+    )
 
     return render(request, 'yourorders.html', {'orders': orders_with_details})
 
+
 @login_required
+@require_POST
+def cancel_order(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+
+    if order.status not in ['Pending', 'Packed']:
+        messages.warning(request, "Only pending or packed orders can be cancelled.")
+        return redirect('yourorders')
+
+    order.status = 'Cancelled'
+    order.save(update_fields=['status'])
+    messages.success(request, f"Order #{order.id} has been cancelled.")
+    return redirect('yourorders')
+
+@login_required
+@permission_required('store.can_view_seller_orders', raise_exception=True)
 def sellerorders(request):
     # Adjust the filtering below for what a "seller" should see (e.g., all orders or only for their products)
     orders = Order.objects.all().order_by('-created_at')
+    status_priority = {
+        'Pending': 0,
+        'Packed': 1,
+        'Shipped': 2,
+        'Delivered': 3,
+        'Cancelled': 4,
+    }
     orders_with_details = []
     for order in orders:
         items = []
@@ -792,24 +916,69 @@ def sellerorders(request):
             'expected_delivery': expected_delivery,
             'pincode': order.address.pincode,
             'token_': order.token_value,  # Ensure your Order model has token_value
+            'can_print_qr': order.status in ['Pending', 'Packed', 'Shipped'],
+            'created_at': order.created_at,
         })
-    return render(request, 'sellerorders.html', {'orders': orders_with_details})
+
+    orders_with_details.sort(
+        key=lambda order: (
+            status_priority.get(order['status'], 99),
+            -order['created_at'].timestamp()
+        )
+    )
+
+    stats = {
+        'total_orders': len(orders_with_details),
+        'pending_orders': sum(1 for order in orders_with_details if order['status'] == 'Pending'),
+        'active_orders': sum(1 for order in orders_with_details if order['status'] in ['Packed', 'Shipped']),
+        'delivered_orders': sum(1 for order in orders_with_details if order['status'] == 'Delivered'),
+    }
+
+    return render(request, 'sellerorders.html', {
+        'orders': orders_with_details,
+        'stats': stats,
+    })
 
 @login_required
 @permission_required('store.can_perform_admin_actions', raise_exception=True)
 def make_delivery_agent(request, user_id):
     user = get_object_or_404(User, id=user_id)
     delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
+    seller_group, _ = Group.objects.get_or_create(name='Seller')
     buyer_group, _ = Group.objects.get_or_create(name='Buyer')
 
     if delivery_group in user.groups.all():
+        user.groups.remove(delivery_group)
+        user.groups.remove(seller_group)
+        user.groups.add(buyer_group)
+        messages.success(request, f"{user.username} is now a Buyer.")
+    else:
+        user.groups.remove(buyer_group)
+        user.groups.remove(seller_group)
+        user.groups.add(delivery_group)
+        messages.success(request, f"{user.username} is now a Delivery Agent.")
+
+    return redirect('admin_dashboard')
+
+
+@login_required
+@permission_required('store.can_perform_admin_actions', raise_exception=True)
+def make_seller(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    seller_group, _ = Group.objects.get_or_create(name='Seller')
+    delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
+    buyer_group, _ = Group.objects.get_or_create(name='Buyer')
+
+    if seller_group in user.groups.all():
+        user.groups.remove(seller_group)
         user.groups.remove(delivery_group)
         user.groups.add(buyer_group)
         messages.success(request, f"{user.username} is now a Buyer.")
     else:
         user.groups.remove(buyer_group)
-        user.groups.add(delivery_group)
-        messages.success(request, f"{user.username} is now a Delivery Agent.")
+        user.groups.remove(delivery_group)
+        user.groups.add(seller_group)
+        messages.success(request, f"{user.username} is now a Seller.")
 
     return redirect('admin_dashboard')
 
@@ -819,20 +988,33 @@ def make_delivery_agent(request, user_id):
 def admin_dashboard(request):
     total_users = User.objects.filter(is_superuser=False).count()
     buyer_group, _ = Group.objects.get_or_create(name='Buyer')
+    seller_group, _ = Group.objects.get_or_create(name='Seller')
     delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
     total_buyers = buyer_group.user_set.count()
+    total_sellers = seller_group.user_set.count()
     total_delivery_agents = delivery_group.user_set.count()
     total_products = Product.objects.count()
     total_orders = Order.objects.count()
 
     users = User.objects.filter(is_superuser=False).order_by('id')
     users_info = [
-        {'user': u, 'is_delivery': delivery_group in u.groups.all()} for u in users
+        {
+            'user': u,
+            'is_delivery': delivery_group in u.groups.all(),
+            'is_seller': seller_group in u.groups.all(),
+            'role': (
+                'Delivery Agent' if delivery_group in u.groups.all()
+                else 'Seller' if seller_group in u.groups.all()
+                else 'Buyer'
+            ),
+        }
+        for u in users
     ]
 
     context = {
         'total_users': total_users,
         'total_buyers': total_buyers,
+        'total_sellers': total_sellers,
         'total_delivery_agents': total_delivery_agents,
         'total_products': total_products,
         'total_orders': total_orders,
@@ -844,8 +1026,55 @@ def admin_dashboard(request):
 @login_required
 @permission_required('store.can_deliver_order', raise_exception=True)
 def delivery_dashboard(request):
-    orders = Order.objects.all()
-    return render(request, 'dashboard/delivery_dashboard.html', {'orders': orders})
+    assigned_orders_qs = (
+        Order.objects.filter(delivery_agent__user=request.user)
+        .select_related('user', 'address')
+        .order_by('-created_at')
+    )
+
+    assigned_orders = []
+    for order in assigned_orders_qs:
+        remaining_seconds = None
+        if order.expires_at and order.qr_scan_count > 0:
+            remaining_seconds = max(
+                0,
+                int((order.expires_at - timezone.now()).total_seconds())
+            )
+
+        assigned_orders.append({
+            'id': order.id,
+            'customer_name': order.user.username,
+            'status': order.status,
+            'pincode': order.address.pincode,
+            'created_at': order.created_at,
+            'qr_scan_count': order.qr_scan_count,
+            'remaining_scans': max(0, Order.DELIVERY_QR_MAX_SCANS - order.qr_scan_count),
+            'expires_at': order.expires_at,
+            'remaining_seconds': remaining_seconds,
+            'is_expired': order.delivery_qr_is_expired(),
+            'can_open_order': order.status not in ['Delivered', 'Cancelled'] and not order.delivery_qr_is_expired(),
+            'can_view_route': order.status not in ['Delivered', 'Cancelled'] and order.delivery_qr_is_expired(),
+        })
+
+    stats = {
+        'assigned_count': len(assigned_orders),
+        'active_count': sum(1 for order in assigned_orders if order['status'] not in ['Delivered', 'Cancelled']),
+        'delivered_count': sum(1 for order in assigned_orders if order['status'] == 'Delivered'),
+        'available_count': Order.objects.filter(delivery_agent__isnull=True).exclude(
+            status__in=['Delivered', 'Cancelled']
+        ).count(),
+        'qr_expiry_hours': Order.DELIVERY_QR_EXPIRY_HOURS,
+        'qr_max_scans': Order.DELIVERY_QR_MAX_SCANS,
+    }
+
+    return render(
+        request,
+        'dashboard/delivery_dashboard.html',
+        {
+            'assigned_orders': assigned_orders[:8],
+            'stats': stats,
+        }
+    )
 
 
 @login_required
@@ -858,10 +1087,41 @@ def mark_order_delivered(request, order_id):
     return redirect('delivery_dashboard')
 
 
+def _get_delivery_agent_for_request(user):
+    return get_object_or_404(DeliveryAgent, user=user)
+
+
+def _validate_agent_order_access(request, order):
+    delivery_agent = _get_delivery_agent_for_request(request.user)
+    if order.delivery_agent_id != delivery_agent.id:
+        messages.error(request, "This order is assigned to another delivery agent.")
+        return None, redirect('delivery_dashboard')
+    if order.status in ['Delivered', 'Cancelled']:
+        messages.warning(request, f"This order is already {order.status.lower()}.")
+        return None, redirect('delivery_dashboard')
+    return delivery_agent, None
+
+
+def _render_delivery_order_page(request, order, *, route_only=False):
+    return render(request, 'dashboard/delivery_order_detail.html', {
+        'order': order,
+        'route_only': route_only,
+        'allow_handoff_actions': not route_only,
+        'allow_request_new_otp': route_only and order.status not in ['Delivered', 'Cancelled'],
+        'page_heading': 'Route View' if route_only else 'Order Details',
+        'status_note': (
+            "QR expired. Route is still available and you can request a fresh OTP to complete delivery."
+            if route_only else None
+        ),
+    })
+
+
 def dashboard_redirect(request):
     user = request.user
     if user.is_superuser or user.groups.filter(name='Admin').exists():
         return redirect('admin_dashboard')
+    elif user.groups.filter(name='Seller').exists():
+        return redirect('sellerorders')
     elif user.groups.filter(name='DeliveryAgent').exists():
         return redirect('delivery_dashboard')
     else:
@@ -871,10 +1131,20 @@ def dashboard_redirect(request):
 def manage_users(request):
     users = User.objects.filter(is_superuser=False)
     delivery_group, _ = Group.objects.get_or_create(name='DeliveryAgent')
+    seller_group, _ = Group.objects.get_or_create(name='Seller')
     buyer_group, _ = Group.objects.get_or_create(name='Buyer')
 
     users_info = [
-        {'user': u, 'is_delivery': delivery_group in u.groups.all()}
+        {
+            'user': u,
+            'is_delivery': delivery_group in u.groups.all(),
+            'is_seller': seller_group in u.groups.all(),
+            'role': (
+                'Delivery Agent' if delivery_group in u.groups.all()
+                else 'Seller' if seller_group in u.groups.all()
+                else 'Buyer'
+            ),
+        }
         for u in users
     ]
 
@@ -882,6 +1152,7 @@ def manage_users(request):
         'users_info': users_info,
         'total_users': users.count(),
         'total_buyers': buyer_group.user_set.count(),
+        'total_sellers': seller_group.user_set.count(),
         'total_delivery_agents': delivery_group.user_set.count(),
         'total_products': Product.objects.count(),
         'total_orders': Order.objects.count(),
@@ -893,28 +1164,64 @@ def manage_users(request):
 def delivery_order_detail(request):
     order_id = request.GET.get('order-id')
     order = get_object_or_404(Order, id=order_id)
-    delivery_agent, _ = DeliveryAgent.objects.get_or_create(user=request.user)
-    if order.delivery_agent_id is None:
-        order.delivery_agent = delivery_agent
-        if order.status in ['Pending', 'Packed']:
-            order.status = 'Shipped'
-            order.save(update_fields=['delivery_agent', 'status'])
-        else:
-            order.save(update_fields=['delivery_agent'])
-    elif order.delivery_agent_id != delivery_agent.id:
-        return HttpResponseForbidden("This order is assigned to another delivery agent.")
-    elif order.status in ['Pending', 'Packed']:
-        order.status = 'Shipped'
-        order.save(update_fields=['status'])
-    return render(request, 'dashboard/delivery_order_detail.html', {'order': order})
+    _, failure_response = _validate_agent_order_access(request, order)
+    if failure_response:
+        return failure_response
+    if order.delivery_qr_is_expired():
+        messages.warning(request, "This QR code has expired. Route view is still available.")
+        return redirect(f"{reverse('delivery_route_detail')}?order-id={order.id}")
 
+    return _render_delivery_order_page(request, order, route_only=False)
+
+
+@login_required
+@permission_required('store.can_deliver_order', raise_exception=True)
+def delivery_route_detail(request):
+    order_id = request.GET.get('order-id')
+    order = get_object_or_404(Order, id=order_id)
+    _, failure_response = _validate_agent_order_access(request, order)
+    if failure_response:
+        return failure_response
+    if not order.delivery_qr_is_expired():
+        messages.info(request, "This order still has an active QR window. Opening the full order view.")
+        return redirect(f"{reverse('delivery_order_detail')}?order-id={order.id}")
+
+    return _render_delivery_order_page(request, order, route_only=True)
+
+@login_required
+@permission_required('store.can_deliver_order', raise_exception=True)
+@require_GET
 def get_order_by_token(request):
-    token = request.GET.get('token')
+    token = (request.GET.get('token') or '').strip()
     if not token:
         return JsonResponse({'success': False, 'error': 'No token provided'})
 
     try:
-        order = Order.objects.get(token_value=token)
+        with transaction.atomic():
+            order = Order.objects.select_for_update().get(token_value=token)
+            delivery_agent, _ = DeliveryAgent.objects.get_or_create(user=request.user)
+
+            if order.delivery_agent_id is not None and order.delivery_agent_id != delivery_agent.id:
+                return JsonResponse({'success': False, 'error': 'This order is assigned to another delivery agent.'}, status=403)
+
+            qr_error = order.get_delivery_qr_block_reason()
+            if qr_error:
+                return JsonResponse({'success': False, 'error': qr_error}, status=400)
+
+            order.register_delivery_qr_scan()
+
+            update_fields = ['qr_scan_count', 'expires_at']
+
+            if order.delivery_agent_id is None:
+                order.delivery_agent = delivery_agent
+                update_fields.append('delivery_agent')
+
+            if order.status in ['Pending', 'Packed']:
+                order.status = 'Shipped'
+                update_fields.append('status')
+
+            order.save(update_fields=update_fields)
+
         return JsonResponse({'success': True, 'order_id': order.id})
     except Order.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Order not found'})
@@ -924,6 +1231,19 @@ def get_order_by_token(request):
 def generate_order_otp(request, order_id):
 
     order = get_object_or_404(Order, id=order_id)
+
+    if request.user.groups.filter(name="DeliveryAgent").exists():
+        delivery_agent = DeliveryAgent.objects.filter(user=request.user).first()
+        if not delivery_agent or order.delivery_agent_id != delivery_agent.id:
+            return JsonResponse({
+                "success": False,
+                "error": "You can only request OTP for your assigned order."
+            }, status=403)
+    elif order.user_id != request.user.id:
+        return JsonResponse({
+            "success": False,
+            "error": "You are not allowed to request OTP for this order."
+        }, status=403)
 
     # ❌ prevent OTP if already delivered
     if order.status == "Delivered":
@@ -937,10 +1257,12 @@ def generate_order_otp(request, order_id):
 
     if otp_obj and otp_obj.is_active and not otp_obj.is_expired():
         return JsonResponse({
-    "success": True,
-    "agent_half": decrypt_value(otp_obj.enc_agent_half),
-    "customer_half": decrypt_value(otp_obj.enc_customer_half)
-})
+            "success": True,
+            "agent_half": decrypt_value(otp_obj.enc_agent_half),
+            "customer_half": decrypt_value(otp_obj.enc_customer_half),
+            "customer_verified": otp_obj.customer_verified,
+            "agent_verified": otp_obj.agent_verified
+        })
 
     # generate new OTP
     otp = str(random.randint(10000000, 99999999))
@@ -1037,6 +1359,8 @@ def verify_otp(request, order_id):
     otp_obj.save(update_fields=["agent_verified", "customer_verified"])
 
     # BOTH VERIFIED
+    order_delivered = False
+
     if otp_obj.agent_verified and otp_obj.customer_verified:
 
         otp_obj.is_active = False
@@ -1044,13 +1368,34 @@ def verify_otp(request, order_id):
 
         order.status = "Delivered"
         order.save(update_fields=["status"])
+        order_delivered = True
 
-    return JsonResponse({"success": True})
+    return JsonResponse({
+        "success": True,
+        "order_status": order.status,
+        "order_delivered": order_delivered,
+    })
 
 @login_required
 def get_order_otp_halves(request, order_id):
-
     order = get_object_or_404(Order, id=order_id)
+
+    is_customer = order.user_id == request.user.id
+    is_assigned_agent = (
+        order.delivery_agent is not None
+        and order.delivery_agent.user_id == request.user.id
+    )
+    if not (is_customer or is_assigned_agent):
+        return JsonResponse({
+            "success": False,
+            "error": "You are not allowed to access this order OTP."
+        }, status=403)
+
+    if order.status == 'Cancelled':
+        return JsonResponse({
+            "success": False,
+            "error": "Safe Handshake is unavailable for cancelled orders."
+        }, status=400)
 
     otp_obj = OrderOTP.objects.filter(order=order).first()
 
@@ -1068,7 +1413,9 @@ def get_order_otp_halves(request, order_id):
         "customer_half": customer_half,
         "agent_half": agent_half,
         "customer_verified": otp_obj.customer_verified,
-        "agent_verified": otp_obj.agent_verified
+        "agent_verified": otp_obj.agent_verified,
+        "order_status": order.status,
+        "order_delivered": order.status == "Delivered",
     })
 
 # Render customer tracking map
