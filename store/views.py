@@ -1044,6 +1044,13 @@ def delivery_dashboard(request):
         .select_related('user', 'address')
         .order_by('-created_at')
     )
+    status_priority = {
+        'Pending': 0,
+        'Packed': 1,
+        'Shipped': 2,
+        'Delivered': 3,
+        'Cancelled': 4,
+    }
 
     assigned_orders = []
     for order in assigned_orders_qs:
@@ -1069,6 +1076,13 @@ def delivery_dashboard(request):
             'can_view_route': order.status not in ['Delivered', 'Cancelled'] and order.delivery_qr_is_expired(),
         })
 
+    assigned_orders.sort(
+        key=lambda order: (
+            status_priority.get(order['status'], 99),
+            -order['created_at'].timestamp()
+        )
+    )
+
     stats = {
         'assigned_count': len(assigned_orders),
         'active_count': sum(1 for order in assigned_orders if order['status'] not in ['Delivered', 'Cancelled']),
@@ -1084,7 +1098,7 @@ def delivery_dashboard(request):
         request,
         'dashboard/delivery_dashboard.html',
         {
-            'assigned_orders': assigned_orders[:8],
+            'assigned_orders': assigned_orders,
             'stats': stats,
         }
     )

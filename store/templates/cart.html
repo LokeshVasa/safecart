@@ -5,6 +5,19 @@
 
 {% block body_class %}bg-light{% endblock %}
 
+{% block extra_head %}
+<style>
+  #cart-items-container {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  #cart-items-container::-webkit-scrollbar {
+    display: none;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Page Header -->
 <section class="bg-primary text-white py-4 border-bottom">
