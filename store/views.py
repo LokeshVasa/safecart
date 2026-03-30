@@ -813,7 +813,12 @@ def proceed_to_checkout(request):
 
 @login_required
 def yourorders(request):
-    orders = Order.objects.filter(user=request.user).order_by('-created_at')
+    orders = (
+        Order.objects.filter(user=request.user)
+        .select_related('address', 'delivery_agent')
+        .prefetch_related('items__product')
+        .order_by('-created_at')
+    )
     status_priority = {
         'Pending': 0,
         'Packed': 1,
@@ -833,6 +838,13 @@ def yourorders(request):
                 'quantity': item.quantity,
                 'price': item.price,
             })
+        otp_obj = OrderOTP.objects.filter(order=order).first()
+        handshake_requested = (
+            otp_obj is not None
+            and otp_obj.is_active
+            and not otp_obj.is_expired()
+            and order.status not in ['Delivered', 'Cancelled']
+        )
         total_amount = sum(i['price'] * i['quantity'] for i in items)
         expected_delivery = order.created_at + timedelta(days=5)  # example 5 days delivery
         orders_with_details.append({
@@ -855,6 +867,7 @@ def yourorders(request):
                 order.status in ['Pending', 'Packed', 'Shipped']
                 and order.delivery_agent_id is not None
             ),
+            'handshake_requested': handshake_requested,
             'can_cancel': order.status in ['Pending', 'Packed'],
             'created_at': order.created_at,
         })
@@ -1082,7 +1095,8 @@ def delivery_dashboard(request):
 def mark_order_delivered(request, order_id):
     order = get_object_or_404(Order, id=order_id)
     order.status = 'Delivered'
-    order.save()
+    order.expires_at = timezone.now()
+    order.save(update_fields=['status', 'expires_at'])
     messages.success(request, f"Order {order.id} marked as delivered.")
     return redirect('delivery_dashboard')
 
@@ -1367,7 +1381,8 @@ def verify_otp(request, order_id):
         otp_obj.save(update_fields=["is_active"])
 
         order.status = "Delivered"
-        order.save(update_fields=["status"])
+        order.expires_at = timezone.now()
+        order.save(update_fields=["status", "expires_at"])
         order_delivered = True
 
     return JsonResponse({

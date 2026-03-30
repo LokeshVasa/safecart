@@ -60,7 +60,12 @@
                     {{ status_note }}
                 </div>
                 {% endif %}
-                {% if order.expires_at %}
+                {% if order.status == "Delivered" %}
+                <p class="mb-0">
+                    <strong>QR Status:</strong>
+                    <span class="badge rounded-pill text-bg-success">Expired after delivery</span>
+                </p>
+                {% elif order.expires_at %}
                 <p class="mb-0">
                     <strong>QR Validity:</strong>
                     <span id="qrExpiryCountdown"
