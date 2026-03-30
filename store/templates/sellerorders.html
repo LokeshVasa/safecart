@@ -7,6 +7,66 @@
 
 {% block extra_head %}
 <style>
+    body {
+        background:
+            radial-gradient(circle at top left, rgba(13, 110, 253, 0.12), transparent 28%),
+            linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+    }
+
+    .seller-shell {
+        max-width: 1280px;
+    }
+
+    .hero-card,
+    .stats-card,
+    .panel-card {
+        border: 0;
+        border-radius: 1.25rem;
+        box-shadow: 0 18px 45px rgba(29, 53, 87, 0.08);
+    }
+
+    .hero-card {
+        background: linear-gradient(135deg, #0d6efd 0%, #4f8cff 100%);
+        color: #fff;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .hero-card::after {
+        content: "";
+        position: absolute;
+        inset: auto -4rem -4rem auto;
+        width: 14rem;
+        height: 14rem;
+        background: rgba(255, 255, 255, 0.10);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+    .stats-card {
+        background: #fff;
+    }
+
+    .stats-icon {
+        width: 3rem;
+        height: 3rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.95rem;
+        font-size: 1.2rem;
+    }
+
+    .metric-value {
+        font-size: 1.9rem;
+        font-weight: 700;
+    }
+
+    .panel-card {
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(8px);
+    }
+
     .order-card {
         min-height: 27rem;
     }
@@ -51,15 +111,56 @@
 {% endblock %}
 
 {% block content %}
-<section class="py-3 bg-primary text-white text-center border-bottom mt-0">
-    <div class="container">
-        <h1 class="fw-bold">Seller Orders</h1>
-        <p class="mb-0">View all the orders placed for your products</p>
-    </div>
-</section>
+<section class="py-4 py-lg-5 flex-grow-1">
+    <div class="container seller-shell">
+        <div class="hero-card p-4 p-lg-5 mb-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-4 align-items-lg-center position-relative">
+                <div>
+                    <p class="text-uppercase small fw-semibold mb-2 opacity-75">Seller Workspace</p>
+                    <h1 class="display-6 fw-bold mb-2">Seller Dashboard</h1>
+                    <p class="mb-0 opacity-75">Review recent orders, monitor delivery progress, and print QR labels from one place.</p>
+                </div>
+            </div>
+        </div>
 
-<section class="py-2 flex-grow-1">
-    <div class="container">
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-primary-subtle text-primary mb-3"><i class="bi bi-receipt"></i></div>
+                    <div class="text-muted small">Total Orders</div>
+                    <div class="metric-value text-primary">{{ stats.total_orders }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-warning-subtle text-warning mb-3"><i class="bi bi-hourglass-split"></i></div>
+                    <div class="text-muted small">Pending</div>
+                    <div class="metric-value text-warning">{{ stats.pending_orders }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-info-subtle text-info mb-3"><i class="bi bi-truck"></i></div>
+                    <div class="text-muted small">Packed / Shipped</div>
+                    <div class="metric-value text-info">{{ stats.active_orders }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="stats-card p-3 h-100">
+                    <div class="stats-icon bg-success-subtle text-success mb-3"><i class="bi bi-check2-circle"></i></div>
+                    <div class="text-muted small">Delivered</div>
+                    <div class="metric-value text-success">{{ stats.delivered_orders }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-card p-3 p-lg-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+                <div>
+                    <h2 class="h4 fw-bold mb-1">Seller Orders</h2>
+                    <p class="text-muted mb-0">View all the orders placed for your products.</p>
+                </div>
+            </div>
         {% if orders %}
             <div class="row g-4">
                 {% for order in orders %}
@@ -120,6 +221,7 @@
                 <p class="text-muted">No recent orders by customers.</p>
             </div>
         {% endif %}
+        </div>
     </div>
 </section>
 

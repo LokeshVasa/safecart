@@ -106,7 +106,7 @@
             <div class="carousel-caption">
                 <h2 class="fw-bold">{{ slide.heading }}</h2>
                 <p>{{ slide.description }}</p>
-                <a href="{% url 'product' %}?category={{ slide.category }}" class="btn btn-primary">
+                <a href="{% url 'product' %}?category={{ slide.category_param }}" class="btn btn-primary">
                     Shop {{ slide.category|title }}
                 </a>
             </div>
@@ -148,7 +148,7 @@
         <div class="row g-4">
             {% for category in categories %}
             <div class="col-6 col-md-4 col-lg-3">
-                <a href="{% url 'product' %}?category={{ category.category }}" class="text-decoration-none text-dark d-block h-100">
+                <a href="{% url 'product' %}?category={{ category.category|lower }}" class="text-decoration-none text-dark d-block h-100">
                     <div class="card h-100 category-card">
                         <img src="{{ category.image.url }}" class="card-img-top" alt="{{ category.category }}">
                         <div class="card-body text-center">

@@ -39,14 +39,14 @@ logger = logging.getLogger(__name__)
 # -------------------- PRODUCT & HOME --------------------
 
 def product(request):
-    category = request.GET.get('category', 'men')
-    category_object = get_object_or_404(Category, category=category)
-    products = Product.objects.filter(category=category)
+    category = (request.GET.get('category', 'men') or 'men').strip().lower()
+    category_object = get_object_or_404(Category, category__iexact=category)
+    products = Product.objects.filter(category__iexact=category)
     return render(request, "product.html", {
         "products": products,
         "heading": category_object.heading,
         "description": category_object.description,
-        "category": category
+        "category": category_object.category
     })
 
 def home(request):
@@ -69,6 +69,7 @@ def home(request):
 
         hero_slides.append({
             "category": category.category,
+            "category_param": category.category.strip().lower(),
             "heading": category.heading,
             "description": category.description,
             "image_src": static_image_src or category.image.url,
@@ -926,7 +927,17 @@ def sellerorders(request):
         )
     )
 
-    return render(request, 'sellerorders.html', {'orders': orders_with_details})
+    stats = {
+        'total_orders': len(orders_with_details),
+        'pending_orders': sum(1 for order in orders_with_details if order['status'] == 'Pending'),
+        'active_orders': sum(1 for order in orders_with_details if order['status'] in ['Packed', 'Shipped']),
+        'delivered_orders': sum(1 for order in orders_with_details if order['status'] == 'Delivered'),
+    }
+
+    return render(request, 'sellerorders.html', {
+        'orders': orders_with_details,
+        'stats': stats,
+    })
 
 @login_required
 @permission_required('store.can_perform_admin_actions', raise_exception=True)
