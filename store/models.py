@@ -126,6 +126,8 @@ class Order(models.Model):
         return f"Order {self.order_id} - {self.status}"
 
     def delivery_qr_is_expired(self):
+        if self.status in ['Delivered', 'Cancelled']:
+            return True
         return (
             self.qr_scan_count > 0
             and self.expires_at is not None
