@@ -638,10 +638,20 @@
             var markerEl = marker.getElement();
             if (!markerEl) return;
 
-            var normalizedHeading = heading + markerHeadingOffset;
+            var targetHeading = heading + markerHeadingOffset;
+            var previousDisplayHeading = parseFloat(markerEl.dataset.displayHeading || "");
+            var normalizedHeading = targetHeading;
+
+            if (!Number.isNaN(previousDisplayHeading)) {
+                var headingDelta = targetHeading - previousDisplayHeading;
+                headingDelta = ((headingDelta + 540) % 360) - 180;
+                normalizedHeading = previousDisplayHeading + headingDelta;
+            }
+
             var baseTransform = markerEl.style.transform || "";
             baseTransform = baseTransform.replace(/\srotate\([^)]*\)/g, "");
             markerEl.style.transform = `${baseTransform} rotate(${normalizedHeading}deg)`;
+            markerEl.dataset.displayHeading = String(normalizedHeading);
             lastMarkerHeading = heading;
         }
 
@@ -716,6 +726,26 @@
                 }).addTo(map);
             } else {
                 remainingRouteLine.setLatLngs(remainingCoords);
+            }
+        }
+
+        function followAgentOnMap(latLng, force) {
+            if (!latLng) return;
+
+            var mapCenter = map.getCenter();
+            var distanceFromCenter = distanceMeters(
+                mapCenter.lat,
+                mapCenter.lng,
+                latLng.lat,
+                latLng.lng
+            );
+
+            if (force || distanceFromCenter >= 5) {
+                map.panTo(latLng, {
+                    animate: true,
+                    duration: 0.8,
+                    easeLinearity: 0.2
+                });
             }
         }
 
@@ -909,6 +939,7 @@
                 deliveryMarker = L.marker(agentLocation, { icon: deliveryAgentIcon })
                     .addTo(map)
                     .bindPopup("Delivery Agent");
+                followAgentOnMap(agentLocation, true);
                 if (destinationLat !== 0 && destinationLng !== 0) {
                     heading = bearingDegrees(
                         agentLocation.lat,
@@ -936,6 +967,7 @@
                     }
                 }
                 deliveryMarker.setLatLng(agentLocation);
+                followAgentOnMap(agentLocation, false);
             }
 
             if (heading !== null) {
