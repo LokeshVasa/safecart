@@ -8,6 +8,7 @@ from .auth_service import (
     reset_password_with_token,
 )
 from .catalog_service import build_home_context, build_product_page_context
+from .comparison_service import build_delivery_comparison_context
 from .otp_service import (
     OTPAccessError,
     OTPValidationError,
@@ -44,6 +45,7 @@ __all__ = [
     "ProfileUpdateError",
     "build_home_context",
     "build_product_page_context",
+    "build_delivery_comparison_context",
     "build_customer_orders_context",
     "build_delivery_dashboard_context",
     "build_security_logs_context",

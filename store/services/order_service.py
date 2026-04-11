@@ -75,6 +75,7 @@ def build_seller_orders_context():
     orders_with_details = []
     for order in orders:
         items = _serialize_order_items(order)
+        delivery_mode_label = dict(Order.DELIVERY_MODE_CHOICES).get(order.delivery_mode, order.delivery_mode)
         orders_with_details.append({
             "id": order.id,
             "status": order.status,
@@ -85,6 +86,8 @@ def build_seller_orders_context():
             "pincode": order.address.pincode,
             "token_": order.token_value,
             "can_print_qr": order.status in ["Pending", "Packed", "Shipped"],
+            "delivery_mode": order.delivery_mode,
+            "delivery_mode_label": delivery_mode_label,
             "created_at": order.created_at,
         })
 

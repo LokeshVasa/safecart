@@ -103,6 +103,10 @@ class Address(models.Model):
 class Order(models.Model):
     DELIVERY_QR_EXPIRY_HOURS = 1
     DELIVERY_QR_MAX_SCANS = 2
+    DELIVERY_MODE_CHOICES = [
+        ("secure", "SafeCart Secure"),
+        ("traditional", "Traditional Delivery"),
+    ]
 
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
@@ -115,6 +119,11 @@ class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     address = models.ForeignKey(Address, on_delete=models.CASCADE)
     payment_type = models.CharField(max_length=20, default='COD')
+    delivery_mode = models.CharField(
+        max_length=20,
+        choices=DELIVERY_MODE_CHOICES,
+        default="secure",
+    )
     token_value = models.CharField(max_length=255, unique=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     qr_scan_count = models.PositiveIntegerField(default=0)

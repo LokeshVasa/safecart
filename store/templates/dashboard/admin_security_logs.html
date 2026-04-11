@@ -129,6 +129,15 @@
                 <label class="form-label fw-semibold">Order ID</label>
                 <input type="number" min="1" name="order_id" class="form-control" value="{{ security_log_filters.order_id }}" placeholder="e.g. 63">
             </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Delivery Mode</label>
+                <select name="delivery_mode" class="form-select">
+                    <option value="">All modes</option>
+                    {% for value, label in security_log_filter_options.delivery_modes %}
+                    <option value="{{ value }}" {% if security_log_filters.delivery_mode == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="col-md-2 d-grid">
                 <button type="submit" class="btn btn-primary fw-semibold">Apply Filters</button>
             </div>

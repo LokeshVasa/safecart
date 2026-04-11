@@ -109,6 +109,11 @@
         .event-list::-webkit-scrollbar {
             display: none;
         }
+
+        .comparison-table td,
+        .comparison-table th {
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -240,6 +245,37 @@
         </div>
     </div>
 
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-primary-subtle text-primary mb-3"><i class="bi bi-shield-check"></i></div>
+                <div class="text-muted small">Secure Orders</div>
+                <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.secure_total }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-secondary-subtle text-secondary mb-3"><i class="bi bi-box"></i></div>
+                <div class="text-muted small">Traditional Orders</div>
+                <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.traditional_total }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-success-subtle text-success mb-3"><i class="bi bi-graph-up-arrow"></i></div>
+                <div class="text-muted small">Secure Delivery Rate</div>
+                <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.secure_delivered_rate }}%</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-info-subtle text-info mb-3"><i class="bi bi-bar-chart"></i></div>
+                <div class="text-muted small">Traditional Delivery Rate</div>
+                <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.traditional_delivered_rate }}%</div>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-4">
         <div class="col-lg-7">
             <div class="panel-card p-3 p-lg-4 h-100">
@@ -356,8 +392,126 @@
             </div>
         </div>
     </div>
+
+    <div class="row g-4 mt-1">
+        <div class="col-lg-7">
+            <div class="panel-card p-3 p-lg-4 h-100">
+                <div class="mb-3">
+                    <h2 class="h4 fw-bold mb-1">Delivery Mode Comparison</h2>
+                    <p class="text-muted mb-0">A simple research-facing comparison between secure and traditional order flows.</p>
+                </div>
+                <div class="table-responsive">
+                    <table class="table comparison-table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Mode</th>
+                                <th>Total</th>
+                                <th>Active</th>
+                                <th>Delivered</th>
+                                <th>Cancelled</th>
+                                <th>Delivered Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in delivery_comparison_rows %}
+                            <tr>
+                                <td class="fw-semibold">{{ row.label }}</td>
+                                <td>{{ row.total }}</td>
+                                <td>{{ row.active }}</td>
+                                <td>{{ row.delivered }}</td>
+                                <td>{{ row.cancelled }}</td>
+                                <td>{{ row.delivered_rate }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="panel-card p-3 p-lg-4 h-100">
+                <div class="mb-3">
+                    <h2 class="h4 fw-bold mb-1">Mode Snapshot</h2>
+                    <p class="text-muted mb-0">Current order mix and status distribution by delivery mode.</p>
+                </div>
+                <div class="mb-4" style="height: 220px;">
+                    <canvas id="deliveryModeChart"></canvas>
+                </div>
+                <div style="height: 240px;">
+                    <canvas id="deliveryModeStatusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
+{{ delivery_comparison_chart_data.mode_labels|json_script:"delivery-mode-labels-data" }}
+{{ delivery_comparison_chart_data.mode_totals|json_script:"delivery-mode-totals-data" }}
+{{ delivery_comparison_chart_data.status_labels|json_script:"delivery-status-labels-data" }}
+{{ delivery_comparison_chart_data.secure_status_values|json_script:"delivery-secure-status-values-data" }}
+{{ delivery_comparison_chart_data.traditional_status_values|json_script:"delivery-traditional-status-values-data" }}
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    function readJsonScript(id) {
+        const node = document.getElementById(id);
+        return node ? JSON.parse(node.textContent) : [];
+    }
+
+    const deliveryModeLabels = readJsonScript("delivery-mode-labels-data");
+    const deliveryModeTotals = readJsonScript("delivery-mode-totals-data");
+    const deliveryStatusLabels = readJsonScript("delivery-status-labels-data");
+    const secureStatusValues = readJsonScript("delivery-secure-status-values-data");
+    const traditionalStatusValues = readJsonScript("delivery-traditional-status-values-data");
+
+    new Chart(document.getElementById("deliveryModeChart"), {
+        type: "doughnut",
+        data: {
+            labels: deliveryModeLabels,
+            datasets: [{
+                data: deliveryModeTotals,
+                backgroundColor: ["#0d6efd", "#6c757d"],
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } }
+        }
+    });
+
+    new Chart(document.getElementById("deliveryModeStatusChart"), {
+        type: "bar",
+        data: {
+            labels: deliveryStatusLabels,
+            datasets: [
+                {
+                    label: "SafeCart Secure",
+                    data: secureStatusValues,
+                    backgroundColor: "#0d6efd",
+                    borderRadius: 8,
+                },
+                {
+                    label: "Traditional Delivery",
+                    data: traditionalStatusValues,
+                    backgroundColor: "#6c757d",
+                    borderRadius: 8,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 }
+                }
+            }
+        }
+    });
+</script>
 </body>
 </html>

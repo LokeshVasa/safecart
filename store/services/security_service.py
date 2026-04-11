@@ -282,7 +282,7 @@ def build_security_overview_context(*, recent_limit=8):
     }
 
 
-def build_security_logs_context(*, event_type="", outcome="", order_id="", recent_limit=100):
+def build_security_logs_context(*, event_type="", outcome="", order_id="", delivery_mode="", recent_limit=100):
     logs_qs = SecurityEventLog.objects.select_related("order", "actor").order_by("-created_at")
 
     if event_type:
@@ -291,6 +291,8 @@ def build_security_logs_context(*, event_type="", outcome="", order_id="", recen
         logs_qs = logs_qs.filter(outcome=outcome)
     if order_id:
         logs_qs = logs_qs.filter(order_id=order_id)
+    if delivery_mode:
+        logs_qs = logs_qs.filter(order__delivery_mode=delivery_mode)
 
     event_breakdown_qs = (
         logs_qs.values("event_type")
@@ -342,10 +344,12 @@ def build_security_logs_context(*, event_type="", outcome="", order_id="", recen
             "event_type": event_type,
             "outcome": outcome,
             "order_id": order_id,
+            "delivery_mode": delivery_mode,
         },
         "security_log_filter_options": {
             "event_types": SecurityEventLog.EVENT_CHOICES,
             "outcomes": SecurityEventLog.OUTCOME_CHOICES,
+            "delivery_modes": Order.DELIVERY_MODE_CHOICES,
         },
         "security_log_stats": {
             "filtered_total": logs_qs.count(),

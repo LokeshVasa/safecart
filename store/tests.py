@@ -425,3 +425,79 @@ class AdminSecurityLogsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'OTP Verify Failed')
         self.assertNotContains(response, 'valid_scan')
+
+    def test_admin_security_logs_page_filters_by_delivery_mode(self):
+        self.order.delivery_mode = 'traditional'
+        self.order.save(update_fields=['delivery_mode'])
+
+        response = self.client.get(reverse('admin_security_logs'), {'delivery_mode': 'traditional'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '<td class="fw-semibold">QR Scan</td>', html=False)
+        response_secure = self.client.get(reverse('admin_security_logs'), {'delivery_mode': 'secure'})
+        self.assertEqual(response_secure.status_code, 200)
+        self.assertContains(response_secure, 'No security events match the current filters.')
+        self.assertNotContains(response_secure, '<td class="fw-semibold">QR Scan</td>', html=False)
+
+
+class DeliveryModeComparisonTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(
+            username='admin2',
+            email='admin2@example.com',
+            password='adminpass123',
+        )
+        self.buyer = User.objects.create_user(
+            username='buyer3',
+            email='buyer3@example.com',
+            password='buyerpass123',
+        )
+        self.address = Address.objects.create(
+            user=self.buyer,
+            street='42 Test Street',
+            city='Pune',
+            state='MH',
+            pincode='411001',
+            is_confirmed=True,
+        )
+        Order.objects.create(
+            user=self.buyer,
+            address=self.address,
+            payment_type='COD',
+            token_value='token-secure-mode',
+            status='Delivered',
+            delivery_mode='secure',
+        )
+        Order.objects.create(
+            user=self.buyer,
+            address=self.address,
+            payment_type='COD',
+            token_value='token-traditional-mode',
+            status='Shipped',
+            delivery_mode='traditional',
+        )
+        self.client.login(username='admin2', password='adminpass123')
+
+    def test_admin_dashboard_shows_delivery_mode_comparison(self):
+        response = self.client.get(reverse('admin_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Delivery Mode Comparison')
+        self.assertContains(response, 'SafeCart Secure')
+        self.assertContains(response, 'Traditional Delivery')
+
+    def test_admin_can_toggle_delivery_mode(self):
+        order = Order.objects.create(
+            user=self.buyer,
+            address=self.address,
+            payment_type='COD',
+            token_value='token-toggle-mode',
+            status='Pending',
+            delivery_mode='secure',
+        )
+
+        response = self.client.post(reverse('toggle_delivery_mode', args=[order.id]), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.delivery_mode, 'traditional')

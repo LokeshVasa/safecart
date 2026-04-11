@@ -32,6 +32,7 @@ from .services import (
     build_home_context,
     build_product_page_context,
     build_customer_orders_context,
+    build_delivery_comparison_context,
     build_delivery_dashboard_context,
     build_security_logs_context,
     build_security_overview_context,
@@ -716,6 +717,7 @@ def proceed_to_checkout(request):
         user=request.user,
         address=address,
         payment_type="COD",
+        delivery_mode="secure",
         token_value=str(uuid.uuid4()),
         expires_at=None,
         status="Pending"
@@ -763,6 +765,17 @@ def cancel_order(request, order_id):
 def sellerorders(request):
     context = build_seller_orders_context()
     return render(request, 'sellerorders.html', context)
+
+
+@login_required
+@permission_required('store.can_perform_admin_actions', raise_exception=True)
+@require_POST
+def toggle_delivery_mode(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    order.delivery_mode = "traditional" if order.delivery_mode == "secure" else "secure"
+    order.save(update_fields=["delivery_mode"])
+    messages.success(request, f"Order {order.id} updated to {order.get_delivery_mode_display()}.")
+    return redirect("sellerorders")
 
 @login_required
 @permission_required('store.can_perform_admin_actions', raise_exception=True)
@@ -837,6 +850,7 @@ def admin_dashboard(request):
     ]
 
     security_context = build_security_overview_context()
+    comparison_context = build_delivery_comparison_context()
 
     context = {
         'total_users': total_users,
@@ -847,6 +861,7 @@ def admin_dashboard(request):
         'total_orders': total_orders,
         'users_info': users_info,
         **security_context,
+        **comparison_context,
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
@@ -858,6 +873,7 @@ def admin_security_logs(request):
         event_type=request.GET.get("event_type", "").strip(),
         outcome=request.GET.get("outcome", "").strip(),
         order_id=request.GET.get("order_id", "").strip(),
+        delivery_mode=request.GET.get("delivery_mode", "").strip(),
     )
     return render(request, 'dashboard/admin_security_logs.html', context)
 
