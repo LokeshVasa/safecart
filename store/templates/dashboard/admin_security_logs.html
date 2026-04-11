@@ -189,6 +189,7 @@
                                 <th>Event</th>
                                 <th>Outcome</th>
                                 <th>Order</th>
+                                <th>Mode</th>
                                 <th>Actor</th>
                                 <th>Duration</th>
                                 <th>Reason</th>
@@ -205,6 +206,7 @@
                                     </span>
                                 </td>
                                 <td>#{{ log.order_id }}</td>
+                                <td>{{ log.delivery_mode_label|default:"-" }}</td>
                                 <td>{{ log.actor_name }}</td>
                                 <td>{% if log.duration_ms %}{{ log.duration_ms }}ms{% else %}-{% endif %}</td>
                                 <td>{{ log.details.reason|default:"-" }}</td>
@@ -212,7 +214,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="7" class="text-center py-5 text-muted">No security events match the current filters.</td>
+                                <td colspan="8" class="text-center py-5 text-muted">No security events match the current filters.</td>
                             </tr>
                             {% endfor %}
                         </tbody>

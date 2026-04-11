@@ -123,6 +123,8 @@ def validate_qr_scan_security(order):
 
 def validate_otp_request_security(order):
     security = get_order_security_snapshot(order)
+    if order.delivery_mode == "traditional":
+        raise DeliverySecurityError("Traditional delivery does not require OTP verification.")
     if order.status == "Delivered":
         raise DeliverySecurityError("Order already delivered")
     if order.status == "Cancelled":
@@ -134,6 +136,8 @@ def validate_otp_request_security(order):
 
 def validate_otp_read_security(order):
     security = get_order_security_snapshot(order)
+    if order.delivery_mode == "traditional":
+        raise DeliverySecurityError("Traditional delivery does not require OTP verification.")
     if order.status == "Cancelled":
         raise DeliverySecurityError("Safe Handshake is unavailable for cancelled orders.")
     return security
@@ -197,6 +201,7 @@ def build_delivery_dashboard_context(user):
             "status": order.status,
             "pincode": order.address.pincode,
             "created_at": order.created_at,
+            "delivery_mode": order.delivery_mode,
             "qr_scan_count": security["qr_scan_count"],
             "remaining_scans": security["remaining_scans"],
             "expires_at": order.expires_at,
@@ -327,6 +332,8 @@ def build_security_logs_context(*, event_type="", outcome="", order_id="", deliv
             "event_label": log.get_event_type_display(),
             "outcome": log.outcome,
             "order_id": log.order_id,
+            "delivery_mode": log.order.delivery_mode if log.order else None,
+            "delivery_mode_label": log.order.get_delivery_mode_display() if log.order else None,
             "actor_name": log.actor.username if log.actor else "System",
             "duration_ms": log.duration_ms,
             "details": log.details or {},

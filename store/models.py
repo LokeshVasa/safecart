@@ -246,6 +246,7 @@ class SecurityEventLog(models.Model):
         ("otp_verify_success", "OTP Verify Success"),
         ("otp_verify_failed", "OTP Verify Failed"),
         ("order_delivered", "Order Delivered"),
+        ("delivery_mode_switched", "Delivery Mode Switched"),
     ]
 
     OUTCOME_CHOICES = [

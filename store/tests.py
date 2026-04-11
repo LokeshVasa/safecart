@@ -487,6 +487,7 @@ class DeliveryModeComparisonTests(TestCase):
         self.assertContains(response, 'Traditional Delivery')
 
     def test_admin_can_toggle_delivery_mode(self):
+        DeliveryAgent.objects.create(user=self.admin_user)
         order = Order.objects.create(
             user=self.buyer,
             address=self.address,
@@ -501,3 +502,69 @@ class DeliveryModeComparisonTests(TestCase):
         self.assertEqual(response.status_code, 200)
         order.refresh_from_db()
         self.assertEqual(order.delivery_mode, 'traditional')
+        self.assertTrue(
+            SecurityEventLog.objects.filter(order=order, event_type='delivery_mode_switched').exists()
+        )
+
+    def test_admin_cannot_toggle_delivery_mode_after_shipped(self):
+        DeliveryAgent.objects.create(user=self.admin_user)
+        order = Order.objects.create(
+            user=self.buyer,
+            address=self.address,
+            payment_type='COD',
+            token_value='token-toggle-blocked',
+            status='Shipped',
+            delivery_mode='secure',
+        )
+
+        response = self.client.post(reverse('toggle_delivery_mode', args=[order.id]), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.delivery_mode, 'secure')
+
+
+class TraditionalDeliveryFlowTests(TestCase):
+    def setUp(self):
+        self.buyer = User.objects.create_user(
+            username='buyer4',
+            email='buyer4@example.com',
+            password='buyerpass123',
+        )
+        self.agent_user = User.objects.create_user(
+            username='agent4',
+            email='agent4@example.com',
+            password='agentpass123',
+        )
+        delivery_group = Group.objects.get(name='DeliveryAgent')
+        self.agent_user.groups.add(delivery_group)
+        self.delivery_agent = DeliveryAgent.objects.create(user=self.agent_user)
+        self.address = Address.objects.create(
+            user=self.buyer,
+            street='77 Sample Street',
+            city='Hyderabad',
+            state='TG',
+            pincode='500001',
+            is_confirmed=True,
+        )
+        self.order = Order.objects.create(
+            user=self.buyer,
+            address=self.address,
+            payment_type='COD',
+            token_value='token-traditional-flow',
+            status='Shipped',
+            delivery_mode='traditional',
+            delivery_agent=self.delivery_agent,
+        )
+        self.client.login(username='agent4', password='agentpass123')
+
+    def test_traditional_order_blocks_otp_request(self):
+        response = self.client.get(reverse('generate_order_otp', args=[self.order.id]))
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Traditional delivery does not require OTP", response.json()["error"])
+
+    def test_traditional_order_can_be_marked_delivered(self):
+        response = self.client.post(reverse('mark_order_delivered', args=[self.order.id]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, 'Delivered')

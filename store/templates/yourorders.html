@@ -98,6 +98,13 @@
                         <div>
                             <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
                             <strong>#{{ order.id }}</strong>
+                            <div class="mt-2">
+                                {% if order.delivery_mode == "traditional" %}
+                                <span class="badge bg-secondary text-white">Traditional Delivery</span>
+                                {% else %}
+                                <span class="badge bg-light text-primary">Secure Delivery</span>
+                                {% endif %}
+                            </div>
                             {% if order.security.show_security_badge %}
                             <div class="mt-2">
                                 <span class="badge {% if order.security.security_badge_variant == 'info' %}bg-info text-dark{% elif order.security.security_badge_variant == 'warning' %}bg-warning text-dark{% elif order.security.security_badge_variant == 'primary' %}bg-light text-primary{% else %}bg-{{ order.security.security_badge_variant }}{% endif %}">

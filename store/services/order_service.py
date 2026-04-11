@@ -45,9 +45,14 @@ def build_customer_orders_context(user):
             "total_amount": sum(i["price"] * i["quantity"] for i in items),
             "expected_delivery": order.created_at + timedelta(days=5),
             "address": order.address,
+            "delivery_mode": order.delivery_mode,
             "can_track": order.status in ["Packed", "Shipped"] and order.delivery_agent_id is not None,
             "can_call": order.status in ["Packed", "Shipped"] and order.delivery_agent_id is not None,
-            "can_handshake": order.status in ["Pending", "Packed", "Shipped"] and order.delivery_agent_id is not None,
+            "can_handshake": (
+                order.status in ["Pending", "Packed", "Shipped"]
+                and order.delivery_agent_id is not None
+                and order.delivery_mode == "secure"
+            ),
             "handshake_requested": security["otp_active"] and not security["is_closed"],
             "can_cancel": order.status in ["Pending", "Packed"],
             "created_at": order.created_at,
@@ -85,7 +90,10 @@ def build_seller_orders_context():
             "expected_delivery": order.created_at + timedelta(days=5),
             "pincode": order.address.pincode,
             "token_": order.token_value,
-            "can_print_qr": order.status in ["Pending", "Packed", "Shipped"],
+            "can_print_qr": (
+                order.delivery_mode == "secure"
+                and order.status in ["Pending", "Packed", "Shipped"]
+            ),
             "delivery_mode": order.delivery_mode,
             "delivery_mode_label": delivery_mode_label,
             "created_at": order.created_at,

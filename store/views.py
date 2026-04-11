@@ -41,6 +41,7 @@ from .services import (
     create_password_reset_request,
     get_order_otp_payload,
     get_order_security_snapshot,
+    log_security_event,
     get_or_create_order_otp_payload,
     get_post_login_redirect_name,
     password_reset_exists,
@@ -772,8 +773,37 @@ def sellerorders(request):
 @require_POST
 def toggle_delivery_mode(request, order_id):
     order = get_object_or_404(Order, id=order_id)
-    order.delivery_mode = "traditional" if order.delivery_mode == "secure" else "secure"
-    order.save(update_fields=["delivery_mode"])
+    if order.status in ["Shipped", "Delivered"]:
+        messages.warning(request, "Delivery mode cannot be changed once the order is shipped or delivered.")
+        return redirect("sellerorders")
+
+    new_mode = "traditional" if order.delivery_mode == "secure" else "secure"
+    update_fields = ["delivery_mode"]
+
+    if new_mode == "traditional" and order.delivery_agent_id is None:
+        agent = DeliveryAgent.objects.order_by("?").first()
+        if agent:
+            order.delivery_agent = agent
+            update_fields.append("delivery_agent")
+        else:
+            messages.error(request, "No delivery agents available to assign for traditional delivery.")
+            return redirect("sellerorders")
+    elif new_mode == "secure":
+        # Reset assignment/QR session so secure flow starts fresh.
+        order.delivery_agent = None
+        order.qr_scan_count = 0
+        order.expires_at = None
+        update_fields.extend(["delivery_agent", "qr_scan_count", "expires_at"])
+
+    order.delivery_mode = new_mode
+    order.save(update_fields=update_fields)
+    log_security_event(
+        order,
+        "delivery_mode_switched",
+        actor=request.user,
+        outcome="success",
+        details={"new_mode": new_mode},
+    )
     messages.success(request, f"Order {order.id} updated to {order.get_delivery_mode_display()}.")
     return redirect("sellerorders")
 
@@ -889,6 +919,9 @@ def delivery_dashboard(request):
 @permission_required('store.can_deliver_order', raise_exception=True)
 def mark_order_delivered(request, order_id):
     order = get_object_or_404(Order, id=order_id)
+    if order.delivery_mode != "traditional":
+        messages.error(request, "Only traditional delivery orders can be marked delivered without OTP.")
+        return redirect('delivery_dashboard')
     order.status = 'Delivered'
     order.expires_at = timezone.now()
     order.save(update_fields=['status', 'expires_at'])
@@ -901,8 +934,9 @@ def _render_delivery_order_page(request, order, *, route_only=False):
         'order': order,
         'security': security,
         'route_only': route_only,
-        'allow_handoff_actions': not route_only,
+        'allow_handoff_actions': not route_only and order.delivery_mode != "traditional",
         'allow_request_new_otp': route_only and order.status not in ['Delivered', 'Cancelled'],
+        'allow_mark_delivered': order.delivery_mode == "traditional" and order.status not in ['Delivered', 'Cancelled'],
         'page_heading': 'Route View' if route_only else 'Order Details',
         'status_note': (
             "QR expired. Route is still available and you can request a fresh OTP to complete delivery."
@@ -964,7 +998,7 @@ def delivery_order_detail(request):
     except DeliveryAccessError as exc:
         getattr(messages, exc.level)(request, str(exc))
         return redirect('delivery_dashboard')
-    if order.delivery_qr_is_expired():
+    if order.delivery_mode != "traditional" and order.delivery_qr_is_expired():
         messages.warning(request, "This QR code has expired. Route view is still available.")
         return redirect(f"{reverse('delivery_route_detail')}?order-id={order.id}")
 
@@ -981,6 +1015,9 @@ def delivery_route_detail(request):
     except DeliveryAccessError as exc:
         getattr(messages, exc.level)(request, str(exc))
         return redirect('delivery_dashboard')
+    if order.delivery_mode == "traditional":
+        messages.info(request, "Traditional delivery uses the full order view.")
+        return redirect(f"{reverse('delivery_order_detail')}?order-id={order.id}")
     if not order.delivery_qr_is_expired():
         messages.info(request, "This order still has an active QR window. Opening the full order view.")
         return redirect(f"{reverse('delivery_order_detail')}?order-id={order.id}")
