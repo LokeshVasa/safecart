@@ -27,12 +27,15 @@ from django.db import IntegrityError
 from django.templatetags.static import static
 from .models import OrderOTP
 from .services import (
+    DeliveryAccessError,
     DeliveryQRScanError,
     OTPAccessError,
     OTPValidationError,
+    build_delivery_dashboard_context,
     claim_order_from_token,
     get_order_otp_payload,
     get_or_create_order_otp_payload,
+    validate_delivery_agent_order_access,
     verify_order_otp as verify_order_otp_service,
 )
 import json
@@ -1044,69 +1047,8 @@ def admin_dashboard(request):
 @login_required
 @permission_required('store.can_deliver_order', raise_exception=True)
 def delivery_dashboard(request):
-    assigned_orders_qs = (
-        Order.objects.filter(delivery_agent__user=request.user)
-        .select_related('user', 'address')
-        .order_by('-created_at')
-    )
-    status_priority = {
-        'Pending': 0,
-        'Packed': 1,
-        'Shipped': 2,
-        'Delivered': 3,
-        'Cancelled': 4,
-    }
-
-    assigned_orders = []
-    for order in assigned_orders_qs:
-        remaining_seconds = None
-        if order.expires_at and order.qr_scan_count > 0:
-            remaining_seconds = max(
-                0,
-                int((order.expires_at - timezone.now()).total_seconds())
-            )
-
-        assigned_orders.append({
-            'id': order.id,
-            'customer_name': order.user.username,
-            'status': order.status,
-            'pincode': order.address.pincode,
-            'created_at': order.created_at,
-            'qr_scan_count': order.qr_scan_count,
-            'remaining_scans': max(0, Order.DELIVERY_QR_MAX_SCANS - order.qr_scan_count),
-            'expires_at': order.expires_at,
-            'remaining_seconds': remaining_seconds,
-            'is_expired': order.delivery_qr_is_expired(),
-            'can_open_order': order.status not in ['Delivered', 'Cancelled'] and not order.delivery_qr_is_expired(),
-            'can_view_route': order.status not in ['Delivered', 'Cancelled'] and order.delivery_qr_is_expired(),
-        })
-
-    assigned_orders.sort(
-        key=lambda order: (
-            status_priority.get(order['status'], 99),
-            -order['created_at'].timestamp()
-        )
-    )
-
-    stats = {
-        'assigned_count': len(assigned_orders),
-        'active_count': sum(1 for order in assigned_orders if order['status'] not in ['Delivered', 'Cancelled']),
-        'delivered_count': sum(1 for order in assigned_orders if order['status'] == 'Delivered'),
-        'available_count': Order.objects.filter(delivery_agent__isnull=True).exclude(
-            status__in=['Delivered', 'Cancelled']
-        ).count(),
-        'qr_expiry_hours': Order.DELIVERY_QR_EXPIRY_HOURS,
-        'qr_max_scans': Order.DELIVERY_QR_MAX_SCANS,
-    }
-
-    return render(
-        request,
-        'dashboard/delivery_dashboard.html',
-        {
-            'assigned_orders': assigned_orders,
-            'stats': stats,
-        }
-    )
+    context = build_delivery_dashboard_context(request.user)
+    return render(request, 'dashboard/delivery_dashboard.html', context)
 
 
 @login_required
@@ -1118,22 +1060,6 @@ def mark_order_delivered(request, order_id):
     order.save(update_fields=['status', 'expires_at'])
     messages.success(request, f"Order {order.id} marked as delivered.")
     return redirect('delivery_dashboard')
-
-
-def _get_delivery_agent_for_request(user):
-    return get_object_or_404(DeliveryAgent, user=user)
-
-
-def _validate_agent_order_access(request, order):
-    delivery_agent = _get_delivery_agent_for_request(request.user)
-    if order.delivery_agent_id != delivery_agent.id:
-        messages.error(request, "This order is assigned to another delivery agent.")
-        return None, redirect('delivery_dashboard')
-    if order.status in ['Delivered', 'Cancelled']:
-        messages.warning(request, f"This order is already {order.status.lower()}.")
-        return None, redirect('delivery_dashboard')
-    return delivery_agent, None
-
 
 def _render_delivery_order_page(request, order, *, route_only=False):
     return render(request, 'dashboard/delivery_order_detail.html', {
@@ -1197,9 +1123,11 @@ def manage_users(request):
 def delivery_order_detail(request):
     order_id = request.GET.get('order-id')
     order = get_object_or_404(Order, id=order_id)
-    _, failure_response = _validate_agent_order_access(request, order)
-    if failure_response:
-        return failure_response
+    try:
+        validate_delivery_agent_order_access(order, request.user)
+    except DeliveryAccessError as exc:
+        getattr(messages, exc.level)(request, str(exc))
+        return redirect('delivery_dashboard')
     if order.delivery_qr_is_expired():
         messages.warning(request, "This QR code has expired. Route view is still available.")
         return redirect(f"{reverse('delivery_route_detail')}?order-id={order.id}")
@@ -1212,9 +1140,11 @@ def delivery_order_detail(request):
 def delivery_route_detail(request):
     order_id = request.GET.get('order-id')
     order = get_object_or_404(Order, id=order_id)
-    _, failure_response = _validate_agent_order_access(request, order)
-    if failure_response:
-        return failure_response
+    try:
+        validate_delivery_agent_order_access(order, request.user)
+    except DeliveryAccessError as exc:
+        getattr(messages, exc.level)(request, str(exc))
+        return redirect('delivery_dashboard')
     if not order.delivery_qr_is_expired():
         messages.info(request, "This order still has an active QR window. Opening the full order view.")
         return redirect(f"{reverse('delivery_order_detail')}?order-id={order.id}")
