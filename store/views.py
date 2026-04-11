@@ -33,6 +33,7 @@ from .services import (
     build_product_page_context,
     build_customer_orders_context,
     build_delivery_dashboard_context,
+    build_security_logs_context,
     build_security_overview_context,
     build_seller_orders_context,
     claim_order_from_token,
@@ -848,6 +849,17 @@ def admin_dashboard(request):
         **security_context,
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
+
+
+@login_required
+@permission_required('store.can_perform_admin_actions', raise_exception=True)
+def admin_security_logs(request):
+    context = build_security_logs_context(
+        event_type=request.GET.get("event_type", "").strip(),
+        outcome=request.GET.get("outcome", "").strip(),
+        order_id=request.GET.get("order_id", "").strip(),
+    )
+    return render(request, 'dashboard/admin_security_logs.html', context)
 
 
 @login_required

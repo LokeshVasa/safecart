@@ -1,5 +1,7 @@
 import logging
+from collections import OrderedDict
 
+from django.db import models
 from django.db.utils import OperationalError, ProgrammingError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -144,6 +146,7 @@ def log_security_event(order, event_type, *, actor=None, outcome="success", deta
             actor=actor,
             event_type=event_type,
             outcome=outcome,
+            duration_ms=details.pop("duration_ms", None) if isinstance(details, dict) and "duration_ms" in details else None,
             details=details or {},
         )
     except (OperationalError, ProgrammingError):
@@ -254,6 +257,110 @@ def build_security_overview_context(*, recent_limit=8):
             "blocked_events": SecurityEventLog.objects.filter(outcome="blocked").count(),
             "failed_events": SecurityEventLog.objects.filter(outcome="failed").count(),
             "successful_deliveries": SecurityEventLog.objects.filter(event_type="order_delivered").count(),
+            "avg_qr_scan_ms": (
+                round(
+                    SecurityEventLog.objects.filter(event_type="qr_scan", duration_ms__isnull=False)
+                    .aggregate(avg=models.Avg("duration_ms"))["avg"] or 0
+                )
+            ),
+            "avg_otp_request_ms": (
+                round(
+                    SecurityEventLog.objects.filter(event_type="otp_requested", duration_ms__isnull=False)
+                    .aggregate(avg=models.Avg("duration_ms"))["avg"] or 0
+                )
+            ),
+            "avg_otp_verify_ms": (
+                round(
+                    SecurityEventLog.objects.filter(
+                        event_type__in=["otp_verify_success", "otp_verify_failed"],
+                        duration_ms__isnull=False,
+                    ).aggregate(avg=models.Avg("duration_ms"))["avg"] or 0
+                )
+            ),
         },
         "recent_security_events": recent_events,
+    }
+
+
+def build_security_logs_context(*, event_type="", outcome="", order_id="", recent_limit=100):
+    logs_qs = SecurityEventLog.objects.select_related("order", "actor").order_by("-created_at")
+
+    if event_type:
+        logs_qs = logs_qs.filter(event_type=event_type)
+    if outcome:
+        logs_qs = logs_qs.filter(outcome=outcome)
+    if order_id:
+        logs_qs = logs_qs.filter(order_id=order_id)
+
+    event_breakdown_qs = (
+        logs_qs.values("event_type")
+        .annotate(total=models.Count("id"))
+        .order_by("event_type")
+    )
+    outcome_breakdown_qs = (
+        logs_qs.values("outcome")
+        .annotate(total=models.Count("id"))
+        .order_by("outcome")
+    )
+
+    daily_window = timezone.now() - timezone.timedelta(days=6)
+    daily_counts_qs = (
+        logs_qs.filter(created_at__gte=daily_window)
+        .annotate(day=models.functions.TruncDate("created_at"))
+        .values("day")
+        .annotate(total=models.Count("id"))
+        .order_by("day")
+    )
+
+    daily_lookup = {entry["day"]: entry["total"] for entry in daily_counts_qs}
+    daily_series = OrderedDict()
+    for offset in range(7):
+        day = (daily_window + timezone.timedelta(days=offset)).date()
+        daily_series[day.strftime("%b %d")] = daily_lookup.get(day, 0)
+
+    logs = [
+        {
+            "id": log.id,
+            "event_type": log.event_type,
+            "event_label": log.get_event_type_display(),
+            "outcome": log.outcome,
+            "order_id": log.order_id,
+            "actor_name": log.actor.username if log.actor else "System",
+            "duration_ms": log.duration_ms,
+            "details": log.details or {},
+            "created_at": log.created_at,
+        }
+        for log in logs_qs[:recent_limit]
+    ]
+
+    avg_duration_ms = round(logs_qs.filter(duration_ms__isnull=False).aggregate(
+        avg=models.Avg("duration_ms")
+    )["avg"] or 0)
+
+    return {
+        "security_log_filters": {
+            "event_type": event_type,
+            "outcome": outcome,
+            "order_id": order_id,
+        },
+        "security_log_filter_options": {
+            "event_types": SecurityEventLog.EVENT_CHOICES,
+            "outcomes": SecurityEventLog.OUTCOME_CHOICES,
+        },
+        "security_log_stats": {
+            "filtered_total": logs_qs.count(),
+            "avg_duration_ms": avg_duration_ms,
+            "success_count": logs_qs.filter(outcome="success").count(),
+            "blocked_count": logs_qs.filter(outcome="blocked").count(),
+            "failed_count": logs_qs.filter(outcome="failed").count(),
+        },
+        "security_log_chart_data": {
+            "event_labels": [entry["event_type"].replace("_", " ").title() for entry in event_breakdown_qs],
+            "event_values": [entry["total"] for entry in event_breakdown_qs],
+            "outcome_labels": [entry["outcome"].title() for entry in outcome_breakdown_qs],
+            "outcome_values": [entry["total"] for entry in outcome_breakdown_qs],
+            "daily_labels": list(daily_series.keys()),
+            "daily_values": list(daily_series.values()),
+        },
+        "security_logs": logs,
     }

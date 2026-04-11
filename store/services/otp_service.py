@@ -1,5 +1,6 @@
 import hashlib
 import random
+import time
 from datetime import timedelta
 
 from django.utils import timezone
@@ -40,6 +41,7 @@ def _ensure_otp_access(order, user):
 
 
 def get_or_create_order_otp_payload(order, user):
+    started_at = time.perf_counter()
     _ensure_otp_access(order, user)
 
     try:
@@ -50,7 +52,10 @@ def get_or_create_order_otp_payload(order, user):
             "otp_request_blocked",
             actor=user,
             outcome="blocked",
-            details={"reason": str(exc)},
+            details={
+                "reason": str(exc),
+                "duration_ms": round((time.perf_counter() - started_at) * 1000),
+            },
         )
         raise OTPValidationError(str(exc)) from exc
 
@@ -61,7 +66,11 @@ def get_or_create_order_otp_payload(order, user):
             "otp_requested",
             actor=user,
             outcome="success",
-            details={"security_stage": get_order_security_snapshot(order)["security_stage"], "reused": True},
+            details={
+                "security_stage": get_order_security_snapshot(order)["security_stage"],
+                "reused": True,
+                "duration_ms": round((time.perf_counter() - started_at) * 1000),
+            },
         )
         return {
             "agent_half": decrypt_value(otp_obj.enc_agent_half),
@@ -93,7 +102,11 @@ def get_or_create_order_otp_payload(order, user):
         "otp_requested",
         actor=user,
         outcome="success",
-        details={"security_stage": get_order_security_snapshot(order)["security_stage"], "reused": False},
+        details={
+            "security_stage": get_order_security_snapshot(order)["security_stage"],
+            "reused": False,
+            "duration_ms": round((time.perf_counter() - started_at) * 1000),
+        },
     )
 
     return {
@@ -105,26 +118,63 @@ def get_or_create_order_otp_payload(order, user):
 
 
 def verify_order_otp(order, user, *, customer_half, agent_half):
+    started_at = time.perf_counter()
     try:
         otp_obj = order.otp
     except OrderOTP.DoesNotExist as exc:
-        log_security_event(order, "otp_verify_failed", actor=user, outcome="failed", details={"reason": "otp_not_found"})
+        log_security_event(
+            order,
+            "otp_verify_failed",
+            actor=user,
+            outcome="failed",
+            details={
+                "reason": "otp_not_found",
+                "duration_ms": round((time.perf_counter() - started_at) * 1000),
+            },
+        )
         raise OTPValidationError("OTP not found") from exc
 
     if otp_obj.is_expired():
         otp_obj.is_active = False
         otp_obj.save(update_fields=["is_active"])
-        log_security_event(order, "otp_verify_failed", actor=user, outcome="failed", details={"reason": "otp_expired"})
+        log_security_event(
+            order,
+            "otp_verify_failed",
+            actor=user,
+            outcome="failed",
+            details={
+                "reason": "otp_expired",
+                "duration_ms": round((time.perf_counter() - started_at) * 1000),
+            },
+        )
         raise OTPValidationError("OTP expired")
 
     if otp_obj.attempts >= MAX_OTP_ATTEMPTS:
         otp_obj.is_active = False
         otp_obj.save(update_fields=["is_active"])
-        log_security_event(order, "otp_verify_failed", actor=user, outcome="blocked", details={"reason": "max_attempts"})
+        log_security_event(
+            order,
+            "otp_verify_failed",
+            actor=user,
+            outcome="blocked",
+            details={
+                "reason": "max_attempts",
+                "duration_ms": round((time.perf_counter() - started_at) * 1000),
+            },
+        )
         raise OTPValidationError("Maximum attempts exceeded. Generate a new OTP.")
 
     if not customer_half or not agent_half:
-        log_security_event(order, "otp_verify_failed", actor=user, outcome="failed", details={"reason": "invalid_format"})
+        log_security_event(
+            order,
+            "otp_verify_failed",
+            actor=user,
+            outcome="failed",
+            details={
+                "reason": "invalid_format",
+                "duration_ms": round((time.perf_counter() - started_at) * 1000),
+            },
+        )
         raise OTPValidationError("Invalid OTP format")
 
     full_otp = customer_half + agent_half
@@ -139,7 +189,11 @@ def verify_order_otp(order, user, *, customer_half, agent_half):
             "otp_verify_failed",
             actor=user,
             outcome="failed",
-            details={"reason": "hash_mismatch", "remaining_attempts": remaining},
+            details={
+                "reason": "hash_mismatch",
+                "remaining_attempts": remaining,
+                "duration_ms": round((time.perf_counter() - started_at) * 1000),
+            },
         )
         return {
             "success": False,
@@ -161,6 +215,7 @@ def verify_order_otp(order, user, *, customer_half, agent_half):
             "customer_verified": otp_obj.customer_verified,
             "agent_verified": otp_obj.agent_verified,
             "security_stage": get_order_security_snapshot(order)["security_stage"],
+            "duration_ms": round((time.perf_counter() - started_at) * 1000),
         },
     )
 
@@ -178,7 +233,10 @@ def verify_order_otp(order, user, *, customer_half, agent_half):
             "order_delivered",
             actor=user,
             outcome="success",
-            details={"security_stage": get_order_security_snapshot(order)["security_stage"]},
+            details={
+                "security_stage": get_order_security_snapshot(order)["security_stage"],
+                "duration_ms": round((time.perf_counter() - started_at) * 1000),
+            },
         )
 
     return {

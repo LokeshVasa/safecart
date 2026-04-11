@@ -321,6 +321,7 @@ class DeliveryQrScanTests(TestCase):
 
         self.assertEqual(event.outcome, 'success')
         self.assertEqual(event.actor, self.agent_user)
+        self.assertIsNotNone(event.duration_ms)
 
     def test_successful_otp_request_creates_security_event_log(self):
         self.order.delivery_agent = self.delivery_agent
@@ -333,3 +334,94 @@ class DeliveryQrScanTests(TestCase):
         event = SecurityEventLog.objects.filter(order=self.order, event_type='otp_requested').latest('created_at')
         self.assertEqual(event.outcome, 'success')
         self.assertEqual(event.actor, self.agent_user)
+        self.assertIsNotNone(event.duration_ms)
+
+    def test_failed_otp_verify_creates_timed_security_event_log(self):
+        self.order.delivery_agent = self.delivery_agent
+        self.order.status = 'Shipped'
+        self.order.save(update_fields=['delivery_agent', 'status'])
+        OrderOTP.objects.create(
+            order=self.order,
+            otp_hash=hashlib.sha256('12345678'.encode()).hexdigest(),
+            enc_customer_half=encrypt_value('1234'),
+            enc_agent_half=encrypt_value('5678'),
+            expires_at=timezone.now() + timedelta(minutes=10),
+            customer_verified=False,
+            agent_verified=False,
+            is_active=True,
+        )
+        self.client.logout()
+        self.client.login(username='buyer', password='testpass123')
+
+        response = self.client.post(
+            reverse('verify_otp', args=[self.order.id]),
+            data='{"customer_half":"0000","agent_half":"9999"}',
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()['success'])
+        event = SecurityEventLog.objects.filter(order=self.order, event_type='otp_verify_failed').latest('created_at')
+        self.assertEqual(event.outcome, 'failed')
+        self.assertIsNotNone(event.duration_ms)
+
+
+class AdminSecurityLogsTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(
+            username='admin',
+            email='admin@example.com',
+            password='adminpass123',
+        )
+        self.buyer = User.objects.create_user(
+            username='buyer2',
+            email='buyer2@example.com',
+            password='buyerpass123',
+        )
+        self.address = Address.objects.create(
+            user=self.buyer,
+            street='10 Downing Street',
+            city='London',
+            state='London',
+            pincode='100001',
+            is_confirmed=True,
+        )
+        self.order = Order.objects.create(
+            user=self.buyer,
+            address=self.address,
+            payment_type='COD',
+            token_value='token-admin-log',
+            status='Shipped',
+        )
+        SecurityEventLog.objects.create(
+            order=self.order,
+            actor=self.buyer,
+            event_type='qr_scan',
+            outcome='success',
+            duration_ms=120,
+            details={'reason': 'valid_scan'},
+        )
+        SecurityEventLog.objects.create(
+            order=self.order,
+            actor=self.buyer,
+            event_type='otp_verify_failed',
+            outcome='failed',
+            duration_ms=220,
+            details={'reason': 'hash_mismatch'},
+        )
+        self.client.login(username='admin', password='adminpass123')
+
+    def test_admin_security_logs_page_loads(self):
+        response = self.client.get(reverse('admin_security_logs'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Security & Performance Logs')
+        self.assertContains(response, 'QR Scan')
+        self.assertContains(response, 'OTP Verify Failed')
+
+    def test_admin_security_logs_page_filters_by_outcome(self):
+        response = self.client.get(reverse('admin_security_logs'), {'outcome': 'failed'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'OTP Verify Failed')
+        self.assertNotContains(response, 'valid_scan')

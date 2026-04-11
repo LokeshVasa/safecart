@@ -124,6 +124,9 @@
                 <a href="{% url 'sellerorders' %}" class="btn btn-light text-primary fw-semibold">
                     <i class="bi bi-shop-window me-1"></i> Seller Orders
                 </a>
+                <a href="{% url 'admin_security_logs' %}" class="btn btn-outline-light fw-semibold">
+                    <i class="bi bi-shield-lock me-1"></i> Security Logs
+                </a>
                 <a href="{% url 'home' %}" class="btn btn-outline-light fw-semibold">
                     <i class="bi bi-house-door-fill me-1"></i> Storefront
                 </a>
@@ -209,6 +212,30 @@
                 <div class="stats-icon bg-success-subtle text-success mb-3"><i class="bi bi-patch-check"></i></div>
                 <div class="text-muted small">Verified Deliveries</div>
                 <div class="fs-3 fw-bold">{{ security_stats.successful_deliveries }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-4">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-primary-subtle text-primary mb-3"><i class="bi bi-speedometer2"></i></div>
+                <div class="text-muted small">Avg QR Scan Time</div>
+                <div class="fs-3 fw-bold">{{ security_stats.avg_qr_scan_ms }}ms</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-4">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-info-subtle text-info mb-3"><i class="bi bi-key"></i></div>
+                <div class="text-muted small">Avg OTP Request Time</div>
+                <div class="fs-3 fw-bold">{{ security_stats.avg_otp_request_ms }}ms</div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-warning-subtle text-warning mb-3"><i class="bi bi-shield-lock"></i></div>
+                <div class="text-muted small">Avg OTP Verify Time</div>
+                <div class="fs-3 fw-bold">{{ security_stats.avg_otp_verify_ms }}ms</div>
             </div>
         </div>
     </div>

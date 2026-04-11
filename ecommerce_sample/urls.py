@@ -32,6 +32,7 @@ urlpatterns = [
     path('manage-users/', views.manage_users, name='manage_users'),
     path('redirect-dashboard/', views.dashboard_redirect, name='dashboard_redirect'),
     path('dashboard/admin/', views.admin_dashboard, name='admin_dashboard'),
+    path('dashboard/admin/security-logs/', views.admin_security_logs, name='admin_security_logs'),
     path('dashboard/admin/promote/<int:user_id>/', views.make_delivery_agent, name='promote_user'),
     path('dashboard/admin/promote-seller/<int:user_id>/', views.make_seller, name='promote_seller'),
     path('delivery/dashboard/', views.delivery_dashboard, name='delivery_dashboard'),

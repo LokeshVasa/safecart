@@ -1,3 +1,5 @@
+import time
+
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
@@ -19,6 +21,8 @@ class DeliveryQRAssignmentError(DeliveryQRScanError):
 
 
 def claim_order_from_token(*, token, user):
+    started_at = time.perf_counter()
+
     if not token:
         raise DeliveryQRScanError("No token provided")
 
@@ -33,7 +37,10 @@ def claim_order_from_token(*, token, user):
                     "qr_scan_blocked",
                     actor=user,
                     outcome="blocked",
-                    details={"reason": "assigned_to_another_agent"},
+                    details={
+                        "reason": "assigned_to_another_agent",
+                        "duration_ms": round((time.perf_counter() - started_at) * 1000),
+                    },
                 )
                 raise DeliveryQRAssignmentError("This order is assigned to another delivery agent.")
 
@@ -48,6 +55,7 @@ def claim_order_from_token(*, token, user):
                     details={
                         "reason": str(exc),
                         "security_stage": get_order_security_snapshot(order)["security_stage"],
+                        "duration_ms": round((time.perf_counter() - started_at) * 1000),
                     },
                 )
                 raise DeliveryQRScanError(str(exc)) from exc
@@ -73,6 +81,7 @@ def claim_order_from_token(*, token, user):
                 details={
                     "qr_scan_count": order.qr_scan_count,
                     "security_stage": get_order_security_snapshot(order)["security_stage"],
+                    "duration_ms": round((time.perf_counter() - started_at) * 1000),
                 },
             )
             return order
