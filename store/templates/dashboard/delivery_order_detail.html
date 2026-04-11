@@ -36,6 +36,11 @@
                 <button class="btn btn-secondary position-absolute" style="top: 15px; right: 15px;" disabled>
                     Delivered
                 </button>
+                {% elif allow_mark_delivered %}
+                <form method="post" action="{% url 'mark_order_delivered' order.id %}" class="position-absolute" style="top: 15px; right: 15px;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success">Mark Delivered</button>
+                </form>
                 {% elif allow_request_new_otp %}
                 <button class="btn btn-warning position-absolute" style="top: 15px; right: 15px;"
                     onclick="openHandshake('{{ order.id }}')">
@@ -52,15 +57,41 @@
                 </button>
                 {% endif %}
 
-                <p><strong>User:</strong> {{ order.user.username }}</p>
-                <p><strong>Payment Type:</strong> {{ order.payment_type }}</p>
-                <p><strong>Status:</strong> {{ order.status }}</p>
-                {% if status_note %}
-                <div class="alert alert-warning py-2 px-3 small">
-                    {{ status_note }}
+                  <p><strong>User:</strong> {{ order.user.username }}</p>
+                  <p><strong>Payment Type:</strong> {{ order.payment_type }}</p>
+                  <p>
+                      <strong>Delivery Mode:</strong>
+                      {% if order.delivery_mode == "traditional" %}
+                      <span class="badge bg-secondary text-white">Traditional Delivery</span>
+                      {% else %}
+                      <span class="badge bg-light text-primary">Secure Delivery</span>
+                      {% endif %}
+                  </p>
+                  <p><strong>Status:</strong> {{ order.status }}</p>
+                  {% if security.show_security_badge %}
+                  <p>
+                      <strong>Security Stage:</strong>
+                      <span class="badge text-bg-{{ security.security_badge_variant }}">
+                          {{ security.security_stage_label }}
+                      </span>
+                  </p>
+                  {% endif %}
+                  {% if status_note %}
+                  <div class="alert alert-warning py-2 px-3 small">
+                      {{ status_note }}
+                  </div>
+                  {% endif %}
+                {% if order.delivery_mode == "traditional" %}
+                <div class="alert alert-info py-2 px-3 small">
+                    Traditional delivery: QR + OTP verification is not required for this order.
                 </div>
                 {% endif %}
-                {% if order.expires_at %}
+                {% if order.status == "Delivered" %}
+                <p class="mb-0">
+                    <strong>QR Status:</strong>
+                    <span class="badge rounded-pill text-bg-success">Expired after delivery</span>
+                </p>
+                {% elif order.expires_at and order.delivery_mode != "traditional" %}
                 <p class="mb-0">
                     <strong>QR Validity:</strong>
                     <span id="qrExpiryCountdown"
@@ -125,6 +156,7 @@
         const deliveryDashboardUrl = "{% url 'delivery_dashboard' %}";
         const deliveryRouteUrl = "{% url 'delivery_route_detail' %}?order-id={{ order.id }}";
         const routeOnlyMode = {% if route_only %}true{% else %}false{% endif %};
+        const isTraditionalOrder = {% if order.delivery_mode == "traditional" %}true{% else %}false{% endif %};
         const handshakeButtonLabel = routeOnlyMode ? "Request New OTP" : "Verify OTP";
         const handshakeCompletionDelayMs = 1800;
         let handshakeStatusPoll = null;
@@ -233,7 +265,9 @@
             }, 1000);
         }
 
-        startQrExpiryCountdown();
+        if (!isTraditionalOrder) {
+            startQrExpiryCountdown();
+        }
 
         /* =====================================================
            MODAL OPEN / CLOSE
@@ -633,10 +667,20 @@
             var markerEl = marker.getElement();
             if (!markerEl) return;
 
-            var normalizedHeading = heading + markerHeadingOffset;
+            var targetHeading = heading + markerHeadingOffset;
+            var previousDisplayHeading = parseFloat(markerEl.dataset.displayHeading || "");
+            var normalizedHeading = targetHeading;
+
+            if (!Number.isNaN(previousDisplayHeading)) {
+                var headingDelta = targetHeading - previousDisplayHeading;
+                headingDelta = ((headingDelta + 540) % 360) - 180;
+                normalizedHeading = previousDisplayHeading + headingDelta;
+            }
+
             var baseTransform = markerEl.style.transform || "";
             baseTransform = baseTransform.replace(/\srotate\([^)]*\)/g, "");
             markerEl.style.transform = `${baseTransform} rotate(${normalizedHeading}deg)`;
+            markerEl.dataset.displayHeading = String(normalizedHeading);
             lastMarkerHeading = heading;
         }
 
@@ -711,6 +755,26 @@
                 }).addTo(map);
             } else {
                 remainingRouteLine.setLatLngs(remainingCoords);
+            }
+        }
+
+        function followAgentOnMap(latLng, force) {
+            if (!latLng) return;
+
+            var mapCenter = map.getCenter();
+            var distanceFromCenter = distanceMeters(
+                mapCenter.lat,
+                mapCenter.lng,
+                latLng.lat,
+                latLng.lng
+            );
+
+            if (force || distanceFromCenter >= 5) {
+                map.panTo(latLng, {
+                    animate: true,
+                    duration: 0.8,
+                    easeLinearity: 0.2
+                });
             }
         }
 
@@ -904,6 +968,7 @@
                 deliveryMarker = L.marker(agentLocation, { icon: deliveryAgentIcon })
                     .addTo(map)
                     .bindPopup("Delivery Agent");
+                followAgentOnMap(agentLocation, true);
                 if (destinationLat !== 0 && destinationLng !== 0) {
                     heading = bearingDegrees(
                         agentLocation.lat,
@@ -931,6 +996,7 @@
                     }
                 }
                 deliveryMarker.setLatLng(agentLocation);
+                followAgentOnMap(agentLocation, false);
             }
 
             if (heading !== null) {

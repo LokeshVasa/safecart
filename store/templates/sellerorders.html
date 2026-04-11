@@ -170,6 +170,9 @@
                                 <div>
                                     <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
                                     <strong>#{{ order.id }}</strong>
+                                    <div class="mt-2">
+                                        <span class="badge bg-light text-primary">{{ order.delivery_mode_label }}</span>
+                                    </div>
                                 </div>
                                 <span class="badge {% if order.status == 'Delivered' %}bg-success{% elif order.status == 'Cancelled' %}bg-danger{% elif order.status == 'Shipped' %}bg-info text-dark{% elif order.status == 'Packed' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ order.status|default:"Confirmed" }}</span>
                             </div>
@@ -209,6 +212,17 @@
                                 {% else %}
                                 <button class="btn btn-outline-secondary" disabled>Print QR</button>
                                 {% endif %}
+                                {% if perms.store.can_perform_admin_actions %}
+                                <button type="button"
+                                        class="btn btn-outline-primary"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#deliveryModeConfirmModal"
+                                        data-order-id="{{ order.id }}"
+                                        data-order-mode="{{ order.delivery_mode }}"
+                                        {% if order.status == 'Shipped' or order.status == 'Delivered' %}disabled{% endif %}>
+                                    Switch to {% if order.delivery_mode == 'secure' %}Traditional{% else %}Secure{% endif %}
+                                </button>
+                                {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -225,6 +239,32 @@
     </div>
 </section>
 
+{% if perms.store.can_perform_admin_actions %}
+<div class="modal fade" id="deliveryModeConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header border-0">
+                <h5 class="modal-title">Confirm Delivery Mode Switch</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-0">
+                <p class="mb-2" id="deliveryModeConfirmText"></p>
+                <div class="small text-muted">
+                    Switching back to Secure resets the QR session so the agent must rescan.
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" id="deliveryModeConfirmForm">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary">Confirm Switch</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script>
 function printLabel(orderId) {
     var printableContent = document.getElementById('printable-' + orderId);
@@ -239,6 +279,38 @@ function printLabel(orderId) {
     printWindow.print();
     printWindow.close();
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    const modal = document.getElementById("deliveryModeConfirmModal");
+    if (!modal) return;
+
+    modal.addEventListener("show.bs.modal", (event) => {
+        const trigger = event.relatedTarget;
+        if (!trigger) return;
+        const orderId = trigger.getAttribute("data-order-id");
+        const currentMode = trigger.getAttribute("data-order-mode");
+        const nextMode = currentMode === "secure" ? "Traditional" : "Secure";
+
+        const form = document.getElementById("deliveryModeConfirmForm");
+        const text = document.getElementById("deliveryModeConfirmText");
+        if (form) {
+            form.setAttribute("action", `/sellerorders/${orderId}/toggle-delivery-mode/`);
+        }
+        if (text) {
+            text.textContent = `Switch this order to ${nextMode} delivery?`;
+        }
+    });
+
+    const alerts = document.querySelectorAll(".alert");
+    if (alerts.length) {
+        setTimeout(() => {
+            alerts.forEach((alertEl) => {
+                const bsAlert = bootstrap.Alert.getOrCreateInstance(alertEl);
+                bsAlert.close();
+            });
+        }, 2500);
+    }
+});
 </script>
 
 {% endblock %}

@@ -1,13 +1,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from .models import Product, Category, Cart, Wishlist, PasswordReset
+from .models import Product, Cart, Wishlist
 import logging
 from .forms import RegisterForm, ForgotPasswordForm
-from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth import login, logout
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.conf import settings
-from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
 from django.db.models import Count, Q
@@ -18,68 +16,56 @@ from .models import Address
 from .forms import AddressForm
 from .models import Order, OrderItem, DeliveryAgent, OrderCallSession, OrderCallSignal
 import uuid
-from datetime import timedelta
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required, permission_required
 from .utils import geocode_address
 from geopy.geocoders import Nominatim
 from django.db import IntegrityError
-from django.db import transaction
-from django.templatetags.static import static
-import random
-import hashlib
-from .models import OrderOTP
-from .utils import encrypt_value, decrypt_value
+from .services import (
+    AuthServiceError,
+    DeliveryAccessError,
+    DeliveryQRScanError,
+    OTPAccessError,
+    OTPValidationError,
+    ProfileUpdateError,
+    authenticate_user_by_identifier,
+    build_home_context,
+    build_product_page_context,
+    build_customer_orders_context,
+    build_delivery_comparison_context,
+    build_delivery_dashboard_context,
+    build_security_logs_context,
+    build_security_overview_context,
+    build_seller_orders_context,
+    claim_order_from_token,
+    create_password_reset_request,
+    get_order_otp_payload,
+    get_order_security_snapshot,
+    log_security_event,
+    get_or_create_order_otp_payload,
+    get_post_login_redirect_name,
+    password_reset_exists,
+    register_buyer_user,
+    remove_profile_photo,
+    reset_password_with_token,
+    update_profile_photo,
+    validate_delivery_agent_order_access,
+    verify_order_otp as verify_order_otp_service,
+)
 import json
 from django.views.decorators.http import require_GET
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # -------------------- PRODUCT & HOME --------------------
 
 def product(request):
-    category = (request.GET.get('category', 'men') or 'men').strip().lower()
-    category_object = get_object_or_404(Category, category__iexact=category)
-    products = Product.objects.filter(category__iexact=category)
-    return render(request, "product.html", {
-        "products": products,
-        "heading": category_object.heading,
-        "description": category_object.description,
-        "category": category_object.category
-    })
+    context = build_product_page_context(request.GET.get('category', 'men'))
+    return render(request, "product.html", context)
 
 def home(request):
-    categories = list(Category.objects.all())
-    featured_products = Product.objects.order_by('-created_at')[:8]
-    hero_categories = categories[:3]
-    static_images_dir = Path(settings.BASE_DIR) / "static" / "images"
-    hero_slides = []
-
-    for category in hero_categories:
-        category_slug = category.category.strip().lower().replace(" ", "-")
-        static_image_src = None
-
-        for extension in ("webp", "jpg", "jpeg", "png"):
-            candidate_name = f"hero-{category_slug}.{extension}"
-            candidate_path = static_images_dir / candidate_name
-            if candidate_path.exists():
-                static_image_src = static(f"images/{candidate_name}")
-                break
-
-        hero_slides.append({
-            "category": category.category,
-            "category_param": category.category.strip().lower(),
-            "heading": category.heading,
-            "description": category.description,
-            "image_src": static_image_src or category.image.url,
-        })
-
-    return render(request, 'home.html', {
-        "categories": categories,
-        "hero_categories": hero_slides,
-        "featured_products": featured_products,
-    })
+    context = build_home_context()
+    return render(request, 'home.html', context)
 
 # -------------------- PROFILE & WISHLIST --------------------
 
@@ -87,23 +73,16 @@ def home(request):
 def profile(request):
     if request.method == "POST":
         if request.POST.get("action") == "remove_photo":
-            request.user.profile_image = None
-            request.user.save(update_fields=["profile_image"])
+            remove_profile_photo(request.user)
             messages.success(request, "Profile photo removed.")
             return redirect("profile")
 
-        uploaded_photo = request.FILES.get("profile_photo")
-
-        if not uploaded_photo:
-            messages.error(request, "Please choose an image before uploading.")
+        try:
+            update_profile_photo(request.user, request.FILES.get("profile_photo"))
+        except ProfileUpdateError as exc:
+            messages.error(request, str(exc))
             return redirect("profile")
 
-        if not uploaded_photo.content_type or not uploaded_photo.content_type.startswith("image/"):
-            messages.error(request, "Only image files are allowed for profile photos.")
-            return redirect("profile")
-
-        request.user.profile_image = uploaded_photo.read()
-        request.user.save(update_fields=["profile_image"])
         messages.success(request, "Profile photo updated successfully.")
         return redirect("profile")
 
@@ -113,10 +92,6 @@ def profile(request):
 def wishlist_view(request):
     wishlist_items = Wishlist.objects.filter(user=request.user).select_related('product')
     return render(request, 'wishlist.html', {'wishlist_items': wishlist_items})
-
-@login_required
-def yourorders(request):
-    return render(request, 'yourorders.html')
 
 def clear_data(request):
     return render(request, 'clear_data.html')
@@ -210,9 +185,7 @@ def RegisterView(request):
     if request.method == "POST":
         form = RegisterForm(request.POST)
         if form.is_valid():
-            user = form.save()
-            buyer_group, _ = Group.objects.get_or_create(name='Buyer')
-            user.groups.add(buyer_group)
+            user = register_buyer_user(form)
             login(request, user)
             messages.success(request, f"Welcome, {user.first_name}! Your account is ready.")
             return redirect('home')
@@ -225,27 +198,11 @@ def LoginView(request):
         identifier = request.POST.get("username")
         password = request.POST.get("password")
 
-        user = None
-        if User.objects.filter(email=identifier).exists():
-            try:
-                user_obj = User.objects.get(email=identifier)
-                user = authenticate(request, username=user_obj.username, password=password)
-            except User.DoesNotExist:
-                pass
-        else:
-            user = authenticate(request, username=identifier, password=password)
+        user = authenticate_user_by_identifier(request, identifier, password)
 
         if user is not None:
             login(request, user)
-                # Role-based redirect
-            if user.is_superuser or user.groups.filter(name='Admin').exists():
-                return redirect('admin_dashboard')
-            elif user.groups.filter(name='Seller').exists():
-                return redirect('sellerorders')
-            elif user.groups.filter(name='DeliveryAgent').exists():
-                return redirect('delivery_dashboard')
-            else:  # Buyer or new user
-                return redirect('home')
+            return redirect(get_post_login_redirect_name(user))
         else:
             messages.error(request, "Invalid login credentials")
             return redirect('login')
@@ -260,34 +217,21 @@ def ForgotPassword(request):
     if request.method == "POST":
         email = request.POST.get('email')
         try:
-            user = User.objects.get(email=email)
-            new_password_reset = PasswordReset(user=user)
-            new_password_reset.save()
-
-            password_reset_url = reverse('reset-password', kwargs={'reset_id': new_password_reset.reset_id})
-            full_password_reset_url = f'{request.scheme}://{request.get_host()}{password_reset_url}'
-
-            email_body = f'Reset your password using the link below:\n\n\n{full_password_reset_url}'
-            email_message = EmailMessage(
-                'Reset your password',
-                email_body,
-                settings.EMAIL_HOST_USER,
-                [email]
+            password_reset = create_password_reset_request(
+                email=email,
+                scheme=request.scheme,
+                host=request.get_host(),
             )
-            email_message.fail_silently = True
-            email_message.send()
-
-            return redirect('password-reset-sent', reset_id=new_password_reset.reset_id)
-
-        except User.DoesNotExist:
-            messages.error(request, f"No user with email '{email}' found")
+            return redirect('password-reset-sent', reset_id=password_reset.reset_id)
+        except AuthServiceError as exc:
+            messages.error(request, str(exc))
             return redirect('forgot-password')
 
     form = ForgotPasswordForm()
     return render(request, 'registration/forgot_password.html', {'form': form})
 
 def PasswordResetSent(request, reset_id):
-    if PasswordReset.objects.filter(reset_id=reset_id).exists():
+    if password_reset_exists(reset_id):
         return render(request, 'registration/password_reset_sent.html')
     else:
         messages.error(request, 'Invalid reset id')
@@ -295,38 +239,23 @@ def PasswordResetSent(request, reset_id):
 
 def ResetPassword(request, reset_id):
     try:
-        password_reset_id = PasswordReset.objects.get(reset_id=reset_id)
-
         if request.method == "POST":
             password = request.POST.get('password')
             confirm_password = request.POST.get('confirm_password')
-            passwords_have_error = False
+            result = reset_password_with_token(
+                reset_id=reset_id,
+                password=password,
+                confirm_password=confirm_password,
+            )
 
-            if password != confirm_password:
-                passwords_have_error = True
-                messages.error(request, 'Passwords do not match')
-
-            if len(password) < 5:
-                passwords_have_error = True
-                messages.error(request, 'Password must be at least 5 characters long')
-
-            expiration_time = password_reset_id.created_when + timezone.timedelta(minutes=10)
-            if timezone.now() > expiration_time:
-                passwords_have_error = True
-                messages.error(request, 'Reset link has expired')
-                password_reset_id.delete()
-
-            if not passwords_have_error:
-                user = password_reset_id.user
-                user.set_password(password)
-                user.save()
-                password_reset_id.delete()
+            if result["success"]:
                 messages.success(request, 'Password reset. Proceed to login')
                 return redirect('login')
-            else:
-                return redirect('reset-password', reset_id=reset_id)
+            for error in result["errors"]:
+                messages.error(request, error)
+            return redirect('reset-password', reset_id=reset_id)
 
-    except PasswordReset.DoesNotExist:
+    except AuthServiceError:
         messages.error(request, 'Invalid reset id')
         return redirect('forgot-password')
 
@@ -789,6 +718,7 @@ def proceed_to_checkout(request):
         user=request.user,
         address=address,
         payment_type="COD",
+        delivery_mode="secure",
         token_value=str(uuid.uuid4()),
         expires_at=None,
         status="Pending"
@@ -813,60 +743,8 @@ def proceed_to_checkout(request):
 
 @login_required
 def yourorders(request):
-    orders = Order.objects.filter(user=request.user).order_by('-created_at')
-    status_priority = {
-        'Pending': 0,
-        'Packed': 1,
-        'Shipped': 2,
-        'Delivered': 3,
-        'Cancelled': 4,
-    }
-
-    # Prepare orders with items
-    orders_with_details = []
-    for order in orders:
-        items = []
-        for item in order.items.all():  # related_name='items' in OrderItem
-            items.append({
-                'name': item.product.name,
-                'image': item.product.image,
-                'quantity': item.quantity,
-                'price': item.price,
-            })
-        total_amount = sum(i['price'] * i['quantity'] for i in items)
-        expected_delivery = order.created_at + timedelta(days=5)  # example 5 days delivery
-        orders_with_details.append({
-            'id': order.id,
-            'status': order.status,
-            'date': order.created_at,
-            'items': items,
-            'total_amount': total_amount,
-            'expected_delivery': expected_delivery,
-            'address': order.address,
-            'can_track': (
-                order.status in ['Packed', 'Shipped']
-                and order.delivery_agent_id is not None
-            ),
-            'can_call': (
-                order.status in ['Packed', 'Shipped']
-                and order.delivery_agent_id is not None
-            ),
-            'can_handshake': (
-                order.status in ['Pending', 'Packed', 'Shipped']
-                and order.delivery_agent_id is not None
-            ),
-            'can_cancel': order.status in ['Pending', 'Packed'],
-            'created_at': order.created_at,
-        })
-
-    orders_with_details.sort(
-        key=lambda order: (
-            status_priority.get(order['status'], 99),
-            -order['created_at'].timestamp()
-        )
-    )
-
-    return render(request, 'yourorders.html', {'orders': orders_with_details})
+    context = build_customer_orders_context(request.user)
+    return render(request, 'yourorders.html', context)
 
 
 @login_required
@@ -886,58 +764,48 @@ def cancel_order(request, order_id):
 @login_required
 @permission_required('store.can_view_seller_orders', raise_exception=True)
 def sellerorders(request):
-    # Adjust the filtering below for what a "seller" should see (e.g., all orders or only for their products)
-    orders = Order.objects.all().order_by('-created_at')
-    status_priority = {
-        'Pending': 0,
-        'Packed': 1,
-        'Shipped': 2,
-        'Delivered': 3,
-        'Cancelled': 4,
-    }
-    orders_with_details = []
-    for order in orders:
-        items = []
-        for item in order.items.all():
-            items.append({
-                'name': item.product.name,
-                'image': item.product.image,
-                'quantity': item.quantity,
-                'price': item.price,
-            })
-        total_amount = sum(i['price'] * i['quantity'] for i in items)
-        expected_delivery = order.created_at + timedelta(days=5)
-        orders_with_details.append({
-            'id': order.id,
-            'status': order.status,
-            'date': order.created_at,
-            'items': items,
-            'total_amount': total_amount,
-            'expected_delivery': expected_delivery,
-            'pincode': order.address.pincode,
-            'token_': order.token_value,  # Ensure your Order model has token_value
-            'can_print_qr': order.status in ['Pending', 'Packed', 'Shipped'],
-            'created_at': order.created_at,
-        })
+    context = build_seller_orders_context()
+    return render(request, 'sellerorders.html', context)
 
-    orders_with_details.sort(
-        key=lambda order: (
-            status_priority.get(order['status'], 99),
-            -order['created_at'].timestamp()
-        )
+
+@login_required
+@permission_required('store.can_perform_admin_actions', raise_exception=True)
+@require_POST
+def toggle_delivery_mode(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    if order.status in ["Shipped", "Delivered"]:
+        messages.warning(request, "Delivery mode cannot be changed once the order is shipped or delivered.")
+        return redirect("sellerorders")
+
+    new_mode = "traditional" if order.delivery_mode == "secure" else "secure"
+    update_fields = ["delivery_mode"]
+
+    if new_mode == "traditional" and order.delivery_agent_id is None:
+        agent = DeliveryAgent.objects.order_by("?").first()
+        if agent:
+            order.delivery_agent = agent
+            update_fields.append("delivery_agent")
+        else:
+            messages.error(request, "No delivery agents available to assign for traditional delivery.")
+            return redirect("sellerorders")
+    elif new_mode == "secure":
+        # Reset assignment/QR session so secure flow starts fresh.
+        order.delivery_agent = None
+        order.qr_scan_count = 0
+        order.expires_at = None
+        update_fields.extend(["delivery_agent", "qr_scan_count", "expires_at"])
+
+    order.delivery_mode = new_mode
+    order.save(update_fields=update_fields)
+    log_security_event(
+        order,
+        "delivery_mode_switched",
+        actor=request.user,
+        outcome="success",
+        details={"new_mode": new_mode},
     )
-
-    stats = {
-        'total_orders': len(orders_with_details),
-        'pending_orders': sum(1 for order in orders_with_details if order['status'] == 'Pending'),
-        'active_orders': sum(1 for order in orders_with_details if order['status'] in ['Packed', 'Shipped']),
-        'delivered_orders': sum(1 for order in orders_with_details if order['status'] == 'Delivered'),
-    }
-
-    return render(request, 'sellerorders.html', {
-        'orders': orders_with_details,
-        'stats': stats,
-    })
+    messages.success(request, f"Order {order.id} updated to {order.get_delivery_mode_display()}.")
+    return redirect("sellerorders")
 
 @login_required
 @permission_required('store.can_perform_admin_actions', raise_exception=True)
@@ -1011,6 +879,9 @@ def admin_dashboard(request):
         for u in users
     ]
 
+    security_context = build_security_overview_context()
+    comparison_context = build_delivery_comparison_context()
+
     context = {
         'total_users': total_users,
         'total_buyers': total_buyers,
@@ -1019,95 +890,53 @@ def admin_dashboard(request):
         'total_products': total_products,
         'total_orders': total_orders,
         'users_info': users_info,
+        **security_context,
+        **comparison_context,
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
 
 @login_required
+@permission_required('store.can_perform_admin_actions', raise_exception=True)
+def admin_security_logs(request):
+    context = build_security_logs_context(
+        event_type=request.GET.get("event_type", "").strip(),
+        outcome=request.GET.get("outcome", "").strip(),
+        order_id=request.GET.get("order_id", "").strip(),
+        delivery_mode=request.GET.get("delivery_mode", "").strip(),
+    )
+    return render(request, 'dashboard/admin_security_logs.html', context)
+
+
+@login_required
 @permission_required('store.can_deliver_order', raise_exception=True)
 def delivery_dashboard(request):
-    assigned_orders_qs = (
-        Order.objects.filter(delivery_agent__user=request.user)
-        .select_related('user', 'address')
-        .order_by('-created_at')
-    )
-
-    assigned_orders = []
-    for order in assigned_orders_qs:
-        remaining_seconds = None
-        if order.expires_at and order.qr_scan_count > 0:
-            remaining_seconds = max(
-                0,
-                int((order.expires_at - timezone.now()).total_seconds())
-            )
-
-        assigned_orders.append({
-            'id': order.id,
-            'customer_name': order.user.username,
-            'status': order.status,
-            'pincode': order.address.pincode,
-            'created_at': order.created_at,
-            'qr_scan_count': order.qr_scan_count,
-            'remaining_scans': max(0, Order.DELIVERY_QR_MAX_SCANS - order.qr_scan_count),
-            'expires_at': order.expires_at,
-            'remaining_seconds': remaining_seconds,
-            'is_expired': order.delivery_qr_is_expired(),
-            'can_open_order': order.status not in ['Delivered', 'Cancelled'] and not order.delivery_qr_is_expired(),
-            'can_view_route': order.status not in ['Delivered', 'Cancelled'] and order.delivery_qr_is_expired(),
-        })
-
-    stats = {
-        'assigned_count': len(assigned_orders),
-        'active_count': sum(1 for order in assigned_orders if order['status'] not in ['Delivered', 'Cancelled']),
-        'delivered_count': sum(1 for order in assigned_orders if order['status'] == 'Delivered'),
-        'available_count': Order.objects.filter(delivery_agent__isnull=True).exclude(
-            status__in=['Delivered', 'Cancelled']
-        ).count(),
-        'qr_expiry_hours': Order.DELIVERY_QR_EXPIRY_HOURS,
-        'qr_max_scans': Order.DELIVERY_QR_MAX_SCANS,
-    }
-
-    return render(
-        request,
-        'dashboard/delivery_dashboard.html',
-        {
-            'assigned_orders': assigned_orders[:8],
-            'stats': stats,
-        }
-    )
+    context = build_delivery_dashboard_context(request.user)
+    return render(request, 'dashboard/delivery_dashboard.html', context)
 
 
 @login_required
 @permission_required('store.can_deliver_order', raise_exception=True)
 def mark_order_delivered(request, order_id):
     order = get_object_or_404(Order, id=order_id)
+    if order.delivery_mode != "traditional":
+        messages.error(request, "Only traditional delivery orders can be marked delivered without OTP.")
+        return redirect('delivery_dashboard')
     order.status = 'Delivered'
-    order.save()
+    order.expires_at = timezone.now()
+    order.save(update_fields=['status', 'expires_at'])
     messages.success(request, f"Order {order.id} marked as delivered.")
     return redirect('delivery_dashboard')
 
-
-def _get_delivery_agent_for_request(user):
-    return get_object_or_404(DeliveryAgent, user=user)
-
-
-def _validate_agent_order_access(request, order):
-    delivery_agent = _get_delivery_agent_for_request(request.user)
-    if order.delivery_agent_id != delivery_agent.id:
-        messages.error(request, "This order is assigned to another delivery agent.")
-        return None, redirect('delivery_dashboard')
-    if order.status in ['Delivered', 'Cancelled']:
-        messages.warning(request, f"This order is already {order.status.lower()}.")
-        return None, redirect('delivery_dashboard')
-    return delivery_agent, None
-
-
 def _render_delivery_order_page(request, order, *, route_only=False):
+    security = get_order_security_snapshot(order)
     return render(request, 'dashboard/delivery_order_detail.html', {
         'order': order,
+        'security': security,
         'route_only': route_only,
-        'allow_handoff_actions': not route_only,
+        'allow_handoff_actions': not route_only and order.delivery_mode != "traditional",
         'allow_request_new_otp': route_only and order.status not in ['Delivered', 'Cancelled'],
+        'allow_mark_delivered': order.delivery_mode == "traditional" and order.status not in ['Delivered', 'Cancelled'],
         'page_heading': 'Route View' if route_only else 'Order Details',
         'status_note': (
             "QR expired. Route is still available and you can request a fresh OTP to complete delivery."
@@ -1164,10 +993,12 @@ def manage_users(request):
 def delivery_order_detail(request):
     order_id = request.GET.get('order-id')
     order = get_object_or_404(Order, id=order_id)
-    _, failure_response = _validate_agent_order_access(request, order)
-    if failure_response:
-        return failure_response
-    if order.delivery_qr_is_expired():
+    try:
+        validate_delivery_agent_order_access(order, request.user)
+    except DeliveryAccessError as exc:
+        getattr(messages, exc.level)(request, str(exc))
+        return redirect('delivery_dashboard')
+    if order.delivery_mode != "traditional" and order.delivery_qr_is_expired():
         messages.warning(request, "This QR code has expired. Route view is still available.")
         return redirect(f"{reverse('delivery_route_detail')}?order-id={order.id}")
 
@@ -1179,9 +1010,14 @@ def delivery_order_detail(request):
 def delivery_route_detail(request):
     order_id = request.GET.get('order-id')
     order = get_object_or_404(Order, id=order_id)
-    _, failure_response = _validate_agent_order_access(request, order)
-    if failure_response:
-        return failure_response
+    try:
+        validate_delivery_agent_order_access(order, request.user)
+    except DeliveryAccessError as exc:
+        getattr(messages, exc.level)(request, str(exc))
+        return redirect('delivery_dashboard')
+    if order.delivery_mode == "traditional":
+        messages.info(request, "Traditional delivery uses the full order view.")
+        return redirect(f"{reverse('delivery_order_detail')}?order-id={order.id}")
     if not order.delivery_qr_is_expired():
         messages.info(request, "This order still has an active QR window. Opening the full order view.")
         return redirect(f"{reverse('delivery_order_detail')}?order-id={order.id}")
@@ -1193,36 +1029,15 @@ def delivery_route_detail(request):
 @require_GET
 def get_order_by_token(request):
     token = (request.GET.get('token') or '').strip()
-    if not token:
-        return JsonResponse({'success': False, 'error': 'No token provided'})
-
     try:
-        with transaction.atomic():
-            order = Order.objects.select_for_update().get(token_value=token)
-            delivery_agent, _ = DeliveryAgent.objects.get_or_create(user=request.user)
-
-            if order.delivery_agent_id is not None and order.delivery_agent_id != delivery_agent.id:
-                return JsonResponse({'success': False, 'error': 'This order is assigned to another delivery agent.'}, status=403)
-
-            qr_error = order.get_delivery_qr_block_reason()
-            if qr_error:
-                return JsonResponse({'success': False, 'error': qr_error}, status=400)
-
-            order.register_delivery_qr_scan()
-
-            update_fields = ['qr_scan_count', 'expires_at']
-
-            if order.delivery_agent_id is None:
-                order.delivery_agent = delivery_agent
-                update_fields.append('delivery_agent')
-
-            if order.status in ['Pending', 'Packed']:
-                order.status = 'Shipped'
-                update_fields.append('status')
-
-            order.save(update_fields=update_fields)
-
-        return JsonResponse({'success': True, 'order_id': order.id})
+        order = claim_order_from_token(token=token, user=request.user)
+        return JsonResponse({
+            'success': True,
+            'order_id': order.id,
+            'security': get_order_security_snapshot(order),
+        })
+    except DeliveryQRScanError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=exc.status_code)
     except Order.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Order not found'})
 
@@ -1231,191 +1046,57 @@ def get_order_by_token(request):
 def generate_order_otp(request, order_id):
 
     order = get_object_or_404(Order, id=order_id)
-
-    if request.user.groups.filter(name="DeliveryAgent").exists():
-        delivery_agent = DeliveryAgent.objects.filter(user=request.user).first()
-        if not delivery_agent or order.delivery_agent_id != delivery_agent.id:
-            return JsonResponse({
-                "success": False,
-                "error": "You can only request OTP for your assigned order."
-            }, status=403)
-    elif order.user_id != request.user.id:
+    try:
+        payload = get_or_create_order_otp_payload(order, request.user)
+    except (OTPAccessError, OTPValidationError) as exc:
         return JsonResponse({
             "success": False,
-            "error": "You are not allowed to request OTP for this order."
-        }, status=403)
-
-    # ❌ prevent OTP if already delivered
-    if order.status == "Delivered":
-        return JsonResponse({
-            "success": False,
-            "error": "Order already delivered"
-        })
-
-    # check existing OTP
-    otp_obj = OrderOTP.objects.filter(order=order).first()
-
-    if otp_obj and otp_obj.is_active and not otp_obj.is_expired():
-        return JsonResponse({
-            "success": True,
-            "agent_half": decrypt_value(otp_obj.enc_agent_half),
-            "customer_half": decrypt_value(otp_obj.enc_customer_half),
-            "customer_verified": otp_obj.customer_verified,
-            "agent_verified": otp_obj.agent_verified
-        })
-
-    # generate new OTP
-    otp = str(random.randint(10000000, 99999999))
-
-    customer_half = otp[:4]
-    agent_half = otp[4:]
-
-    hashed = hashlib.sha256(otp.encode()).hexdigest()
-
-    OrderOTP.objects.update_or_create(
-    order=order,
-    defaults={
-        "otp_hash": hashed,
-        "enc_customer_half": encrypt_value(customer_half),
-        "enc_agent_half": encrypt_value(agent_half),
-        "expires_at": timezone.now() + timedelta(minutes=10),
-        "is_active": True,
-        "attempts": 0,
-        "customer_verified": False,
-        "agent_verified": False
-    }
-)
-
-    print(f"Generated OTP for order {order.id}: {otp}")
+            "error": str(exc)
+        }, status=exc.status_code)
 
     return JsonResponse({
-    "success": True,
-    "agent_half": agent_half,
-    "customer_half": customer_half,
-    "customer_verified": otp_obj.customer_verified if otp_obj else False,
-    "agent_verified": otp_obj.agent_verified if otp_obj else False
-})
+        "success": True,
+        "security": get_order_security_snapshot(order),
+        **payload,
+    })
 
 @login_required
 @require_POST
 def verify_otp(request, order_id):
 
-    MAX_ATTEMPTS = 5
-
     order = get_object_or_404(Order, id=order_id)
 
-    try:
-        otp_obj = order.otp
-    except OrderOTP.DoesNotExist:
-        return JsonResponse({"success": False, "error": "OTP not found"})
-
-    # OTP expired
-    if otp_obj.is_expired():
-        otp_obj.is_active = False
-        otp_obj.save(update_fields=["is_active"])
-        return JsonResponse({"success": False, "error": "OTP expired"})
-
-    # Too many attempts
-    if otp_obj.attempts >= MAX_ATTEMPTS:
-        otp_obj.is_active = False
-        otp_obj.save(update_fields=["is_active"])
-        return JsonResponse({
-            "success": False,
-            "error": "Maximum attempts exceeded. Generate a new OTP."
-        })
-
     data = json.loads(request.body)
-
-    customer_half = data.get("customer_half")
-    agent_half = data.get("agent_half")
-
-    if not customer_half or not agent_half:
-        return JsonResponse({"success": False, "error": "Invalid OTP format"})
-
-    full_otp = customer_half + agent_half
-    hashed = hashlib.sha256(full_otp.encode()).hexdigest()
-
-    # WRONG OTP
-    if hashed != otp_obj.otp_hash:
-
-        otp_obj.attempts += 1
-        otp_obj.save(update_fields=["attempts"])
-
-        remaining = MAX_ATTEMPTS - otp_obj.attempts
-
-        return JsonResponse({
-            "success": False,
-            "remaining_attempts": remaining
-        })
-
-    # CORRECT OTP
-    user = request.user
-
-    if user.groups.filter(name="DeliveryAgent").exists():
-        otp_obj.agent_verified = True
-    else:
-        otp_obj.customer_verified = True
-
-    otp_obj.save(update_fields=["agent_verified", "customer_verified"])
-
-    # BOTH VERIFIED
-    order_delivered = False
-
-    if otp_obj.agent_verified and otp_obj.customer_verified:
-
-        otp_obj.is_active = False
-        otp_obj.save(update_fields=["is_active"])
-
-        order.status = "Delivered"
-        order.save(update_fields=["status"])
-        order_delivered = True
+    try:
+        result = verify_order_otp_service(
+            order,
+            request.user,
+            customer_half=data.get("customer_half"),
+            agent_half=data.get("agent_half"),
+        )
+    except OTPValidationError as exc:
+        return JsonResponse({"success": False, "error": str(exc)}, status=exc.status_code)
 
     return JsonResponse({
-        "success": True,
-        "order_status": order.status,
-        "order_delivered": order_delivered,
+        **result,
+        "security": get_order_security_snapshot(order),
     })
 
 @login_required
 def get_order_otp_halves(request, order_id):
     order = get_object_or_404(Order, id=order_id)
-
-    is_customer = order.user_id == request.user.id
-    is_assigned_agent = (
-        order.delivery_agent is not None
-        and order.delivery_agent.user_id == request.user.id
-    )
-    if not (is_customer or is_assigned_agent):
+    try:
+        payload = get_order_otp_payload(order, request.user)
+    except (OTPAccessError, OTPValidationError) as exc:
         return JsonResponse({
             "success": False,
-            "error": "You are not allowed to access this order OTP."
-        }, status=403)
-
-    if order.status == 'Cancelled':
-        return JsonResponse({
-            "success": False,
-            "error": "Safe Handshake is unavailable for cancelled orders."
-        }, status=400)
-
-    otp_obj = OrderOTP.objects.filter(order=order).first()
-
-    if not otp_obj:
-        return JsonResponse({
-            "success": False,
-            "error": "OTP not generated"
-        })
-
-    customer_half = decrypt_value(otp_obj.enc_customer_half)
-    agent_half = decrypt_value(otp_obj.enc_agent_half)
+            "error": str(exc)
+        }, status=exc.status_code)
 
     return JsonResponse({
         "success": True,
-        "customer_half": customer_half,
-        "agent_half": agent_half,
-        "customer_verified": otp_obj.customer_verified,
-        "agent_verified": otp_obj.agent_verified,
-        "order_status": order.status,
-        "order_delivered": order.status == "Delivered",
+        "security": get_order_security_snapshot(order),
+        **payload,
     })
 
 # Render customer tracking map

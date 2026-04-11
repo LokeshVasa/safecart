@@ -1,6 +1,5 @@
 from django.contrib import admin
 from django.urls import path
-from store.views import product, cart, clear_data, profile, home, yourorders
 from store import views
 
 urlpatterns = [
@@ -30,9 +29,12 @@ urlpatterns = [
     path("proceed-to-checkout/", views.proceed_to_checkout, name="proceed_to_checkout"),
     path("cart/change/<int:product_id>/", views.change_quantity, name="change_quantity"),
     path('sellerorders/', views.sellerorders, name='sellerorders'),
+    path('sellerorders/<int:order_id>/toggle-delivery-mode/', views.toggle_delivery_mode, name='toggle_delivery_mode'),
+    path('sellerorders/<int:order_id>/toggle-delivery-mode/', views.toggle_delivery_mode, name='toggle_delivery_mode'),
     path('manage-users/', views.manage_users, name='manage_users'),
     path('redirect-dashboard/', views.dashboard_redirect, name='dashboard_redirect'),
     path('dashboard/admin/', views.admin_dashboard, name='admin_dashboard'),
+    path('dashboard/admin/security-logs/', views.admin_security_logs, name='admin_security_logs'),
     path('dashboard/admin/promote/<int:user_id>/', views.make_delivery_agent, name='promote_user'),
     path('dashboard/admin/promote-seller/<int:user_id>/', views.make_seller, name='promote_seller'),
     path('delivery/dashboard/', views.delivery_dashboard, name='delivery_dashboard'),

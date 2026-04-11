@@ -103,6 +103,10 @@ class Address(models.Model):
 class Order(models.Model):
     DELIVERY_QR_EXPIRY_HOURS = 1
     DELIVERY_QR_MAX_SCANS = 2
+    DELIVERY_MODE_CHOICES = [
+        ("secure", "SafeCart Secure"),
+        ("traditional", "Traditional Delivery"),
+    ]
 
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
@@ -115,6 +119,11 @@ class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     address = models.ForeignKey(Address, on_delete=models.CASCADE)
     payment_type = models.CharField(max_length=20, default='COD')
+    delivery_mode = models.CharField(
+        max_length=20,
+        choices=DELIVERY_MODE_CHOICES,
+        default="secure",
+    )
     token_value = models.CharField(max_length=255, unique=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     qr_scan_count = models.PositiveIntegerField(default=0)
@@ -126,6 +135,8 @@ class Order(models.Model):
         return f"Order {self.order_id} - {self.status}"
 
     def delivery_qr_is_expired(self):
+        if self.status in ['Delivered', 'Cancelled']:
+            return True
         return (
             self.qr_scan_count > 0
             and self.expires_at is not None
@@ -224,6 +235,39 @@ class DeliveryAgent(models.Model):
 
     def __str__(self):
         return f"{self.user.username}"
+
+
+class SecurityEventLog(models.Model):
+    EVENT_CHOICES = [
+        ("qr_scan", "QR Scan"),
+        ("qr_scan_blocked", "QR Scan Blocked"),
+        ("otp_requested", "OTP Requested"),
+        ("otp_request_blocked", "OTP Request Blocked"),
+        ("otp_verify_success", "OTP Verify Success"),
+        ("otp_verify_failed", "OTP Verify Failed"),
+        ("order_delivered", "Order Delivered"),
+        ("delivery_mode_switched", "Delivery Mode Switched"),
+    ]
+
+    OUTCOME_CHOICES = [
+        ("success", "Success"),
+        ("blocked", "Blocked"),
+        ("failed", "Failed"),
+    ]
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="security_events")
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    event_type = models.CharField(max_length=50, choices=EVENT_CHOICES)
+    outcome = models.CharField(max_length=20, choices=OUTCOME_CHOICES, default="success")
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.event_type} for order {self.order_id}"
+
+    class Meta:
+        db_table = "security_event_logs"
     
 class OrderCallSession(models.Model):
     STATUS_CHOICES = [
