@@ -46,16 +46,77 @@
 
         .stats-card {
             background: #fff;
+            padding: 0.85rem !important;
         }
 
         .stats-icon {
-            width: 3rem;
-            height: 3rem;
+            width: 2.4rem;
+            height: 2.4rem;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            border-radius: 0.95rem;
-            font-size: 1.2rem;
+            border-radius: 0.8rem;
+            font-size: 1rem;
+        }
+
+        .stats-card .fs-3 {
+            font-size: 1.6rem !important;
+        }
+
+        .stats-card .text-muted.small {
+            font-size: 0.78rem;
+        }
+
+        .metric-panel {
+            background: #fff;
+            border-radius: 1.1rem;
+            padding: 1rem 1.2rem;
+            box-shadow: 0 14px 32px rgba(29, 53, 87, 0.08);
+        }
+
+        .metric-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.55rem 0;
+            border-bottom: 1px solid rgba(13, 110, 253, 0.08);
+        }
+
+        .metric-row:last-child {
+            border-bottom: 0;
+        }
+
+        .metric-label {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-weight: 600;
+        }
+
+        .metric-label i {
+            width: 2rem;
+            height: 2rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.7rem;
+            background: rgba(13, 110, 253, 0.1);
+            color: #0d6efd;
+        }
+
+        .metric-value {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .metric-row {
+            flex: 1 1 auto;
+            gap: 1rem;
+        }
+
+        .metric-value {
+            min-width: 4.5rem;
+            text-align: right;
         }
 
         .panel-card {
@@ -191,56 +252,42 @@
     </div>
 
     <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-3">
-            <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-primary-subtle text-primary mb-3"><i class="bi bi-shield-check"></i></div>
-                <div class="text-muted small">Security Events</div>
-                <div class="fs-3 fw-bold">{{ security_stats.total_events }}</div>
+        <div class="col-lg-6">
+            <div class="metric-panel">
+                <div class="fw-semibold mb-2">Security Summary</div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-shield-check"></i>Security Events</div>
+                    <div class="metric-value">{{ security_stats.total_events }}</div>
+                </div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-shield-exclamation"></i>Blocked Attempts</div>
+                    <div class="metric-value">{{ security_stats.blocked_events }}</div>
+                </div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-x-octagon"></i>Failed Checks</div>
+                    <div class="metric-value">{{ security_stats.failed_events }}</div>
+                </div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-patch-check"></i>Verified Deliveries</div>
+                    <div class="metric-value">{{ security_stats.successful_deliveries }}</div>
+                </div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-warning-subtle text-warning mb-3"><i class="bi bi-shield-exclamation"></i></div>
-                <div class="text-muted small">Blocked Attempts</div>
-                <div class="fs-3 fw-bold">{{ security_stats.blocked_events }}</div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-3">
-            <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-danger-subtle text-danger mb-3"><i class="bi bi-x-octagon"></i></div>
-                <div class="text-muted small">Failed Checks</div>
-                <div class="fs-3 fw-bold">{{ security_stats.failed_events }}</div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-3">
-            <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-success-subtle text-success mb-3"><i class="bi bi-patch-check"></i></div>
-                <div class="text-muted small">Verified Deliveries</div>
-                <div class="fs-3 fw-bold">{{ security_stats.successful_deliveries }}</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-4">
-            <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-primary-subtle text-primary mb-3"><i class="bi bi-speedometer2"></i></div>
-                <div class="text-muted small">Avg QR Scan Time</div>
-                <div class="fs-3 fw-bold">{{ security_stats.avg_qr_scan_ms }}ms</div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-4">
-            <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-info-subtle text-info mb-3"><i class="bi bi-key"></i></div>
-                <div class="text-muted small">Avg OTP Request Time</div>
-                <div class="fs-3 fw-bold">{{ security_stats.avg_otp_request_ms }}ms</div>
-            </div>
-        </div>
-        <div class="col-12 col-lg-4">
-            <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-warning-subtle text-warning mb-3"><i class="bi bi-shield-lock"></i></div>
-                <div class="text-muted small">Avg OTP Verify Time</div>
-                <div class="fs-3 fw-bold">{{ security_stats.avg_otp_verify_ms }}ms</div>
+        <div class="col-lg-6">
+            <div class="metric-panel">
+                <div class="fw-semibold mb-2">Performance Metrics</div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-speedometer2"></i>Avg QR Scan Time</div>
+                    <div class="metric-value">{{ security_stats.avg_qr_scan_ms }}ms</div>
+                </div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-key"></i>Avg OTP Request Time</div>
+                    <div class="metric-value">{{ security_stats.avg_otp_request_ms }}ms</div>
+                </div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-shield-lock"></i>Avg OTP Verify Time</div>
+                    <div class="metric-value">{{ security_stats.avg_otp_verify_ms }}ms</div>
+                </div>
             </div>
         </div>
     </div>
@@ -248,28 +295,28 @@
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3">
             <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-primary-subtle text-primary mb-3"><i class="bi bi-shield-check"></i></div>
+                <div class="stats-icon bg-primary-subtle text-primary mb-2"><i class="bi bi-shield-check"></i></div>
                 <div class="text-muted small">Secure Orders</div>
                 <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.secure_total }}</div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
             <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-secondary-subtle text-secondary mb-3"><i class="bi bi-box"></i></div>
+                <div class="stats-icon bg-secondary-subtle text-secondary mb-2"><i class="bi bi-box"></i></div>
                 <div class="text-muted small">Traditional Orders</div>
                 <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.traditional_total }}</div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
             <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-success-subtle text-success mb-3"><i class="bi bi-graph-up-arrow"></i></div>
+                <div class="stats-icon bg-success-subtle text-success mb-2"><i class="bi bi-graph-up-arrow"></i></div>
                 <div class="text-muted small">Secure Delivery Rate</div>
                 <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.secure_delivered_rate }}%</div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
             <div class="stats-card p-3 h-100">
-                <div class="stats-icon bg-info-subtle text-info mb-3"><i class="bi bi-bar-chart"></i></div>
+                <div class="stats-icon bg-info-subtle text-info mb-2"><i class="bi bi-bar-chart"></i></div>
                 <div class="text-muted small">Traditional Delivery Rate</div>
                 <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.traditional_delivered_rate }}%</div>
             </div>
