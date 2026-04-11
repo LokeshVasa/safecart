@@ -1,6 +1,5 @@
 from django.contrib import admin
 from django.urls import path
-from store.views import product, cart, clear_data, profile, home, yourorders
 from store import views
 
 urlpatterns = [

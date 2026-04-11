@@ -1,13 +1,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from .models import Product, Category, Cart, Wishlist, PasswordReset
+from .models import Product, Cart, Wishlist
 import logging
 from .forms import RegisterForm, ForgotPasswordForm
-from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth import login, logout
 from django.contrib.auth.models import User, Group
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.conf import settings
-from django.core.mail import EmailMessage
 from django.utils import timezone
 from django.urls import reverse
 from django.db.models import Count, Q
@@ -23,71 +21,46 @@ from django.contrib.auth.decorators import login_required, permission_required
 from .utils import geocode_address
 from geopy.geocoders import Nominatim
 from django.db import IntegrityError
-from django.templatetags.static import static
 from .services import (
+    AuthServiceError,
     DeliveryAccessError,
     DeliveryQRScanError,
     OTPAccessError,
     OTPValidationError,
+    ProfileUpdateError,
+    authenticate_user_by_identifier,
+    build_home_context,
+    build_product_page_context,
     build_customer_orders_context,
     build_delivery_dashboard_context,
     build_seller_orders_context,
     claim_order_from_token,
+    create_password_reset_request,
     get_order_otp_payload,
     get_or_create_order_otp_payload,
+    get_post_login_redirect_name,
+    password_reset_exists,
+    register_buyer_user,
+    remove_profile_photo,
+    reset_password_with_token,
+    update_profile_photo,
     validate_delivery_agent_order_access,
     verify_order_otp as verify_order_otp_service,
 )
 import json
 from django.views.decorators.http import require_GET
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # -------------------- PRODUCT & HOME --------------------
 
 def product(request):
-    category = (request.GET.get('category', 'men') or 'men').strip().lower()
-    category_object = get_object_or_404(Category, category__iexact=category)
-    products = Product.objects.filter(category__iexact=category)
-    return render(request, "product.html", {
-        "products": products,
-        "heading": category_object.heading,
-        "description": category_object.description,
-        "category": category_object.category
-    })
+    context = build_product_page_context(request.GET.get('category', 'men'))
+    return render(request, "product.html", context)
 
 def home(request):
-    categories = list(Category.objects.all())
-    featured_products = Product.objects.order_by('-created_at')[:8]
-    hero_categories = categories[:3]
-    static_images_dir = Path(settings.BASE_DIR) / "static" / "images"
-    hero_slides = []
-
-    for category in hero_categories:
-        category_slug = category.category.strip().lower().replace(" ", "-")
-        static_image_src = None
-
-        for extension in ("webp", "jpg", "jpeg", "png"):
-            candidate_name = f"hero-{category_slug}.{extension}"
-            candidate_path = static_images_dir / candidate_name
-            if candidate_path.exists():
-                static_image_src = static(f"images/{candidate_name}")
-                break
-
-        hero_slides.append({
-            "category": category.category,
-            "category_param": category.category.strip().lower(),
-            "heading": category.heading,
-            "description": category.description,
-            "image_src": static_image_src or category.image.url,
-        })
-
-    return render(request, 'home.html', {
-        "categories": categories,
-        "hero_categories": hero_slides,
-        "featured_products": featured_products,
-    })
+    context = build_home_context()
+    return render(request, 'home.html', context)
 
 # -------------------- PROFILE & WISHLIST --------------------
 
@@ -95,23 +68,16 @@ def home(request):
 def profile(request):
     if request.method == "POST":
         if request.POST.get("action") == "remove_photo":
-            request.user.profile_image = None
-            request.user.save(update_fields=["profile_image"])
+            remove_profile_photo(request.user)
             messages.success(request, "Profile photo removed.")
             return redirect("profile")
 
-        uploaded_photo = request.FILES.get("profile_photo")
-
-        if not uploaded_photo:
-            messages.error(request, "Please choose an image before uploading.")
+        try:
+            update_profile_photo(request.user, request.FILES.get("profile_photo"))
+        except ProfileUpdateError as exc:
+            messages.error(request, str(exc))
             return redirect("profile")
 
-        if not uploaded_photo.content_type or not uploaded_photo.content_type.startswith("image/"):
-            messages.error(request, "Only image files are allowed for profile photos.")
-            return redirect("profile")
-
-        request.user.profile_image = uploaded_photo.read()
-        request.user.save(update_fields=["profile_image"])
         messages.success(request, "Profile photo updated successfully.")
         return redirect("profile")
 
@@ -121,10 +87,6 @@ def profile(request):
 def wishlist_view(request):
     wishlist_items = Wishlist.objects.filter(user=request.user).select_related('product')
     return render(request, 'wishlist.html', {'wishlist_items': wishlist_items})
-
-@login_required
-def yourorders(request):
-    return render(request, 'yourorders.html')
 
 def clear_data(request):
     return render(request, 'clear_data.html')
@@ -218,9 +180,7 @@ def RegisterView(request):
     if request.method == "POST":
         form = RegisterForm(request.POST)
         if form.is_valid():
-            user = form.save()
-            buyer_group, _ = Group.objects.get_or_create(name='Buyer')
-            user.groups.add(buyer_group)
+            user = register_buyer_user(form)
             login(request, user)
             messages.success(request, f"Welcome, {user.first_name}! Your account is ready.")
             return redirect('home')
@@ -233,27 +193,11 @@ def LoginView(request):
         identifier = request.POST.get("username")
         password = request.POST.get("password")
 
-        user = None
-        if User.objects.filter(email=identifier).exists():
-            try:
-                user_obj = User.objects.get(email=identifier)
-                user = authenticate(request, username=user_obj.username, password=password)
-            except User.DoesNotExist:
-                pass
-        else:
-            user = authenticate(request, username=identifier, password=password)
+        user = authenticate_user_by_identifier(request, identifier, password)
 
         if user is not None:
             login(request, user)
-                # Role-based redirect
-            if user.is_superuser or user.groups.filter(name='Admin').exists():
-                return redirect('admin_dashboard')
-            elif user.groups.filter(name='Seller').exists():
-                return redirect('sellerorders')
-            elif user.groups.filter(name='DeliveryAgent').exists():
-                return redirect('delivery_dashboard')
-            else:  # Buyer or new user
-                return redirect('home')
+            return redirect(get_post_login_redirect_name(user))
         else:
             messages.error(request, "Invalid login credentials")
             return redirect('login')
@@ -268,34 +212,21 @@ def ForgotPassword(request):
     if request.method == "POST":
         email = request.POST.get('email')
         try:
-            user = User.objects.get(email=email)
-            new_password_reset = PasswordReset(user=user)
-            new_password_reset.save()
-
-            password_reset_url = reverse('reset-password', kwargs={'reset_id': new_password_reset.reset_id})
-            full_password_reset_url = f'{request.scheme}://{request.get_host()}{password_reset_url}'
-
-            email_body = f'Reset your password using the link below:\n\n\n{full_password_reset_url}'
-            email_message = EmailMessage(
-                'Reset your password',
-                email_body,
-                settings.EMAIL_HOST_USER,
-                [email]
+            password_reset = create_password_reset_request(
+                email=email,
+                scheme=request.scheme,
+                host=request.get_host(),
             )
-            email_message.fail_silently = True
-            email_message.send()
-
-            return redirect('password-reset-sent', reset_id=new_password_reset.reset_id)
-
-        except User.DoesNotExist:
-            messages.error(request, f"No user with email '{email}' found")
+            return redirect('password-reset-sent', reset_id=password_reset.reset_id)
+        except AuthServiceError as exc:
+            messages.error(request, str(exc))
             return redirect('forgot-password')
 
     form = ForgotPasswordForm()
     return render(request, 'registration/forgot_password.html', {'form': form})
 
 def PasswordResetSent(request, reset_id):
-    if PasswordReset.objects.filter(reset_id=reset_id).exists():
+    if password_reset_exists(reset_id):
         return render(request, 'registration/password_reset_sent.html')
     else:
         messages.error(request, 'Invalid reset id')
@@ -303,38 +234,23 @@ def PasswordResetSent(request, reset_id):
 
 def ResetPassword(request, reset_id):
     try:
-        password_reset_id = PasswordReset.objects.get(reset_id=reset_id)
-
         if request.method == "POST":
             password = request.POST.get('password')
             confirm_password = request.POST.get('confirm_password')
-            passwords_have_error = False
+            result = reset_password_with_token(
+                reset_id=reset_id,
+                password=password,
+                confirm_password=confirm_password,
+            )
 
-            if password != confirm_password:
-                passwords_have_error = True
-                messages.error(request, 'Passwords do not match')
-
-            if len(password) < 5:
-                passwords_have_error = True
-                messages.error(request, 'Password must be at least 5 characters long')
-
-            expiration_time = password_reset_id.created_when + timezone.timedelta(minutes=10)
-            if timezone.now() > expiration_time:
-                passwords_have_error = True
-                messages.error(request, 'Reset link has expired')
-                password_reset_id.delete()
-
-            if not passwords_have_error:
-                user = password_reset_id.user
-                user.set_password(password)
-                user.save()
-                password_reset_id.delete()
+            if result["success"]:
                 messages.success(request, 'Password reset. Proceed to login')
                 return redirect('login')
-            else:
-                return redirect('reset-password', reset_id=reset_id)
+            for error in result["errors"]:
+                messages.error(request, error)
+            return redirect('reset-password', reset_id=reset_id)
 
-    except PasswordReset.DoesNotExist:
+    except AuthServiceError:
         messages.error(request, 'Invalid reset id')
         return redirect('forgot-password')
 
