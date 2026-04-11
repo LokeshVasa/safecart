@@ -18,20 +18,20 @@ from .models import Address
 from .forms import AddressForm
 from .models import Order, OrderItem, DeliveryAgent, OrderCallSession, OrderCallSignal
 import uuid
-from datetime import timedelta
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required, permission_required
 from .utils import geocode_address
 from geopy.geocoders import Nominatim
 from django.db import IntegrityError
 from django.templatetags.static import static
-from .models import OrderOTP
 from .services import (
     DeliveryAccessError,
     DeliveryQRScanError,
     OTPAccessError,
     OTPValidationError,
+    build_customer_orders_context,
     build_delivery_dashboard_context,
+    build_seller_orders_context,
     claim_order_from_token,
     get_order_otp_payload,
     get_or_create_order_otp_payload,
@@ -821,73 +821,8 @@ def proceed_to_checkout(request):
 
 @login_required
 def yourorders(request):
-    orders = (
-        Order.objects.filter(user=request.user)
-        .select_related('address', 'delivery_agent')
-        .prefetch_related('items__product')
-        .order_by('-created_at')
-    )
-    status_priority = {
-        'Pending': 0,
-        'Packed': 1,
-        'Shipped': 2,
-        'Delivered': 3,
-        'Cancelled': 4,
-    }
-
-    # Prepare orders with items
-    orders_with_details = []
-    for order in orders:
-        items = []
-        for item in order.items.all():  # related_name='items' in OrderItem
-            items.append({
-                'name': item.product.name,
-                'image': item.product.image,
-                'quantity': item.quantity,
-                'price': item.price,
-            })
-        otp_obj = OrderOTP.objects.filter(order=order).first()
-        handshake_requested = (
-            otp_obj is not None
-            and otp_obj.is_active
-            and not otp_obj.is_expired()
-            and order.status not in ['Delivered', 'Cancelled']
-        )
-        total_amount = sum(i['price'] * i['quantity'] for i in items)
-        expected_delivery = order.created_at + timedelta(days=5)  # example 5 days delivery
-        orders_with_details.append({
-            'id': order.id,
-            'status': order.status,
-            'date': order.created_at,
-            'items': items,
-            'total_amount': total_amount,
-            'expected_delivery': expected_delivery,
-            'address': order.address,
-            'can_track': (
-                order.status in ['Packed', 'Shipped']
-                and order.delivery_agent_id is not None
-            ),
-            'can_call': (
-                order.status in ['Packed', 'Shipped']
-                and order.delivery_agent_id is not None
-            ),
-            'can_handshake': (
-                order.status in ['Pending', 'Packed', 'Shipped']
-                and order.delivery_agent_id is not None
-            ),
-            'handshake_requested': handshake_requested,
-            'can_cancel': order.status in ['Pending', 'Packed'],
-            'created_at': order.created_at,
-        })
-
-    orders_with_details.sort(
-        key=lambda order: (
-            status_priority.get(order['status'], 99),
-            -order['created_at'].timestamp()
-        )
-    )
-
-    return render(request, 'yourorders.html', {'orders': orders_with_details})
+    context = build_customer_orders_context(request.user)
+    return render(request, 'yourorders.html', context)
 
 
 @login_required
@@ -907,58 +842,8 @@ def cancel_order(request, order_id):
 @login_required
 @permission_required('store.can_view_seller_orders', raise_exception=True)
 def sellerorders(request):
-    # Adjust the filtering below for what a "seller" should see (e.g., all orders or only for their products)
-    orders = Order.objects.all().order_by('-created_at')
-    status_priority = {
-        'Pending': 0,
-        'Packed': 1,
-        'Shipped': 2,
-        'Delivered': 3,
-        'Cancelled': 4,
-    }
-    orders_with_details = []
-    for order in orders:
-        items = []
-        for item in order.items.all():
-            items.append({
-                'name': item.product.name,
-                'image': item.product.image,
-                'quantity': item.quantity,
-                'price': item.price,
-            })
-        total_amount = sum(i['price'] * i['quantity'] for i in items)
-        expected_delivery = order.created_at + timedelta(days=5)
-        orders_with_details.append({
-            'id': order.id,
-            'status': order.status,
-            'date': order.created_at,
-            'items': items,
-            'total_amount': total_amount,
-            'expected_delivery': expected_delivery,
-            'pincode': order.address.pincode,
-            'token_': order.token_value,  # Ensure your Order model has token_value
-            'can_print_qr': order.status in ['Pending', 'Packed', 'Shipped'],
-            'created_at': order.created_at,
-        })
-
-    orders_with_details.sort(
-        key=lambda order: (
-            status_priority.get(order['status'], 99),
-            -order['created_at'].timestamp()
-        )
-    )
-
-    stats = {
-        'total_orders': len(orders_with_details),
-        'pending_orders': sum(1 for order in orders_with_details if order['status'] == 'Pending'),
-        'active_orders': sum(1 for order in orders_with_details if order['status'] in ['Packed', 'Shipped']),
-        'delivered_orders': sum(1 for order in orders_with_details if order['status'] == 'Delivered'),
-    }
-
-    return render(request, 'sellerorders.html', {
-        'orders': orders_with_details,
-        'stats': stats,
-    })
+    context = build_seller_orders_context()
+    return render(request, 'sellerorders.html', context)
 
 @login_required
 @permission_required('store.can_perform_admin_actions', raise_exception=True)
