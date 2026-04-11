@@ -24,12 +24,17 @@ from django.contrib.auth.decorators import login_required, permission_required
 from .utils import geocode_address
 from geopy.geocoders import Nominatim
 from django.db import IntegrityError
-from django.db import transaction
 from django.templatetags.static import static
-import random
-import hashlib
 from .models import OrderOTP
-from .utils import encrypt_value, decrypt_value
+from .services import (
+    DeliveryQRScanError,
+    OTPAccessError,
+    OTPValidationError,
+    claim_order_from_token,
+    get_order_otp_payload,
+    get_or_create_order_otp_payload,
+    verify_order_otp as verify_order_otp_service,
+)
 import json
 from django.views.decorators.http import require_GET
 from pathlib import Path
@@ -1221,36 +1226,11 @@ def delivery_route_detail(request):
 @require_GET
 def get_order_by_token(request):
     token = (request.GET.get('token') or '').strip()
-    if not token:
-        return JsonResponse({'success': False, 'error': 'No token provided'})
-
     try:
-        with transaction.atomic():
-            order = Order.objects.select_for_update().get(token_value=token)
-            delivery_agent, _ = DeliveryAgent.objects.get_or_create(user=request.user)
-
-            if order.delivery_agent_id is not None and order.delivery_agent_id != delivery_agent.id:
-                return JsonResponse({'success': False, 'error': 'This order is assigned to another delivery agent.'}, status=403)
-
-            qr_error = order.get_delivery_qr_block_reason()
-            if qr_error:
-                return JsonResponse({'success': False, 'error': qr_error}, status=400)
-
-            order.register_delivery_qr_scan()
-
-            update_fields = ['qr_scan_count', 'expires_at']
-
-            if order.delivery_agent_id is None:
-                order.delivery_agent = delivery_agent
-                update_fields.append('delivery_agent')
-
-            if order.status in ['Pending', 'Packed']:
-                order.status = 'Shipped'
-                update_fields.append('status')
-
-            order.save(update_fields=update_fields)
-
+        order = claim_order_from_token(token=token, user=request.user)
         return JsonResponse({'success': True, 'order_id': order.id})
+    except DeliveryQRScanError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=exc.status_code)
     except Order.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Order not found'})
 
@@ -1259,192 +1239,52 @@ def get_order_by_token(request):
 def generate_order_otp(request, order_id):
 
     order = get_object_or_404(Order, id=order_id)
-
-    if request.user.groups.filter(name="DeliveryAgent").exists():
-        delivery_agent = DeliveryAgent.objects.filter(user=request.user).first()
-        if not delivery_agent or order.delivery_agent_id != delivery_agent.id:
-            return JsonResponse({
-                "success": False,
-                "error": "You can only request OTP for your assigned order."
-            }, status=403)
-    elif order.user_id != request.user.id:
+    try:
+        payload = get_or_create_order_otp_payload(order, request.user)
+    except (OTPAccessError, OTPValidationError) as exc:
         return JsonResponse({
             "success": False,
-            "error": "You are not allowed to request OTP for this order."
-        }, status=403)
-
-    # ❌ prevent OTP if already delivered
-    if order.status == "Delivered":
-        return JsonResponse({
-            "success": False,
-            "error": "Order already delivered"
-        })
-
-    # check existing OTP
-    otp_obj = OrderOTP.objects.filter(order=order).first()
-
-    if otp_obj and otp_obj.is_active and not otp_obj.is_expired():
-        return JsonResponse({
-            "success": True,
-            "agent_half": decrypt_value(otp_obj.enc_agent_half),
-            "customer_half": decrypt_value(otp_obj.enc_customer_half),
-            "customer_verified": otp_obj.customer_verified,
-            "agent_verified": otp_obj.agent_verified
-        })
-
-    # generate new OTP
-    otp = str(random.randint(10000000, 99999999))
-
-    customer_half = otp[:4]
-    agent_half = otp[4:]
-
-    hashed = hashlib.sha256(otp.encode()).hexdigest()
-
-    OrderOTP.objects.update_or_create(
-    order=order,
-    defaults={
-        "otp_hash": hashed,
-        "enc_customer_half": encrypt_value(customer_half),
-        "enc_agent_half": encrypt_value(agent_half),
-        "expires_at": timezone.now() + timedelta(minutes=10),
-        "is_active": True,
-        "attempts": 0,
-        "customer_verified": False,
-        "agent_verified": False
-    }
-)
-
-    print(f"Generated OTP for order {order.id}: {otp}")
+            "error": str(exc)
+        }, status=exc.status_code)
 
     return JsonResponse({
-    "success": True,
-    "agent_half": agent_half,
-    "customer_half": customer_half,
-    "customer_verified": otp_obj.customer_verified if otp_obj else False,
-    "agent_verified": otp_obj.agent_verified if otp_obj else False
-})
+        "success": True,
+        **payload,
+    })
 
 @login_required
 @require_POST
 def verify_otp(request, order_id):
 
-    MAX_ATTEMPTS = 5
-
     order = get_object_or_404(Order, id=order_id)
 
-    try:
-        otp_obj = order.otp
-    except OrderOTP.DoesNotExist:
-        return JsonResponse({"success": False, "error": "OTP not found"})
-
-    # OTP expired
-    if otp_obj.is_expired():
-        otp_obj.is_active = False
-        otp_obj.save(update_fields=["is_active"])
-        return JsonResponse({"success": False, "error": "OTP expired"})
-
-    # Too many attempts
-    if otp_obj.attempts >= MAX_ATTEMPTS:
-        otp_obj.is_active = False
-        otp_obj.save(update_fields=["is_active"])
-        return JsonResponse({
-            "success": False,
-            "error": "Maximum attempts exceeded. Generate a new OTP."
-        })
-
     data = json.loads(request.body)
+    try:
+        result = verify_order_otp_service(
+            order,
+            request.user,
+            customer_half=data.get("customer_half"),
+            agent_half=data.get("agent_half"),
+        )
+    except OTPValidationError as exc:
+        return JsonResponse({"success": False, "error": str(exc)}, status=exc.status_code)
 
-    customer_half = data.get("customer_half")
-    agent_half = data.get("agent_half")
-
-    if not customer_half or not agent_half:
-        return JsonResponse({"success": False, "error": "Invalid OTP format"})
-
-    full_otp = customer_half + agent_half
-    hashed = hashlib.sha256(full_otp.encode()).hexdigest()
-
-    # WRONG OTP
-    if hashed != otp_obj.otp_hash:
-
-        otp_obj.attempts += 1
-        otp_obj.save(update_fields=["attempts"])
-
-        remaining = MAX_ATTEMPTS - otp_obj.attempts
-
-        return JsonResponse({
-            "success": False,
-            "remaining_attempts": remaining
-        })
-
-    # CORRECT OTP
-    user = request.user
-
-    if user.groups.filter(name="DeliveryAgent").exists():
-        otp_obj.agent_verified = True
-    else:
-        otp_obj.customer_verified = True
-
-    otp_obj.save(update_fields=["agent_verified", "customer_verified"])
-
-    # BOTH VERIFIED
-    order_delivered = False
-
-    if otp_obj.agent_verified and otp_obj.customer_verified:
-
-        otp_obj.is_active = False
-        otp_obj.save(update_fields=["is_active"])
-
-        order.status = "Delivered"
-        order.expires_at = timezone.now()
-        order.save(update_fields=["status", "expires_at"])
-        order_delivered = True
-
-    return JsonResponse({
-        "success": True,
-        "order_status": order.status,
-        "order_delivered": order_delivered,
-    })
+    return JsonResponse(result)
 
 @login_required
 def get_order_otp_halves(request, order_id):
     order = get_object_or_404(Order, id=order_id)
-
-    is_customer = order.user_id == request.user.id
-    is_assigned_agent = (
-        order.delivery_agent is not None
-        and order.delivery_agent.user_id == request.user.id
-    )
-    if not (is_customer or is_assigned_agent):
+    try:
+        payload = get_order_otp_payload(order, request.user)
+    except (OTPAccessError, OTPValidationError) as exc:
         return JsonResponse({
             "success": False,
-            "error": "You are not allowed to access this order OTP."
-        }, status=403)
-
-    if order.status == 'Cancelled':
-        return JsonResponse({
-            "success": False,
-            "error": "Safe Handshake is unavailable for cancelled orders."
-        }, status=400)
-
-    otp_obj = OrderOTP.objects.filter(order=order).first()
-
-    if not otp_obj:
-        return JsonResponse({
-            "success": False,
-            "error": "OTP not generated"
-        })
-
-    customer_half = decrypt_value(otp_obj.enc_customer_half)
-    agent_half = decrypt_value(otp_obj.enc_agent_half)
+            "error": str(exc)
+        }, status=exc.status_code)
 
     return JsonResponse({
         "success": True,
-        "customer_half": customer_half,
-        "agent_half": agent_half,
-        "customer_verified": otp_obj.customer_verified,
-        "agent_verified": otp_obj.agent_verified,
-        "order_status": order.status,
-        "order_delivered": order.status == "Delivered",
+        **payload,
     })
 
 # Render customer tracking map
