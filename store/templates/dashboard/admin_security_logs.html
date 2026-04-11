@@ -60,9 +60,14 @@
             font-size: 1.2rem;
         }
 
+        :root {
+            --chart-card-height: 240px;
+            --chart-gap: 16px;
+        }
+
         .chart-wrap {
             position: relative;
-            height: 260px;
+            height: calc(var(--chart-card-height) - 56px);
         }
 
         .table thead th {
@@ -74,7 +79,7 @@
         }
 
         .logs-scroll {
-            max-height: 36rem;
+            max-height: calc((var(--chart-card-height) * 3) + (var(--chart-gap) * 2));
             overflow-y: auto;
             scrollbar-width: none;
             -ms-overflow-style: none;
@@ -82,6 +87,25 @@
 
         .logs-scroll::-webkit-scrollbar {
             display: none;
+        }
+
+        .security-log-panel {
+            height: 100%;
+        }
+
+        .chart-stack {
+            display: flex;
+            flex-direction: column;
+            gap: var(--chart-gap);
+        }
+
+        .chart-card {
+            height: var(--chart-card-height);
+            overflow: hidden;
+        }
+
+        .chart-wrap {
+            height: calc(var(--chart-card-height) - 76px);
         }
     </style>
 </head>
@@ -177,7 +201,7 @@
 
     <div class="row g-4">
         <div class="col-lg-8">
-            <div class="panel-card p-3 p-lg-4 h-100">
+            <div class="panel-card p-3 p-lg-4 security-log-panel">
                 <div class="mb-3">
                     <h2 class="h4 fw-bold mb-1">Security Event Log</h2>
                     <p class="text-muted mb-0">Latest filtered events with order, actor, outcome, reason, and timing.</p>
@@ -224,23 +248,25 @@
         </div>
 
         <div class="col-lg-4">
-            <div class="panel-card p-3 p-lg-4 mb-4">
+            <div class="chart-stack">
+            <div class="panel-card p-3 p-lg-4 chart-card">
                 <h2 class="h4 fw-bold mb-3">Event Type Mix</h2>
                 <div class="chart-wrap">
                     <canvas id="eventTypeChart"></canvas>
                 </div>
             </div>
-            <div class="panel-card p-3 p-lg-4 mb-4">
+            <div class="panel-card p-3 p-lg-4 chart-card">
                 <h2 class="h4 fw-bold mb-3">Outcome Mix</h2>
                 <div class="chart-wrap">
                     <canvas id="outcomeChart"></canvas>
                 </div>
             </div>
-            <div class="panel-card p-3 p-lg-4">
+            <div class="panel-card p-3 p-lg-4 chart-card">
                 <h2 class="h4 fw-bold mb-3">7-Day Activity</h2>
                 <div class="chart-wrap">
                     <canvas id="dailyChart"></canvas>
                 </div>
+            </div>
             </div>
         </div>
     </div>
