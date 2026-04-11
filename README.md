@@ -95,7 +95,7 @@ python manage.py list_delivery_users
 
 Ensure a buyer has a confirmed address:
 ```bash
-python manage.py ensure_confirmed_address --buyer-username <buyer_username> --street "Demo Street 9" --city "Hyderabad" --state "Telangana" --pincode 500001
+python manage.py ensure_confirmed_address --buyer-username <buyer_username> --street "<street>" --city "<city>" --state "<state>" --pincode <pincode>
 ```
 
 Run the delivery flow simulation:
