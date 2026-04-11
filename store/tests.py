@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Address, DeliveryAgent, Order, OrderOTP
+from .models import Address, DeliveryAgent, Order, OrderOTP, SecurityEventLog
 from .services.security_service import (
     DeliverySecurityError,
     get_order_security_snapshot,
@@ -313,3 +313,23 @@ class DeliveryQrScanTests(TestCase):
 
         with self.assertRaises(DeliverySecurityError):
             validate_otp_read_security(self.order)
+
+    def test_successful_qr_scan_creates_security_event_log(self):
+        self.client.get(reverse('get_order_by_token'), {'token': self.order.token_value})
+
+        event = SecurityEventLog.objects.filter(order=self.order, event_type='qr_scan').latest('created_at')
+
+        self.assertEqual(event.outcome, 'success')
+        self.assertEqual(event.actor, self.agent_user)
+
+    def test_successful_otp_request_creates_security_event_log(self):
+        self.order.delivery_agent = self.delivery_agent
+        self.order.status = 'Shipped'
+        self.order.save(update_fields=['delivery_agent', 'status'])
+
+        response = self.client.get(reverse('generate_order_otp', args=[self.order.id]))
+
+        self.assertEqual(response.status_code, 200)
+        event = SecurityEventLog.objects.filter(order=self.order, event_type='otp_requested').latest('created_at')
+        self.assertEqual(event.outcome, 'success')
+        self.assertEqual(event.actor, self.agent_user)

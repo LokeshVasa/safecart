@@ -7,6 +7,8 @@ from django.utils import timezone
 from store.models import DeliveryAgent, OrderOTP
 from store.services.security_service import (
     DeliverySecurityError,
+    get_order_security_snapshot,
+    log_security_event,
     validate_otp_read_security,
     validate_otp_request_security,
 )
@@ -43,10 +45,24 @@ def get_or_create_order_otp_payload(order, user):
     try:
         validate_otp_request_security(order)
     except DeliverySecurityError as exc:
+        log_security_event(
+            order,
+            "otp_request_blocked",
+            actor=user,
+            outcome="blocked",
+            details={"reason": str(exc)},
+        )
         raise OTPValidationError(str(exc)) from exc
 
     otp_obj = OrderOTP.objects.filter(order=order).first()
     if otp_obj and otp_obj.is_active and not otp_obj.is_expired():
+        log_security_event(
+            order,
+            "otp_requested",
+            actor=user,
+            outcome="success",
+            details={"security_stage": get_order_security_snapshot(order)["security_stage"], "reused": True},
+        )
         return {
             "agent_half": decrypt_value(otp_obj.enc_agent_half),
             "customer_half": decrypt_value(otp_obj.enc_customer_half),
@@ -72,6 +88,14 @@ def get_or_create_order_otp_payload(order, user):
         },
     )
 
+    log_security_event(
+        order,
+        "otp_requested",
+        actor=user,
+        outcome="success",
+        details={"security_stage": get_order_security_snapshot(order)["security_stage"], "reused": False},
+    )
+
     return {
         "agent_half": agent_half,
         "customer_half": customer_half,
@@ -84,19 +108,23 @@ def verify_order_otp(order, user, *, customer_half, agent_half):
     try:
         otp_obj = order.otp
     except OrderOTP.DoesNotExist as exc:
+        log_security_event(order, "otp_verify_failed", actor=user, outcome="failed", details={"reason": "otp_not_found"})
         raise OTPValidationError("OTP not found") from exc
 
     if otp_obj.is_expired():
         otp_obj.is_active = False
         otp_obj.save(update_fields=["is_active"])
+        log_security_event(order, "otp_verify_failed", actor=user, outcome="failed", details={"reason": "otp_expired"})
         raise OTPValidationError("OTP expired")
 
     if otp_obj.attempts >= MAX_OTP_ATTEMPTS:
         otp_obj.is_active = False
         otp_obj.save(update_fields=["is_active"])
+        log_security_event(order, "otp_verify_failed", actor=user, outcome="blocked", details={"reason": "max_attempts"})
         raise OTPValidationError("Maximum attempts exceeded. Generate a new OTP.")
 
     if not customer_half or not agent_half:
+        log_security_event(order, "otp_verify_failed", actor=user, outcome="failed", details={"reason": "invalid_format"})
         raise OTPValidationError("Invalid OTP format")
 
     full_otp = customer_half + agent_half
@@ -106,6 +134,13 @@ def verify_order_otp(order, user, *, customer_half, agent_half):
         otp_obj.attempts += 1
         otp_obj.save(update_fields=["attempts"])
         remaining = MAX_OTP_ATTEMPTS - otp_obj.attempts
+        log_security_event(
+            order,
+            "otp_verify_failed",
+            actor=user,
+            outcome="failed",
+            details={"reason": "hash_mismatch", "remaining_attempts": remaining},
+        )
         return {
             "success": False,
             "remaining_attempts": remaining,
@@ -117,6 +152,17 @@ def verify_order_otp(order, user, *, customer_half, agent_half):
         otp_obj.customer_verified = True
 
     otp_obj.save(update_fields=["agent_verified", "customer_verified"])
+    log_security_event(
+        order,
+        "otp_verify_success",
+        actor=user,
+        outcome="success",
+        details={
+            "customer_verified": otp_obj.customer_verified,
+            "agent_verified": otp_obj.agent_verified,
+            "security_stage": get_order_security_snapshot(order)["security_stage"],
+        },
+    )
 
     order_delivered = False
     if otp_obj.agent_verified and otp_obj.customer_verified:
@@ -127,6 +173,13 @@ def verify_order_otp(order, user, *, customer_half, agent_half):
         order.expires_at = timezone.now()
         order.save(update_fields=["status", "expires_at"])
         order_delivered = True
+        log_security_event(
+            order,
+            "order_delivered",
+            actor=user,
+            outcome="success",
+            details={"security_stage": get_order_security_snapshot(order)["security_stage"]},
+        )
 
     return {
         "success": True,
@@ -147,6 +200,13 @@ def get_order_otp_payload(order, user):
     try:
         validate_otp_read_security(order)
     except DeliverySecurityError as exc:
+        log_security_event(
+            order,
+            "otp_request_blocked",
+            actor=user,
+            outcome="blocked",
+            details={"reason": str(exc), "read": True},
+        )
         raise OTPValidationError(str(exc)) from exc
 
     otp_obj = OrderOTP.objects.filter(order=order).first()

@@ -213,6 +213,13 @@
                                                 <div>
                                                     <div class="fw-semibold">Order #{{ order.id }}</div>
                                                     <div class="text-muted small">Customer: {{ order.customer_name }}</div>
+                                                    {% if order.security.show_security_badge %}
+                                                    <div class="mt-2">
+                                                        <span class="badge text-bg-{{ order.security.security_badge_variant }}">
+                                                            {{ order.security.security_stage_label }}
+                                                        </span>
+                                                    </div>
+                                                    {% endif %}
                                                 </div>
                                                 <span class="badge {% if order.status == 'Delivered' %}text-bg-success{% elif order.status == 'Cancelled' %}text-bg-danger{% elif order.status == 'Shipped' %}text-bg-info{% elif order.status == 'Packed' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">
                                                     {{ order.status }}
@@ -232,6 +239,11 @@
                                                 </div>
                                             {% else %}
                                                 <div class="small text-muted mb-3">QR timer starts on the first successful scan.</div>
+                                            {% endif %}
+                                            {% if order.security.security_stage == 'otp_active' %}
+                                                <div class="small text-info mb-3">OTP verification is active for this order.</div>
+                                            {% elif order.security.security_stage == 'route_only' %}
+                                                <div class="small text-warning mb-3">Route-only access. Request a fresh OTP to finish delivery.</div>
                                             {% endif %}
 
                                             <div class="d-flex justify-content-between align-items-center">

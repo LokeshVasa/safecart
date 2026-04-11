@@ -98,6 +98,13 @@
                         <div>
                             <small>Ordered on {{ order.date|date:"M d, Y" }}</small><br>
                             <strong>#{{ order.id }}</strong>
+                            {% if order.security.show_security_badge %}
+                            <div class="mt-2">
+                                <span class="badge {% if order.security.security_badge_variant == 'info' %}bg-info text-dark{% elif order.security.security_badge_variant == 'warning' %}bg-warning text-dark{% elif order.security.security_badge_variant == 'primary' %}bg-light text-primary{% else %}bg-{{ order.security.security_badge_variant }}{% endif %}">
+                                    {{ order.security.security_stage_label }}
+                                </span>
+                            </div>
+                            {% endif %}
                         </div>
                         <span class="badge {% if order.status == 'Delivered' %}bg-success{% elif order.status == 'Cancelled' %}bg-danger{% elif order.status == 'Shipped' %}bg-info text-dark{% elif order.status == 'Packed' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
                             {{ order.status|default:"Confirmed" }}
@@ -127,6 +134,11 @@
 
                         <p><strong>Expected Delivery:</strong>
                             {{ order.expected_delivery|date:"M d, Y" }}</p>
+                        {% if order.security.security_stage == 'otp_active' %}
+                        <p class="text-info small mb-2"><strong>Verification in progress.</strong> Safe Handshake is active for this order.</p>
+                        {% elif order.security.security_stage == 'route_only' %}
+                        <p class="text-warning small mb-2"><strong>QR window expired.</strong> The agent can request a fresh OTP to complete delivery.</p>
+                        {% endif %}
 
                         {% if order.address %}
                         <hr>

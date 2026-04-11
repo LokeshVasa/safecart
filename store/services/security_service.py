@@ -1,7 +1,13 @@
+import logging
+
+from django.db.utils import OperationalError, ProgrammingError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from store.models import DeliveryAgent, Order, OrderOTP
+from store.models import DeliveryAgent, Order, OrderOTP, SecurityEventLog
+
+
+logger = logging.getLogger(__name__)
 
 
 class DeliveryAccessError(Exception):
@@ -55,8 +61,31 @@ def get_order_security_snapshot(order):
     else:
         security_stage = "pending"
 
+    security_stage_labels = {
+        "delivered": "Delivered",
+        "cancelled": "Cancelled",
+        "verified": "Verified",
+        "otp_active": "OTP Active",
+        "route_only": "Route Only",
+        "qr_active": "QR Active",
+        "pending": "Pending",
+    }
+    security_badge_variants = {
+        "delivered": "success",
+        "cancelled": "danger",
+        "verified": "success",
+        "otp_active": "info",
+        "route_only": "warning",
+        "qr_active": "primary",
+        "pending": "secondary",
+    }
+    show_security_badge = security_stage in {"verified", "otp_active", "route_only", "qr_active"}
+
     return {
         "security_stage": security_stage,
+        "security_stage_label": security_stage_labels.get(security_stage, security_stage.replace("_", " ").title()),
+        "security_badge_variant": security_badge_variants.get(security_stage, "secondary"),
+        "show_security_badge": show_security_badge,
         "is_closed": is_closed,
         "qr_scan_count": order.qr_scan_count,
         "qr_scan_limit": Order.DELIVERY_QR_MAX_SCANS,
@@ -106,6 +135,23 @@ def validate_otp_read_security(order):
     if order.status == "Cancelled":
         raise DeliverySecurityError("Safe Handshake is unavailable for cancelled orders.")
     return security
+
+
+def log_security_event(order, event_type, *, actor=None, outcome="success", details=None):
+    try:
+        return SecurityEventLog.objects.create(
+            order=order,
+            actor=actor,
+            event_type=event_type,
+            outcome=outcome,
+            details=details or {},
+        )
+    except (OperationalError, ProgrammingError):
+        logger.warning(
+            "Security event logging skipped because the table is unavailable.",
+            exc_info=True,
+        )
+        return None
 
 
 def get_delivery_agent_for_user(user):
@@ -179,4 +225,35 @@ def build_delivery_dashboard_context(user):
     return {
         "assigned_orders": assigned_orders,
         "stats": stats,
+    }
+
+
+def build_security_overview_context(*, recent_limit=8):
+    recent_events_qs = (
+        SecurityEventLog.objects
+        .select_related("order", "actor")
+        .order_by("-created_at")[:recent_limit]
+    )
+
+    recent_events = [
+        {
+            "event_type": event.event_type,
+            "event_label": event.get_event_type_display(),
+            "outcome": event.outcome,
+            "order_id": event.order_id,
+            "actor_name": event.actor.username if event.actor else "System",
+            "created_at": event.created_at,
+            "details": event.details or {},
+        }
+        for event in recent_events_qs
+    ]
+
+    return {
+        "security_stats": {
+            "total_events": SecurityEventLog.objects.count(),
+            "blocked_events": SecurityEventLog.objects.filter(outcome="blocked").count(),
+            "failed_events": SecurityEventLog.objects.filter(outcome="failed").count(),
+            "successful_deliveries": SecurityEventLog.objects.filter(event_type="order_delivered").count(),
+        },
+        "recent_security_events": recent_events,
     }

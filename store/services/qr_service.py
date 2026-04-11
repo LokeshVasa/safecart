@@ -2,7 +2,12 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from store.models import DeliveryAgent, Order
-from store.services.security_service import DeliverySecurityError, validate_qr_scan_security
+from store.services.security_service import (
+    DeliverySecurityError,
+    get_order_security_snapshot,
+    log_security_event,
+    validate_qr_scan_security,
+)
 
 
 class DeliveryQRScanError(Exception):
@@ -23,11 +28,28 @@ def claim_order_from_token(*, token, user):
             delivery_agent, _ = DeliveryAgent.objects.get_or_create(user=user)
 
             if order.delivery_agent_id is not None and order.delivery_agent_id != delivery_agent.id:
+                log_security_event(
+                    order,
+                    "qr_scan_blocked",
+                    actor=user,
+                    outcome="blocked",
+                    details={"reason": "assigned_to_another_agent"},
+                )
                 raise DeliveryQRAssignmentError("This order is assigned to another delivery agent.")
 
             try:
                 validate_qr_scan_security(order)
             except DeliverySecurityError as exc:
+                log_security_event(
+                    order,
+                    "qr_scan_blocked",
+                    actor=user,
+                    outcome="blocked",
+                    details={
+                        "reason": str(exc),
+                        "security_stage": get_order_security_snapshot(order)["security_stage"],
+                    },
+                )
                 raise DeliveryQRScanError(str(exc)) from exc
 
             order.register_delivery_qr_scan()
@@ -43,6 +65,16 @@ def claim_order_from_token(*, token, user):
                 update_fields.append("status")
 
             order.save(update_fields=update_fields)
+            log_security_event(
+                order,
+                "qr_scan",
+                actor=user,
+                outcome="success",
+                details={
+                    "qr_scan_count": order.qr_scan_count,
+                    "security_stage": get_order_security_snapshot(order)["security_stage"],
+                },
+            )
             return order
     except ObjectDoesNotExist as exc:
         raise Order.DoesNotExist from exc

@@ -52,14 +52,22 @@
                 </button>
                 {% endif %}
 
-                <p><strong>User:</strong> {{ order.user.username }}</p>
-                <p><strong>Payment Type:</strong> {{ order.payment_type }}</p>
-                <p><strong>Status:</strong> {{ order.status }}</p>
-                {% if status_note %}
-                <div class="alert alert-warning py-2 px-3 small">
-                    {{ status_note }}
-                </div>
-                {% endif %}
+                  <p><strong>User:</strong> {{ order.user.username }}</p>
+                  <p><strong>Payment Type:</strong> {{ order.payment_type }}</p>
+                  <p><strong>Status:</strong> {{ order.status }}</p>
+                  {% if security.show_security_badge %}
+                  <p>
+                      <strong>Security Stage:</strong>
+                      <span class="badge text-bg-{{ security.security_badge_variant }}">
+                          {{ security.security_stage_label }}
+                      </span>
+                  </p>
+                  {% endif %}
+                  {% if status_note %}
+                  <div class="alert alert-warning py-2 px-3 small">
+                      {{ status_note }}
+                  </div>
+                  {% endif %}
                 {% if order.status == "Delivered" %}
                 <p class="mb-0">
                     <strong>QR Status:</strong>

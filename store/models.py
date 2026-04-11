@@ -226,6 +226,37 @@ class DeliveryAgent(models.Model):
 
     def __str__(self):
         return f"{self.user.username}"
+
+
+class SecurityEventLog(models.Model):
+    EVENT_CHOICES = [
+        ("qr_scan", "QR Scan"),
+        ("qr_scan_blocked", "QR Scan Blocked"),
+        ("otp_requested", "OTP Requested"),
+        ("otp_request_blocked", "OTP Request Blocked"),
+        ("otp_verify_success", "OTP Verify Success"),
+        ("otp_verify_failed", "OTP Verify Failed"),
+        ("order_delivered", "Order Delivered"),
+    ]
+
+    OUTCOME_CHOICES = [
+        ("success", "Success"),
+        ("blocked", "Blocked"),
+        ("failed", "Failed"),
+    ]
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="security_events")
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    event_type = models.CharField(max_length=50, choices=EVENT_CHOICES)
+    outcome = models.CharField(max_length=20, choices=OUTCOME_CHOICES, default="success")
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.event_type} for order {self.order_id}"
+
+    class Meta:
+        db_table = "security_event_logs"
     
 class OrderCallSession(models.Model):
     STATUS_CHOICES = [

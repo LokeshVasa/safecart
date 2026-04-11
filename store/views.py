@@ -33,6 +33,7 @@ from .services import (
     build_product_page_context,
     build_customer_orders_context,
     build_delivery_dashboard_context,
+    build_security_overview_context,
     build_seller_orders_context,
     claim_order_from_token,
     create_password_reset_request,
@@ -834,6 +835,8 @@ def admin_dashboard(request):
         for u in users
     ]
 
+    security_context = build_security_overview_context()
+
     context = {
         'total_users': total_users,
         'total_buyers': total_buyers,
@@ -842,6 +845,7 @@ def admin_dashboard(request):
         'total_products': total_products,
         'total_orders': total_orders,
         'users_info': users_info,
+        **security_context,
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
@@ -864,8 +868,10 @@ def mark_order_delivered(request, order_id):
     return redirect('delivery_dashboard')
 
 def _render_delivery_order_page(request, order, *, route_only=False):
+    security = get_order_security_snapshot(order)
     return render(request, 'dashboard/delivery_order_detail.html', {
         'order': order,
+        'security': security,
         'route_only': route_only,
         'allow_handoff_actions': not route_only,
         'allow_request_new_otp': route_only and order.status not in ['Delivered', 'Cancelled'],
