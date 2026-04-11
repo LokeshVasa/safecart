@@ -5,6 +5,11 @@ from datetime import timedelta
 from django.utils import timezone
 
 from store.models import DeliveryAgent, OrderOTP
+from store.services.security_service import (
+    DeliverySecurityError,
+    validate_otp_read_security,
+    validate_otp_request_security,
+)
 from store.utils import decrypt_value, encrypt_value
 
 
@@ -35,8 +40,10 @@ def _ensure_otp_access(order, user):
 def get_or_create_order_otp_payload(order, user):
     _ensure_otp_access(order, user)
 
-    if order.status == "Delivered":
-        raise OTPValidationError("Order already delivered")
+    try:
+        validate_otp_request_security(order)
+    except DeliverySecurityError as exc:
+        raise OTPValidationError(str(exc)) from exc
 
     otp_obj = OrderOTP.objects.filter(order=order).first()
     if otp_obj and otp_obj.is_active and not otp_obj.is_expired():
@@ -137,8 +144,10 @@ def get_order_otp_payload(order, user):
     if not (is_customer or is_assigned_agent):
         raise OTPAccessError("You are not allowed to access this order OTP.")
 
-    if order.status == "Cancelled":
-        raise OTPValidationError("Safe Handshake is unavailable for cancelled orders.")
+    try:
+        validate_otp_read_security(order)
+    except DeliverySecurityError as exc:
+        raise OTPValidationError(str(exc)) from exc
 
     otp_obj = OrderOTP.objects.filter(order=order).first()
     if not otp_obj:

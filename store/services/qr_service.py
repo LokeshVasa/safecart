@@ -2,6 +2,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from store.models import DeliveryAgent, Order
+from store.services.security_service import DeliverySecurityError, validate_qr_scan_security
 
 
 class DeliveryQRScanError(Exception):
@@ -24,9 +25,10 @@ def claim_order_from_token(*, token, user):
             if order.delivery_agent_id is not None and order.delivery_agent_id != delivery_agent.id:
                 raise DeliveryQRAssignmentError("This order is assigned to another delivery agent.")
 
-            qr_error = order.get_delivery_qr_block_reason()
-            if qr_error:
-                raise DeliveryQRScanError(qr_error)
+            try:
+                validate_qr_scan_security(order)
+            except DeliverySecurityError as exc:
+                raise DeliveryQRScanError(str(exc)) from exc
 
             order.register_delivery_qr_scan()
 

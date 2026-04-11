@@ -37,6 +37,7 @@ from .services import (
     claim_order_from_token,
     create_password_reset_request,
     get_order_otp_payload,
+    get_order_security_snapshot,
     get_or_create_order_otp_payload,
     get_post_login_redirect_name,
     password_reset_exists,
@@ -959,7 +960,11 @@ def get_order_by_token(request):
     token = (request.GET.get('token') or '').strip()
     try:
         order = claim_order_from_token(token=token, user=request.user)
-        return JsonResponse({'success': True, 'order_id': order.id})
+        return JsonResponse({
+            'success': True,
+            'order_id': order.id,
+            'security': get_order_security_snapshot(order),
+        })
     except DeliveryQRScanError as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=exc.status_code)
     except Order.DoesNotExist:
@@ -980,6 +985,7 @@ def generate_order_otp(request, order_id):
 
     return JsonResponse({
         "success": True,
+        "security": get_order_security_snapshot(order),
         **payload,
     })
 
@@ -1000,7 +1006,10 @@ def verify_otp(request, order_id):
     except OTPValidationError as exc:
         return JsonResponse({"success": False, "error": str(exc)}, status=exc.status_code)
 
-    return JsonResponse(result)
+    return JsonResponse({
+        **result,
+        "security": get_order_security_snapshot(order),
+    })
 
 @login_required
 def get_order_otp_halves(request, order_id):
@@ -1015,6 +1024,7 @@ def get_order_otp_halves(request, order_id):
 
     return JsonResponse({
         "success": True,
+        "security": get_order_security_snapshot(order),
         **payload,
     })
 

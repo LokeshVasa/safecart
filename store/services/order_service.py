@@ -1,6 +1,7 @@
 from datetime import timedelta
 
-from store.models import Order, OrderOTP
+from store.models import Order
+from store.services.security_service import get_order_security_snapshot
 
 
 ORDER_STATUS_PRIORITY = {
@@ -35,13 +36,7 @@ def build_customer_orders_context(user):
     orders_with_details = []
     for order in orders:
         items = _serialize_order_items(order)
-        otp_obj = OrderOTP.objects.filter(order=order).first()
-        handshake_requested = (
-            otp_obj is not None
-            and otp_obj.is_active
-            and not otp_obj.is_expired()
-            and order.status not in ["Delivered", "Cancelled"]
-        )
+        security = get_order_security_snapshot(order)
         orders_with_details.append({
             "id": order.id,
             "status": order.status,
@@ -53,9 +48,10 @@ def build_customer_orders_context(user):
             "can_track": order.status in ["Packed", "Shipped"] and order.delivery_agent_id is not None,
             "can_call": order.status in ["Packed", "Shipped"] and order.delivery_agent_id is not None,
             "can_handshake": order.status in ["Pending", "Packed", "Shipped"] and order.delivery_agent_id is not None,
-            "handshake_requested": handshake_requested,
+            "handshake_requested": security["otp_active"] and not security["is_closed"],
             "can_cancel": order.status in ["Pending", "Packed"],
             "created_at": order.created_at,
+            "security": security,
         })
 
     orders_with_details.sort(

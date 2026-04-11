@@ -20,14 +20,20 @@ from .profile_service import ProfileUpdateError, remove_profile_photo, update_pr
 from .qr_service import DeliveryQRScanError, claim_order_from_token
 from .security_service import (
     DeliveryAccessError,
+    DeliverySecurityError,
     build_delivery_dashboard_context,
     get_delivery_agent_for_user,
+    get_order_security_snapshot,
+    validate_otp_read_security,
+    validate_otp_request_security,
     validate_delivery_agent_order_access,
+    validate_qr_scan_security,
 )
 
 __all__ = [
     "AuthServiceError",
     "DeliveryAccessError",
+    "DeliverySecurityError",
     "DeliveryQRScanError",
     "OTPAccessError",
     "OTPValidationError",
@@ -41,14 +47,18 @@ __all__ = [
     "claim_order_from_token",
     "create_password_reset_request",
     "get_delivery_agent_for_user",
+    "get_order_security_snapshot",
     "get_order_otp_payload",
     "get_or_create_order_otp_payload",
     "get_post_login_redirect_name",
     "password_reset_exists",
     "register_buyer_user",
+    "validate_otp_read_security",
+    "validate_otp_request_security",
     "remove_profile_photo",
     "reset_password_with_token",
     "update_profile_photo",
     "validate_delivery_agent_order_access",
+    "validate_qr_scan_security",
     "verify_order_otp",
 ]
