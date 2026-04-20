@@ -124,10 +124,20 @@
     var markerEl = marker.getElement();
     if (!markerEl) return;
 
-    var normalizedHeading = heading + markerHeadingOffset;
+    var targetHeading = heading + markerHeadingOffset;
+    var previousDisplayHeading = parseFloat(markerEl.dataset.displayHeading || "");
+    var normalizedHeading = targetHeading;
+
+    if (!Number.isNaN(previousDisplayHeading)) {
+      var headingDelta = targetHeading - previousDisplayHeading;
+      headingDelta = ((headingDelta + 540) % 360) - 180;
+      normalizedHeading = previousDisplayHeading + headingDelta;
+    }
+
     var baseTransform = markerEl.style.transform || "";
     baseTransform = baseTransform.replace(/\srotate\([^)]*\)/g, "");
     markerEl.style.transform = `${baseTransform} rotate(${normalizedHeading}deg)`;
+    markerEl.dataset.displayHeading = String(normalizedHeading);
     lastMarkerHeading = heading;
   }
 
@@ -204,6 +214,29 @@
       remainingRouteLine.setLatLngs(remainingCoords);
     }
   }
+
+  function renderQuickLineFrom(latLng) {
+    if (hasRoute || !latLng) {
+      return;
+    }
+
+    var coords = [
+      [latLng.lat, latLng.lng],
+      [customerLat, customerLng],
+    ];
+
+    if (!quickLine) {
+      quickLine = L.polyline(coords, {
+        color: "#666",
+        weight: 3,
+        opacity: 0.7,
+        dashArray: "6 8",
+      }).addTo(map);
+    } else {
+      quickLine.setLatLngs(coords);
+    }
+  }
+
   var pollTimer = null;
   var statusEl = document.getElementById("tracking-status");
 
@@ -272,6 +305,7 @@
         localStorage.removeItem(cacheRouteStartKey);
       }
     }
+
     if (!deliveryMarker) {
       deliveryMarker = L.marker(agentLatLng, { icon: deliveryAgentIcon })
         .addTo(map)
@@ -306,19 +340,8 @@
 
     renderRemainingRoute(agentLatLng);
 
-    if (!hasRoute && !quickLine) {
-      quickLine = L.polyline(
-        [
-          [lat, lng],
-          [customerLat, customerLng],
-        ],
-        { color: "#666", weight: 3, opacity: 0.7, dashArray: "6 8" }
-      ).addTo(map);
-    } else if (!hasRoute && quickLine) {
-      quickLine.setLatLngs([
-        [lat, lng],
-        [customerLat, customerLng],
-      ]);
+    if (!hasRoute) {
+      renderQuickLineFrom(agentLatLng);
     }
 
     if (!routingControl) {

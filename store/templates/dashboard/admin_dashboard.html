@@ -46,16 +46,77 @@
 
         .stats-card {
             background: #fff;
+            padding: 0.85rem !important;
         }
 
         .stats-icon {
-            width: 3rem;
-            height: 3rem;
+            width: 2.4rem;
+            height: 2.4rem;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            border-radius: 0.95rem;
-            font-size: 1.2rem;
+            border-radius: 0.8rem;
+            font-size: 1rem;
+        }
+
+        .stats-card .fs-3 {
+            font-size: 1.6rem !important;
+        }
+
+        .stats-card .text-muted.small {
+            font-size: 0.78rem;
+        }
+
+        .metric-panel {
+            background: #fff;
+            border-radius: 1.1rem;
+            padding: 1rem 1.2rem;
+            box-shadow: 0 14px 32px rgba(29, 53, 87, 0.08);
+        }
+
+        .metric-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.55rem 0;
+            border-bottom: 1px solid rgba(13, 110, 253, 0.08);
+        }
+
+        .metric-row:last-child {
+            border-bottom: 0;
+        }
+
+        .metric-label {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-weight: 600;
+        }
+
+        .metric-label i {
+            width: 2rem;
+            height: 2rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.7rem;
+            background: rgba(13, 110, 253, 0.1);
+            color: #0d6efd;
+        }
+
+        .metric-value {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .metric-row {
+            flex: 1 1 auto;
+            gap: 1rem;
+        }
+
+        .metric-value {
+            min-width: 4.5rem;
+            text-align: right;
         }
 
         .panel-card {
@@ -86,6 +147,34 @@
             color: #0d6efd;
             font-weight: 700;
         }
+
+        .event-chip {
+            width: 2.2rem;
+            height: 2.2rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.8rem;
+            font-weight: 700;
+            background: rgba(13, 110, 253, 0.10);
+            color: #0d6efd;
+        }
+
+        .event-list {
+            max-height: 28rem;
+            overflow-y: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .event-list::-webkit-scrollbar {
+            display: none;
+        }
+
+        .comparison-table td,
+        .comparison-table th {
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -100,6 +189,9 @@
             <div class="d-flex flex-wrap gap-2">
                 <a href="{% url 'sellerorders' %}" class="btn btn-light text-primary fw-semibold">
                     <i class="bi bi-shop-window me-1"></i> Seller Orders
+                </a>
+                <a href="{% url 'admin_security_logs' %}" class="btn btn-outline-light fw-semibold">
+                    <i class="bi bi-shield-lock me-1"></i> Security Logs
                 </a>
                 <a href="{% url 'home' %}" class="btn btn-outline-light fw-semibold">
                     <i class="bi bi-house-door-fill me-1"></i> Storefront
@@ -159,74 +251,314 @@
         </div>
     </div>
 
-    <div class="panel-card p-3 p-lg-4">
-        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
-            <div>
-                <h2 class="h4 fw-bold mb-1">Users</h2>
-                <p class="text-muted mb-0">Promote or demote seller and delivery access without leaving the dashboard.</p>
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="metric-panel">
+                <div class="fw-semibold mb-2">Security Summary</div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-shield-check"></i>Security Events</div>
+                    <div class="metric-value">{{ security_stats.total_events }}</div>
+                </div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-shield-exclamation"></i>Blocked Attempts</div>
+                    <div class="metric-value">{{ security_stats.blocked_events }}</div>
+                </div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-x-octagon"></i>Failed Checks</div>
+                    <div class="metric-value">{{ security_stats.failed_events }}</div>
+                </div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-patch-check"></i>Verified Deliveries</div>
+                    <div class="metric-value">{{ security_stats.successful_deliveries }}</div>
+                </div>
             </div>
-            <a href="{% url 'sellerorders' %}" class="btn btn-outline-primary">
-                <i class="bi bi-arrow-right-circle me-1"></i> Open Seller Orders
-            </a>
+        </div>
+        <div class="col-lg-6">
+            <div class="metric-panel">
+                <div class="fw-semibold mb-2">Performance Metrics</div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-speedometer2"></i>Avg QR Scan Time</div>
+                    <div class="metric-value">{{ security_stats.avg_qr_scan_ms }}ms</div>
+                </div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-key"></i>Avg OTP Request Time</div>
+                    <div class="metric-value">{{ security_stats.avg_otp_request_ms }}ms</div>
+                </div>
+                <div class="metric-row">
+                    <div class="metric-label"><i class="bi bi-shield-lock"></i>Avg OTP Verify Time</div>
+                    <div class="metric-value">{{ security_stats.avg_otp_verify_ms }}ms</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-primary-subtle text-primary mb-2"><i class="bi bi-shield-check"></i></div>
+                <div class="text-muted small">Secure Orders</div>
+                <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.secure_total }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-secondary-subtle text-secondary mb-2"><i class="bi bi-box"></i></div>
+                <div class="text-muted small">Traditional Orders</div>
+                <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.traditional_total }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-success-subtle text-success mb-2"><i class="bi bi-graph-up-arrow"></i></div>
+                <div class="text-muted small">Secure Delivery Rate</div>
+                <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.secure_delivered_rate }}%</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stats-card p-3 h-100">
+                <div class="stats-icon bg-info-subtle text-info mb-2"><i class="bi bi-bar-chart"></i></div>
+                <div class="text-muted small">Traditional Delivery Rate</div>
+                <div class="fs-3 fw-bold">{{ delivery_comparison_highlights.traditional_delivered_rate }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="panel-card p-3 p-lg-4 h-100">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+                    <div>
+                        <h2 class="h4 fw-bold mb-1">Users</h2>
+                        <p class="text-muted mb-0">Promote or demote seller and delivery access without leaving the dashboard.</p>
+                    </div>
+                    <a href="{% url 'sellerorders' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-right-circle me-1"></i> Open Seller Orders
+                    </a>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Contact</th>
+                                <th>Role</th>
+                                <th class="text-center">Delivery</th>
+                                <th class="text-center">Seller</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for u in users_info %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="user-chip">{{ u.user.username|slice:":1"|upper }}</div>
+                                        <div>
+                                            <div class="fw-semibold">{{ u.user.username }}</div>
+                                            <div class="text-muted small">User ID #{{ u.user.id }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div>{{ u.user.email|default:"No email" }}</div>
+                                </td>
+                                <td>
+                                    {% if u.is_delivery %}
+                                        <span class="badge rounded-pill text-bg-warning">Delivery Agent</span>
+                                    {% elif u.is_seller %}
+                                        <span class="badge rounded-pill text-bg-info">Seller</span>
+                                    {% else %}
+                                        <span class="badge rounded-pill text-bg-success">Buyer</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <a href="{% url 'promote_user' u.user.id %}" class="btn btn-sm {% if u.is_delivery %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+                                        {% if u.is_delivery %}Remove{% else %}Grant{% endif %}
+                                    </a>
+                                </td>
+                                <td class="text-center">
+                                    <a href="{% url 'promote_seller' u.user.id %}" class="btn btn-sm {% if u.is_seller %}btn-outline-danger{% else %}btn-outline-primary{% endif %}">
+                                        {% if u.is_seller %}Remove{% else %}Grant{% endif %}
+                                    </a>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">No users found.</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
-        <div class="table-responsive">
-            <table class="table align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>User</th>
-                        <th>Contact</th>
-                        <th>Role</th>
-                        <th class="text-center">Delivery</th>
-                        <th class="text-center">Seller</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% for u in users_info %}
-                    <tr>
-                        <td>
-                            <div class="d-flex align-items-center gap-3">
-                                <div class="user-chip">{{ u.user.username|slice:":1"|upper }}</div>
-                                <div>
-                                    <div class="fw-semibold">{{ u.user.username }}</div>
-                                    <div class="text-muted small">User ID #{{ u.user.id }}</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            <div>{{ u.user.email|default:"No email" }}</div>
-                        </td>
-                        <td>
-                            {% if u.is_delivery %}
-                                <span class="badge rounded-pill text-bg-warning">Delivery Agent</span>
-                            {% elif u.is_seller %}
-                                <span class="badge rounded-pill text-bg-info">Seller</span>
+        <div class="col-lg-5">
+            <div class="panel-card p-3 p-lg-4 h-100">
+                <div class="mb-3">
+                    <h2 class="h4 fw-bold mb-1">Recent Security Activity</h2>
+                    <p class="text-muted mb-0">Latest QR and OTP events across the system.</p>
+                </div>
+
+                {% if recent_security_events %}
+                <div class="event-list">
+                    {% for event in recent_security_events %}
+                    <div class="d-flex gap-3 py-3 {% if not forloop.last %}border-bottom{% endif %}">
+                        <div class="event-chip">
+                            {% if event.outcome == "success" %}
+                                <i class="bi bi-check2"></i>
+                            {% elif event.outcome == "blocked" %}
+                                <i class="bi bi-shield-lock"></i>
                             {% else %}
-                                <span class="badge rounded-pill text-bg-success">Buyer</span>
+                                <i class="bi bi-exclamation-lg"></i>
                             {% endif %}
-                        </td>
-                        <td class="text-center">
-                            <a href="{% url 'promote_user' u.user.id %}" class="btn btn-sm {% if u.is_delivery %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
-                                {% if u.is_delivery %}Remove{% else %}Grant{% endif %}
-                            </a>
-                        </td>
-                        <td class="text-center">
-                            <a href="{% url 'promote_seller' u.user.id %}" class="btn btn-sm {% if u.is_seller %}btn-outline-danger{% else %}btn-outline-primary{% endif %}">
-                                {% if u.is_seller %}Remove{% else %}Grant{% endif %}
-                            </a>
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="5" class="text-center py-5 text-muted">No users found.</td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                <span class="fw-semibold">{{ event.event_label }}</span>
+                                <span class="badge text-bg-{% if event.outcome == 'success' %}success{% elif event.outcome == 'blocked' %}warning{% else %}danger{% endif %}">
+                                    {{ event.outcome|title }}
+                                </span>
+                            </div>
+                            <div class="small text-muted mb-1">
+                                Order #{{ event.order_id }} by {{ event.actor_name }} · {{ event.created_at|date:"M d, Y H:i" }}
+                            </div>
+                            {% if event.details.reason %}
+                            <div class="small text-muted">Reason: {{ event.details.reason }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-shield-check fs-1 d-block mb-2"></i>
+                    No security events recorded yet.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mt-1">
+        <div class="col-lg-7">
+            <div class="panel-card p-3 p-lg-4 h-100">
+                <div class="mb-3">
+                    <h2 class="h4 fw-bold mb-1">Delivery Mode Comparison</h2>
+                    <p class="text-muted mb-0">A simple research-facing comparison between secure and traditional order flows.</p>
+                </div>
+                <div class="table-responsive">
+                    <table class="table comparison-table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Mode</th>
+                                <th>Total</th>
+                                <th>Active</th>
+                                <th>Delivered</th>
+                                <th>Cancelled</th>
+                                <th>Delivered Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in delivery_comparison_rows %}
+                            <tr>
+                                <td class="fw-semibold">{{ row.label }}</td>
+                                <td>{{ row.total }}</td>
+                                <td>{{ row.active }}</td>
+                                <td>{{ row.delivered }}</td>
+                                <td>{{ row.cancelled }}</td>
+                                <td>{{ row.delivered_rate }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="panel-card p-3 p-lg-4 h-100">
+                <div class="mb-3">
+                    <h2 class="h4 fw-bold mb-1">Mode Snapshot</h2>
+                    <p class="text-muted mb-0">Current order mix and status distribution by delivery mode.</p>
+                </div>
+                <div class="mb-4" style="height: 220px;">
+                    <canvas id="deliveryModeChart"></canvas>
+                </div>
+                <div style="height: 240px;">
+                    <canvas id="deliveryModeStatusChart"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
+{{ delivery_comparison_chart_data.mode_labels|json_script:"delivery-mode-labels-data" }}
+{{ delivery_comparison_chart_data.mode_totals|json_script:"delivery-mode-totals-data" }}
+{{ delivery_comparison_chart_data.status_labels|json_script:"delivery-status-labels-data" }}
+{{ delivery_comparison_chart_data.secure_status_values|json_script:"delivery-secure-status-values-data" }}
+{{ delivery_comparison_chart_data.traditional_status_values|json_script:"delivery-traditional-status-values-data" }}
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    function readJsonScript(id) {
+        const node = document.getElementById(id);
+        return node ? JSON.parse(node.textContent) : [];
+    }
+
+    const deliveryModeLabels = readJsonScript("delivery-mode-labels-data");
+    const deliveryModeTotals = readJsonScript("delivery-mode-totals-data");
+    const deliveryStatusLabels = readJsonScript("delivery-status-labels-data");
+    const secureStatusValues = readJsonScript("delivery-secure-status-values-data");
+    const traditionalStatusValues = readJsonScript("delivery-traditional-status-values-data");
+
+    new Chart(document.getElementById("deliveryModeChart"), {
+        type: "doughnut",
+        data: {
+            labels: deliveryModeLabels,
+            datasets: [{
+                data: deliveryModeTotals,
+                backgroundColor: ["#0d6efd", "#6c757d"],
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } }
+        }
+    });
+
+    new Chart(document.getElementById("deliveryModeStatusChart"), {
+        type: "bar",
+        data: {
+            labels: deliveryStatusLabels,
+            datasets: [
+                {
+                    label: "SafeCart Secure",
+                    data: secureStatusValues,
+                    backgroundColor: "#0d6efd",
+                    borderRadius: 8,
+                },
+                {
+                    label: "Traditional Delivery",
+                    data: traditionalStatusValues,
+                    backgroundColor: "#6c757d",
+                    borderRadius: 8,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 }
+                }
+            }
+        }
+    });
+</script>
 </body>
 </html>
